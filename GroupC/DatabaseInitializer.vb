@@ -55,7 +55,15 @@ Public NotInheritable Class DatabaseInitializer
                 "        sale_date DATETIME2 NOT NULL CONSTRAINT DF_sales_sale_date DEFAULT (SYSUTCDATETIME()), " &
                 "        total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0), " &
                 "        receipt_text NVARCHAR(MAX) NULL, " &
-                "        created_at DATETIME2 NOT NULL CONSTRAINT DF_sales_created_at DEFAULT (SYSUTCDATETIME()) " &
+                "        created_at DATETIME2 NOT NULL CONSTRAINT DF_sales_created_at DEFAULT (SYSUTCDATETIME()), " &
+                "        subtotal_before_discount DECIMAL(10, 2) NULL, " &
+                "        discount_percent DECIMAL(5, 2) NULL, " &
+                "        discount_amount DECIMAL(10, 2) NULL, " &
+                "        amount_before_tax DECIMAL(10, 2) NULL, " &
+                "        tax_percent DECIMAL(5, 2) NULL, " &
+                "        tax_amount DECIMAL(10, 2) NULL, " &
+                "        amount_tendered DECIMAL(10, 2) NULL, " &
+                "        change_given DECIMAL(10, 2) NULL " &
                 "    ); " &
                 "END; " &
                 "IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'sale_items') " &
@@ -76,6 +84,64 @@ Public NotInheritable Class DatabaseInitializer
             Using command As New SqlCommand(sql, connection)
                 command.ExecuteNonQuery()
             End Using
+
+            EnsureSalesExtendedColumns(connection)
+            EnsureAuditAndLogTables(connection)
+        End Using
+    End Sub
+
+    Private Shared Sub EnsureSalesExtendedColumns(connection As SqlConnection)
+        Dim alters As String() = {
+            "IF COL_LENGTH('dbo.sales','subtotal_before_discount') IS NULL ALTER TABLE dbo.sales ADD subtotal_before_discount DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','discount_percent') IS NULL ALTER TABLE dbo.sales ADD discount_percent DECIMAL(5,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','discount_amount') IS NULL ALTER TABLE dbo.sales ADD discount_amount DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','amount_before_tax') IS NULL ALTER TABLE dbo.sales ADD amount_before_tax DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','tax_percent') IS NULL ALTER TABLE dbo.sales ADD tax_percent DECIMAL(5,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','tax_amount') IS NULL ALTER TABLE dbo.sales ADD tax_amount DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','amount_tendered') IS NULL ALTER TABLE dbo.sales ADD amount_tendered DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','change_given') IS NULL ALTER TABLE dbo.sales ADD change_given DECIMAL(10,2) NULL;"
+        }
+
+        For Each stmt As String In alters
+            Using cmd As New SqlCommand(stmt, connection)
+                cmd.ExecuteNonQuery()
+            End Using
+        Next
+    End Sub
+
+    Private Shared Sub EnsureAuditAndLogTables(connection As SqlConnection)
+        Dim auditSql As String =
+            "IF OBJECT_ID('dbo.audit_products','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.audit_products (" &
+            " audit_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " occurred_at DATETIME2 NOT NULL CONSTRAINT DF_audit_products_occurred DEFAULT (SYSUTCDATETIME()), " &
+            " action_code NVARCHAR(20) NOT NULL, " &
+            " product_id INT NULL, " &
+            " product_name NVARCHAR(100) NULL, " &
+            " detail NVARCHAR(MAX) NULL " &
+            "); END; " &
+            "IF OBJECT_ID('dbo.audit_sales','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.audit_sales (" &
+            " audit_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " occurred_at DATETIME2 NOT NULL CONSTRAINT DF_audit_sales_occurred DEFAULT (SYSUTCDATETIME()), " &
+            " action_code NVARCHAR(20) NOT NULL, " &
+            " sale_id INT NULL, " &
+            " detail NVARCHAR(MAX) NULL " &
+            "); END; " &
+            "IF OBJECT_ID('dbo.error_log','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.error_log (" &
+            " log_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " occurred_at DATETIME2 NOT NULL CONSTRAINT DF_error_log_occurred DEFAULT (SYSUTCDATETIME()), " &
+            " source NVARCHAR(200) NULL, " &
+            " message NVARCHAR(MAX) NOT NULL, " &
+            " stack_trace NVARCHAR(MAX) NULL " &
+            "); END;"
+
+        Using cmd As New SqlCommand(auditSql, connection)
+            cmd.ExecuteNonQuery()
         End Using
     End Sub
 

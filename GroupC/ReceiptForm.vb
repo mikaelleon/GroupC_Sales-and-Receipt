@@ -19,16 +19,19 @@ Public Class ReceiptForm
         End Function
     End Class
 
+    Private dgvLines As DataGridView
     Private rtbReceipt As RichTextBox
     Private lblSaleMeta As Label
     Private WithEvents cmbHistory As ComboBox
     Private WithEvents btnPrint As Button
     Private WithEvents btnSave As Button
+    Private WithEvents btnSavePdf As Button
     Private WithEvents btnLoadList As Button
     Private WithEvents btnCopy As Button
     Private WithEvents printDocument As PrintDocument
 
     Private receiptText As String
+    Private snapshot As ReceiptSnapshot
     Private saleIdForMeta As Integer = -1
     Private printHelper As ReceiptPrintHelper
     Private suppressHistoryEvent As Boolean
@@ -44,6 +47,18 @@ Public Class ReceiptForm
         saleIdForMeta = savedSaleId
     End Sub
 
+    ''' <summary>
+    ''' Initializes a receipt view with structured line data and optional sale id.
+    ''' </summary>
+    ''' <param name="detail">Structured receipt snapshot.</param>
+    ''' <param name="savedSaleId">Database sale id when known.</param>
+    Public Sub New(detail As ReceiptSnapshot, savedSaleId As Integer)
+        InitializeComponent()
+        snapshot = detail
+        receiptText = If(detail IsNot Nothing, detail.ReceiptText, String.Empty)
+        saleIdForMeta = savedSaleId
+    End Sub
+
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             DatabaseInitializer.EnsureDatabase()
@@ -51,8 +66,8 @@ Public Class ReceiptForm
         End Try
 
         Me.Text = "Group C - Receipt Preview"
-        Me.MinimumSize = New Size(520, 560)
-        Me.Size = New Size(640, 680)
+        Me.MinimumSize = New Size(560, 580)
+        Me.Size = New Size(700, 720)
         Me.StartPosition = FormStartPosition.CenterScreen
         Me.BackColor = Color.White
         Me.Font = New Font("Segoe UI", 10)
@@ -61,7 +76,16 @@ Public Class ReceiptForm
         suppressHistoryEvent = True
         LoadHistoryCombo()
 
-        If receiptText.Trim().Length > 0 Then
+        If snapshot IsNot Nothing Then
+            FillLineGrid(snapshot)
+            ApplyReceiptContent(receiptText, False)
+            If saleIdForMeta >= 0 Then
+                lblSaleMeta.Text = String.Format("Sale #{0} — saved", saleIdForMeta)
+            Else
+                lblSaleMeta.Text = "Current receipt (from sales screen)."
+            End If
+            suppressHistoryEvent = False
+        ElseIf receiptText.Trim().Length > 0 Then
             ApplyReceiptContent(receiptText, False)
             If saleIdForMeta >= 0 Then
                 lblSaleMeta.Text = String.Format("Sale #{0} — {1}", saleIdForMeta, DateTime.Now.ToString("yyyy-MM-dd HH:mm"))
@@ -136,13 +160,52 @@ Public Class ReceiptForm
         historyRow.Controls.Add(cmbHistory, 1, 0)
         historyRow.Controls.Add(btnLoadList, 2, 0)
 
+        Dim splitHost As New TableLayoutPanel()
+        splitHost.Dock = DockStyle.Fill
+        splitHost.ColumnCount = 1
+        splitHost.RowCount = 2
+        splitHost.RowStyles.Add(New RowStyle(SizeType.Percent, 42.0F))
+        splitHost.RowStyles.Add(New RowStyle(SizeType.Percent, 58.0F))
+
+        Dim lblGridTitle As New Label()
+        lblGridTitle.Text = "Line items"
+        lblGridTitle.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
+        lblGridTitle.Dock = DockStyle.Top
+        lblGridTitle.Height = 22
+
+        dgvLines = New DataGridView()
+        dgvLines.Dock = DockStyle.Fill
+        dgvLines.ReadOnly = True
+        dgvLines.AllowUserToAddRows = False
+        dgvLines.RowHeadersVisible = False
+        dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+        dgvLines.BackgroundColor = Color.White
+        dgvLines.BorderStyle = BorderStyle.FixedSingle
+        dgvLines.TabIndex = 1
+        dgvLines.Columns.Add("ProductName", "Product")
+        dgvLines.Columns.Add("Qty", "Qty")
+        dgvLines.Columns.Add("UnitPrice", "Unit price")
+        dgvLines.Columns.Add("LineTotal", "Line total")
+        dgvLines.Columns("Qty").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+        dgvLines.Columns("UnitPrice").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+        dgvLines.Columns("LineTotal").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+
+        Dim gridPanel As New Panel()
+        gridPanel.Dock = DockStyle.Fill
+        gridPanel.Controls.Add(dgvLines)
+        gridPanel.Controls.Add(lblGridTitle)
+        lblGridTitle.BringToFront()
+
         rtbReceipt = New RichTextBox()
         rtbReceipt.Dock = DockStyle.Fill
         rtbReceipt.ReadOnly = True
         rtbReceipt.Font = New Font("Courier New", 10.0F)
         rtbReceipt.BackColor = Color.White
         rtbReceipt.BorderStyle = BorderStyle.FixedSingle
-        rtbReceipt.TabIndex = 1
+        rtbReceipt.TabIndex = 2
+
+        splitHost.Controls.Add(gridPanel, 0, 0)
+        splitHost.Controls.Add(rtbReceipt, 0, 1)
 
         Dim buttonFlow As New FlowLayoutPanel()
         buttonFlow.AutoSize = True
@@ -163,24 +226,46 @@ Public Class ReceiptForm
         btnSave.MinimumSize = New Size(110, 36)
         UiTheme.ApplyPrimaryButton(btnSave)
 
+        btnSavePdf = New Button()
+        btnSavePdf.Text = "Save &PDF"
+        btnSavePdf.AutoSize = True
+        btnSavePdf.MinimumSize = New Size(110, 36)
+        UiTheme.ApplyPrimaryButton(btnSavePdf)
+
         btnCopy = New Button()
         btnCopy.Text = "&Copy"
         btnCopy.AutoSize = True
         btnCopy.MinimumSize = New Size(100, 36)
         UiTheme.ApplyPrimaryButton(btnCopy)
 
-        buttonFlow.Controls.AddRange(New Control() {btnPrint, btnSave, btnCopy})
+        buttonFlow.Controls.AddRange(New Control() {btnPrint, btnSave, btnSavePdf, btnCopy})
 
         printDocument = New PrintDocument()
 
         root.Controls.Add(title, 0, 0)
         root.Controls.Add(lblSaleMeta, 0, 1)
         root.Controls.Add(historyRow, 0, 2)
-        root.Controls.Add(rtbReceipt, 0, 3)
+        root.Controls.Add(splitHost, 0, 3)
         root.Controls.Add(buttonFlow, 0, 4)
 
         Me.Controls.Clear()
         Me.Controls.Add(root)
+    End Sub
+
+    Private Sub FillLineGrid(detail As ReceiptSnapshot)
+        dgvLines.Rows.Clear()
+        If detail Is Nothing OrElse detail.Lines Is Nothing Then
+            Return
+        End If
+
+        Dim sym As String = detail.CurrencySymbol
+        For Each line As ReceiptLineRow In detail.Lines
+            dgvLines.Rows.Add(
+                line.ProductName,
+                line.Quantity,
+                sym & line.UnitPrice.ToString("N2", Globalization.CultureInfo.CurrentCulture),
+                sym & line.LineTotal.ToString("N2", Globalization.CultureInfo.CurrentCulture))
+        Next
     End Sub
 
     Private Sub ApplyReceiptContent(text As String, isPlaceholder As Boolean)
@@ -270,8 +355,10 @@ Public Class ReceiptForm
                             Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
                             lblSaleMeta.Text = String.Format("Loaded sale #{0} — {1:yyyy-MM-dd HH:mm}", sid, sdt)
                             ApplyReceiptContent(reader("receipt_text").ToString(), False)
+                            LoadSaleLinesIntoGrid(connection, sid)
                         Else
                             lblSaleMeta.Text = "No saved receipt in database."
+                            dgvLines.Rows.Clear()
                             ApplyReceiptContent("No saved receipt found. Finalize a sale from the Sales / Cart screen first.", True)
                         End If
                     End Using
@@ -281,6 +368,7 @@ Public Class ReceiptForm
             lblSaleMeta.Text = "Database error."
             ApplyReceiptContent("Could not load receipt. Check App.config and LocalDB." & Environment.NewLine & ex.Message, True)
             MessageBox.Show("Error loading receipt: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(LoadLatestReceiptFromDb))
         End Try
     End Sub
 
@@ -301,16 +389,41 @@ Public Class ReceiptForm
                             ApplyReceiptContent(reader("receipt_text").ToString(), False)
                         Else
                             lblSaleMeta.Text = "Sale not found."
+                            dgvLines.Rows.Clear()
                             ApplyReceiptContent("Receipt not found for this sale id.", True)
+                            Return
                         End If
                     End Using
                 End Using
+
+                LoadSaleLinesIntoGrid(connection, saleId)
             End Using
         Catch ex As Exception
             lblSaleMeta.Text = "Database error."
             ApplyReceiptContent(ex.Message, True)
             MessageBox.Show("Error loading receipt: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(LoadReceiptBySaleId))
         End Try
+    End Sub
+
+    Private Sub LoadSaleLinesIntoGrid(connection As SqlConnection, saleId As Integer)
+        dgvLines.Rows.Clear()
+        Dim sym As String = AppSettings.Current.CurrencySymbol
+
+        Dim sql As String =
+            "SELECT product_name, price, quantity, subtotal FROM sale_items WHERE sale_id = @sid ORDER BY sale_item_id;"
+        Using cmd As New SqlCommand(sql, connection)
+            cmd.Parameters.AddWithValue("@sid", saleId)
+            Using reader As SqlDataReader = cmd.ExecuteReader()
+                While reader.Read()
+                    Dim pname As String = reader("product_name").ToString()
+                    Dim qty As Integer = Convert.ToInt32(reader("quantity"))
+                    Dim price As Decimal = Convert.ToDecimal(reader("price"))
+                    Dim lineTotal As Decimal = Convert.ToDecimal(reader("subtotal"))
+                    dgvLines.Rows.Add(pname, qty, sym & price.ToString("N2", Globalization.CultureInfo.CurrentCulture), sym & lineTotal.ToString("N2", Globalization.CultureInfo.CurrentCulture))
+                End While
+            End Using
+        End Using
     End Sub
 
     Private Sub btnPrint_Click(sender As Object, e As EventArgs) Handles btnPrint.Click
@@ -343,6 +456,30 @@ Public Class ReceiptForm
                 File.WriteAllText(saveDialog.FileName, rtbReceipt.Text)
                 MessageBox.Show("Receipt saved.", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information)
             End If
+        End Using
+    End Sub
+
+    Private Sub btnSavePdf_Click(sender As Object, e As EventArgs) Handles btnSavePdf.Click
+        If rtbReceipt.Text.Trim().Length = 0 Then
+            MessageBox.Show("Nothing to export.", "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim defaultName As String = "GroupC_Receipt_" & DateTime.Now.ToString("yyyyMMdd_HHmm") & ".pdf"
+        Using saveDialog As New SaveFileDialog()
+            saveDialog.Filter = "PDF Files (*.pdf)|*.pdf"
+            saveDialog.FileName = defaultName
+            If saveDialog.ShowDialog() <> DialogResult.OK Then
+                Return
+            End If
+
+            Try
+                PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, rtbReceipt.Text)
+                MessageBox.Show("PDF saved.", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Catch ex As Exception
+                MessageBox.Show("Could not save PDF: " & ex.Message, "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(btnSavePdf_Click))
+            End Try
         End Using
     End Sub
 

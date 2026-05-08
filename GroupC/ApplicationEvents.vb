@@ -25,5 +25,11 @@ Namespace My
 
     Partial Friend Class MyApplication
 
+        Private Sub MyApplication_UnhandledException(sender As Object, e As UnhandledExceptionEventArgs) Handles Me.UnhandledException
+            If e.Exception IsNot Nothing Then
+                ErrorLogger.Log(e.Exception, "UnhandledException")
+            End If
+        End Sub
+
     End Class
 End Namespace
