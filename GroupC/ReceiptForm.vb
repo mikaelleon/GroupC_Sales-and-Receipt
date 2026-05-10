@@ -36,6 +36,10 @@ Public Class ReceiptForm
     Private printHelper As ReceiptPrintHelper
     Private suppressHistoryEvent As Boolean
 
+    Private statusStrip As StatusStrip
+    Private statusLabel As ToolStripStatusLabel
+    Private WithEvents statusClearTimer As Timer
+
     Public Sub New()
         InitializeComponent()
         receiptText = String.Empty
@@ -60,6 +64,8 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        UiTheme.ApplyStandardWindowChrome(Me)
+
         Try
             DatabaseInitializer.EnsureDatabase()
         Catch
@@ -69,8 +75,6 @@ Public Class ReceiptForm
         Me.MinimumSize = New Size(560, 580)
         Me.Size = New Size(700, 720)
         Me.StartPosition = FormStartPosition.CenterScreen
-        Me.BackColor = Color.White
-        Me.Font = New Font("Segoe UI", 10)
 
         CreateControls()
         suppressHistoryEvent = True
@@ -107,6 +111,7 @@ Public Class ReceiptForm
         Dim root As New TableLayoutPanel()
         root.Dock = DockStyle.Fill
         root.Padding = New Padding(12)
+        root.BackColor = UiTheme.FormBackground
         root.ColumnCount = 1
         root.RowCount = 5
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
@@ -119,7 +124,7 @@ Public Class ReceiptForm
         title.Text = "RECEIPT PREVIEW"
         title.Dock = DockStyle.Fill
         title.Font = New Font("Segoe UI", 15.0F, FontStyle.Bold)
-        title.ForeColor = UiTheme.Navy
+        title.ForeColor = UiTheme.TextPrimary
         title.TextAlign = ContentAlignment.MiddleCenter
         title.AutoSize = True
         title.Margin = New Padding(0, 0, 0, 8)
@@ -128,7 +133,7 @@ Public Class ReceiptForm
         lblSaleMeta.Dock = DockStyle.Fill
         lblSaleMeta.AutoSize = True
         lblSaleMeta.Font = New Font("Segoe UI", 9.0F, FontStyle.Italic)
-        lblSaleMeta.ForeColor = Color.DimGray
+        lblSaleMeta.ForeColor = UiTheme.TextSecondary
         lblSaleMeta.Text = "Select a saved sale or load latest."
         lblSaleMeta.Margin = New Padding(0, 0, 0, 8)
 
@@ -144,6 +149,7 @@ Public Class ReceiptForm
         lblHist.Text = "Saved sales:"
         lblHist.AutoSize = True
         lblHist.Margin = New Padding(0, 8, 8, 8)
+        lblHist.ForeColor = UiTheme.TextSecondary
 
         cmbHistory = New ComboBox()
         cmbHistory.DropDownStyle = ComboBoxStyle.DropDownList
@@ -154,11 +160,18 @@ Public Class ReceiptForm
         btnLoadList = New Button()
         btnLoadList.Text = "&Refresh list"
         btnLoadList.AutoSize = True
-        UiTheme.ApplyPrimaryButton(btnLoadList)
+        UiTheme.ApplySecondaryAccentButton(btnLoadList)
 
         historyRow.Controls.Add(lblHist, 0, 0)
         historyRow.Controls.Add(cmbHistory, 1, 0)
         historyRow.Controls.Add(btnLoadList, 2, 0)
+
+        Dim historyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        Dim historyCardInner As Panel = UiTheme.GetCardContentHost(historyCard)
+        historyCardInner.Controls.Add(historyRow)
+        historyRow.Dock = DockStyle.Top
+        historyCard.AutoSize = True
+        historyCard.AutoSizeMode = AutoSizeMode.GrowAndShrink
 
         Dim splitHost As New TableLayoutPanel()
         splitHost.Dock = DockStyle.Fill
@@ -172,16 +185,15 @@ Public Class ReceiptForm
         lblGridTitle.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
         lblGridTitle.Dock = DockStyle.Top
         lblGridTitle.Height = 22
+        lblGridTitle.ForeColor = UiTheme.TextPrimary
 
         dgvLines = New DataGridView()
         dgvLines.Dock = DockStyle.Fill
         dgvLines.ReadOnly = True
         dgvLines.AllowUserToAddRows = False
-        dgvLines.RowHeadersVisible = False
         dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-        dgvLines.BackgroundColor = Color.White
-        dgvLines.BorderStyle = BorderStyle.FixedSingle
         dgvLines.TabIndex = 1
+        UiTheme.ApplyDataGridViewChrome(dgvLines)
         dgvLines.Columns.Add("ProductName", "Product")
         dgvLines.Columns.Add("Qty", "Qty")
         dgvLines.Columns.Add("UnitPrice", "Unit price")
@@ -200,12 +212,19 @@ Public Class ReceiptForm
         rtbReceipt.Dock = DockStyle.Fill
         rtbReceipt.ReadOnly = True
         rtbReceipt.Font = New Font("Courier New", 10.0F)
-        rtbReceipt.BackColor = Color.White
+        rtbReceipt.BackColor = UiTheme.CardSurface
+        rtbReceipt.ForeColor = UiTheme.TextPrimary
         rtbReceipt.BorderStyle = BorderStyle.FixedSingle
         rtbReceipt.TabIndex = 2
 
         splitHost.Controls.Add(gridPanel, 0, 0)
         splitHost.Controls.Add(rtbReceipt, 0, 1)
+
+        Dim bodyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        Dim bodyCardInner As Panel = UiTheme.GetCardContentHost(bodyCard)
+        bodyCard.Dock = DockStyle.Fill
+        bodyCardInner.Controls.Add(splitHost)
+        splitHost.Dock = DockStyle.Fill
 
         Dim buttonFlow As New FlowLayoutPanel()
         buttonFlow.AutoSize = True
@@ -224,19 +243,19 @@ Public Class ReceiptForm
         btnSave.Text = "&Save TXT"
         btnSave.AutoSize = True
         btnSave.MinimumSize = New Size(110, 36)
-        UiTheme.ApplyPrimaryButton(btnSave)
+        UiTheme.ApplySecondaryButton(btnSave)
 
         btnSavePdf = New Button()
         btnSavePdf.Text = "Save &PDF"
         btnSavePdf.AutoSize = True
         btnSavePdf.MinimumSize = New Size(110, 36)
-        UiTheme.ApplyPrimaryButton(btnSavePdf)
+        UiTheme.ApplySecondaryButton(btnSavePdf)
 
         btnCopy = New Button()
         btnCopy.Text = "&Copy"
         btnCopy.AutoSize = True
         btnCopy.MinimumSize = New Size(100, 36)
-        UiTheme.ApplyPrimaryButton(btnCopy)
+        UiTheme.ApplySecondaryButton(btnCopy)
 
         buttonFlow.Controls.AddRange(New Control() {btnPrint, btnSave, btnSavePdf, btnCopy})
 
@@ -244,12 +263,31 @@ Public Class ReceiptForm
 
         root.Controls.Add(title, 0, 0)
         root.Controls.Add(lblSaleMeta, 0, 1)
-        root.Controls.Add(historyRow, 0, 2)
-        root.Controls.Add(splitHost, 0, 3)
+        root.Controls.Add(historyCard, 0, 2)
+        root.Controls.Add(bodyCard, 0, 3)
         root.Controls.Add(buttonFlow, 0, 4)
 
+        statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
+        statusStrip = New StatusStrip()
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText)
+        statusLabel.Spring = True
+        statusStrip.Items.Add(statusLabel)
+        UiTheme.ApplyStatusStripTheme(statusStrip)
+
         Me.Controls.Clear()
+        Me.Controls.Add(statusStrip)
         Me.Controls.Add(root)
+        statusStrip.Dock = DockStyle.Bottom
+        root.Dock = DockStyle.Fill
+    End Sub
+
+    Private Sub ShowStatus(message As String, isError As Boolean)
+        FormStatusHelper.ShowTimedStatus(statusLabel, statusClearTimer, message, isError)
+    End Sub
+
+    Private Sub statusClearTimer_Tick(sender As Object, e As EventArgs) Handles statusClearTimer.Tick
+        statusClearTimer.Stop()
+        FormStatusHelper.ResetTimedStatus(statusLabel)
     End Sub
 
     Private Sub FillLineGrid(detail As ReceiptSnapshot)
@@ -271,9 +309,9 @@ Public Class ReceiptForm
     Private Sub ApplyReceiptContent(text As String, isPlaceholder As Boolean)
         rtbReceipt.Text = text
         If isPlaceholder Then
-            rtbReceipt.ForeColor = Color.Gray
+            rtbReceipt.ForeColor = UiTheme.TextSecondary
         Else
-            rtbReceipt.ForeColor = Color.Black
+            rtbReceipt.ForeColor = UiTheme.TextPrimary
         End If
     End Sub
 
@@ -314,6 +352,7 @@ Public Class ReceiptForm
         End If
 
         suppressHistoryEvent = False
+        ShowStatus("Sales list refreshed.", False)
     End Sub
 
     Private Sub cmbHistory_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbHistory.SelectedIndexChanged
@@ -427,7 +466,7 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub btnPrint_Click(sender As Object, e As EventArgs) Handles btnPrint.Click
-        If rtbReceipt.Text.Trim().Length = 0 OrElse rtbReceipt.ForeColor = Color.Gray Then
+        If rtbReceipt.Text.Trim().Length = 0 OrElse rtbReceipt.ForeColor.ToArgb() = UiTheme.TextSecondary.ToArgb() Then
             MessageBox.Show("Nothing to print.", "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
@@ -436,6 +475,7 @@ Public Class ReceiptForm
             printDialog.Document = printDocument
             If printDialog.ShowDialog() = DialogResult.OK Then
                 printDocument.Print()
+                ShowStatus("Print job sent.", False)
             End If
         End Using
     End Sub
@@ -454,7 +494,7 @@ Public Class ReceiptForm
 
             If saveDialog.ShowDialog() = DialogResult.OK Then
                 File.WriteAllText(saveDialog.FileName, rtbReceipt.Text)
-                MessageBox.Show("Receipt saved.", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                ShowStatus("Receipt saved as text file.", False)
             End If
         End Using
     End Sub
@@ -475,8 +515,9 @@ Public Class ReceiptForm
 
             Try
                 PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, rtbReceipt.Text)
-                MessageBox.Show("PDF saved.", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                ShowStatus("PDF exported.", False)
             Catch ex As Exception
+                ShowStatus("PDF export failed.", True)
                 MessageBox.Show("Could not save PDF: " & ex.Message, "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(btnSavePdf_Click))
             End Try
@@ -489,7 +530,7 @@ Public Class ReceiptForm
         End If
 
         Clipboard.SetText(rtbReceipt.Text)
-        lblSaleMeta.Text = "Copied to clipboard. " & lblSaleMeta.Text
+        ShowStatus("Copied to clipboard.", False)
     End Sub
 
     Private Sub printDocument_BeginPrint(sender As Object, e As PrintEventArgs) Handles printDocument.BeginPrint

@@ -1,0 +1,43 @@
+Imports System.Windows.Forms
+
+''' <summary>
+''' Holds the signed-in role for the current application session (not persisted).
+''' </summary>
+Public Module AppSession
+
+    Public Const RoleAdmin As String = "Admin"
+    Public Const RoleCashier As String = "Cashier"
+
+    ''' <summary>
+    ''' Current operator role after login (<see cref="RoleAdmin"/> or <see cref="RoleCashier"/>).
+    ''' </summary>
+    Public CurrentRole As String = RoleCashier
+
+    ''' <summary>
+    ''' Returns true when the current session is an administrator.
+    ''' </summary>
+    ''' <returns>True if <see cref="CurrentRole"/> is admin.</returns>
+    Public Function IsAdmin() As Boolean
+        Return String.Equals(CurrentRole, RoleAdmin, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ''' <summary>
+    ''' Shows a message and returns false when the current user is not an administrator.
+    ''' </summary>
+    ''' <param name="owner">Optional window for the dialog.</param>
+    ''' <returns>True if the user is an admin.</returns>
+    Public Function RequireAdmin(Optional owner As IWin32Window = Nothing) As Boolean
+        If IsAdmin() Then
+            Return True
+        End If
+
+        MessageBox.Show(
+            owner,
+            "This action requires administrator access.",
+            "Access denied",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information)
+        Return False
+    End Function
+
+End Module

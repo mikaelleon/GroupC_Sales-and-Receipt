@@ -86,6 +86,7 @@ Public NotInheritable Class DatabaseInitializer
             End Using
 
             EnsureSalesExtendedColumns(connection)
+            EnsureCategoriesAndProductCategory(connection)
             EnsureAuditAndLogTables(connection)
         End Using
     End Sub
@@ -107,6 +108,39 @@ Public NotInheritable Class DatabaseInitializer
                 cmd.ExecuteNonQuery()
             End Using
         Next
+    End Sub
+
+    Private Shared Sub EnsureCategoriesAndProductCategory(connection As SqlConnection)
+        Dim catSql As String =
+            "IF OBJECT_ID('dbo.categories','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.categories (" &
+            " category_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " category_name NVARCHAR(100) NOT NULL, " &
+            " is_active BIT NOT NULL CONSTRAINT DF_categories_is_active DEFAULT (1), " &
+            " CONSTRAINT UQ_categories_name UNIQUE (category_name) " &
+            "); END;"
+
+        Using cmd As New SqlCommand(catSql, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+
+        Dim addCol As String = "IF COL_LENGTH('dbo.products','category_id') IS NULL ALTER TABLE dbo.products ADD category_id INT NULL;"
+        Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+
+        Dim fkSql As String =
+            "IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_products_categories' AND parent_object_id = OBJECT_ID(N'dbo.products')) " &
+            "AND OBJECT_ID(N'dbo.categories','U') IS NOT NULL " &
+            "ALTER TABLE dbo.products ADD CONSTRAINT FK_products_categories FOREIGN KEY (category_id) REFERENCES dbo.categories(category_id);"
+
+        Try
+            Using cmd As New SqlCommand(fkSql, connection)
+                cmd.ExecuteNonQuery()
+            End Using
+        Catch
+        End Try
     End Sub
 
     Private Shared Sub EnsureAuditAndLogTables(connection As SqlConnection)
@@ -138,6 +172,15 @@ Public NotInheritable Class DatabaseInitializer
             " source NVARCHAR(200) NULL, " &
             " message NVARCHAR(MAX) NOT NULL, " &
             " stack_trace NVARCHAR(MAX) NULL " &
+            "); END; " &
+            "IF OBJECT_ID('dbo.AuditLogs','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.AuditLogs (" &
+            " LogID INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " Action NVARCHAR(100) NOT NULL, " &
+            " Detail NVARCHAR(MAX) NULL, " &
+            " PerformedBy NVARCHAR(100) NULL, " &
+            " LoggedAt DATETIME2 NOT NULL CONSTRAINT DF_AuditLogs_LoggedAt DEFAULT (SYSUTCDATETIME()) " &
             "); END;"
 
         Using cmd As New SqlCommand(auditSql, connection)
@@ -149,18 +192,32 @@ Public NotInheritable Class DatabaseInitializer
         Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
             connection.Open()
 
-            Dim sql As String =
-                "IF NOT EXISTS (SELECT 1 FROM products) " &
+            Dim seedCat As String =
+                "IF NOT EXISTS (SELECT 1 FROM dbo.categories) " &
                 "BEGIN " &
-                "    INSERT INTO products (product_name, price) VALUES " &
-                "        ('Notebook', 45.00), " &
-                "        ('Ballpen', 12.00), " &
-                "        ('Pencil', 8.00), " &
-                "        ('Eraser', 10.00), " &
-                "        ('Bond Paper', 150.00); " &
+                " INSERT INTO dbo.categories (category_name) VALUES (N'Stationery'), (N'Supplies'), (N'Paper'); " &
                 "END;"
 
-            Using command As New SqlCommand(sql, connection)
+            Using cmd As New SqlCommand(seedCat, connection)
+                cmd.ExecuteNonQuery()
+            End Using
+
+            Dim seedProducts As String =
+                "IF NOT EXISTS (SELECT 1 FROM dbo.products) " &
+                "BEGIN " &
+                " DECLARE @st INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Stationery'); " &
+                " DECLARE @paper INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Paper'); " &
+                " IF @st IS NULL SET @st = (SELECT TOP 1 category_id FROM dbo.categories ORDER BY category_id); " &
+                " IF @paper IS NULL SET @paper = @st; " &
+                " INSERT INTO dbo.products (product_name, price, category_id) VALUES " &
+                "  (N'Notebook', 45.00, @st), " &
+                "  (N'Ballpen', 12.00, @st), " &
+                "  (N'Pencil', 8.00, @st), " &
+                "  (N'Eraser', 10.00, @st), " &
+                "  (N'Bond Paper', 150.00, @paper); " &
+                "END;"
+
+            Using command As New SqlCommand(seedProducts, connection)
                 command.ExecuteNonQuery()
             End Using
         End Using

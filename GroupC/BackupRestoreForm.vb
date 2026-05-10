@@ -17,8 +17,7 @@ Public Class BackupRestoreForm
         Me.MinimumSize = New Size(560, 420)
         Me.Size = New Size(640, 480)
         Me.StartPosition = FormStartPosition.CenterParent
-        Me.Font = New Font("Segoe UI", 10)
-        Me.BackColor = Color.White
+        UiTheme.ApplyStandardWindowChrome(Me)
 
         Dim sb As New StringBuilder()
         sb.AppendLine("BACKUP / RESTORE (LocalDB / SQL Server)")
@@ -40,7 +39,9 @@ Public Class BackupRestoreForm
             .ReadOnly = True,
             .Font = New Font("Consolas", 9.0F),
             .Text = sb.ToString(),
-            .BorderStyle = BorderStyle.FixedSingle
+            .BorderStyle = BorderStyle.FixedSingle,
+            .BackColor = UiTheme.CardSurface,
+            .ForeColor = UiTheme.TextPrimary
         }
 
         Dim bottom As New FlowLayoutPanel() With {.Dock = DockStyle.Bottom, .AutoSize = True, .FlowDirection = FlowDirection.LeftToRight, .Padding = New Padding(8)}

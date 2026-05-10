@@ -8,6 +8,16 @@ Public NotInheritable Class DatabaseConfig
 
     Public Const DatabaseName As String = "GroupC_DB"
 
+    ''' <summary>
+    ''' Demo-only administrator password for login (replace for production).
+    ''' </summary>
+    Public Const HardcodedAdminPassword As String = "admin123"
+
+    ''' <summary>
+    ''' Optional cashier PIN. When empty, cashier login does not require a PIN.
+    ''' </summary>
+    Public Const HardcodedCashierPin As String = ""
+
     Private Sub New()
     End Sub
 

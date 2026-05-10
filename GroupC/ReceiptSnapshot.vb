@@ -36,6 +36,11 @@ Public Class ReceiptSnapshot
     Public Property DiscountPercent As Decimal
 
     ''' <summary>
+    ''' Gets or sets whether <see cref="DiscountPercent"/> is a rate (true) or ignored for fixed discount (false).
+    ''' </summary>
+    Public Property DiscountIsPercent As Boolean
+
+    ''' <summary>
     ''' Gets or sets the discount amount.
     ''' </summary>
     Public Property DiscountAmount As Decimal

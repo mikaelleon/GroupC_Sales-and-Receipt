@@ -88,6 +88,52 @@ Public NotInheritable Class AuditLogger
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Writes a unified audit row to <c>AuditLogs</c> when the table exists.
+    ''' </summary>
+    ''' <param name="action">Short action label.</param>
+    ''' <param name="detail">Detail text.</param>
+    ''' <param name="performedBy">User or role name.</param>
+    Public Shared Sub LogAudit(action As String, detail As String, performedBy As String)
+        Try
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                LogAudit(connection, action, detail, performedBy)
+            End Using
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Writes a unified audit row using an open connection.
+    ''' </summary>
+    ''' <param name="connection">Open SQL connection.</param>
+    ''' <param name="action">Short action label.</param>
+    ''' <param name="detail">Detail text.</param>
+    ''' <param name="performedBy">User or role name.</param>
+    Public Shared Sub LogAudit(connection As SqlConnection, action As String, detail As String, performedBy As String)
+        Try
+            If connection Is Nothing OrElse connection.State <> ConnectionState.Open Then
+                Return
+            End If
+
+            If ObjectExists(connection, "AuditLogs") = False Then
+                Return
+            End If
+
+            Dim sql As String =
+                "INSERT INTO AuditLogs (Action, Detail, PerformedBy) VALUES (@action, @detail, @performed_by);"
+
+            Using cmd As New SqlCommand(sql, connection)
+                cmd.Parameters.AddWithValue("@action", If(action, String.Empty))
+                cmd.Parameters.AddWithValue("@detail", If(detail, String.Empty))
+                cmd.Parameters.AddWithValue("@performed_by", If(performedBy, String.Empty))
+                cmd.ExecuteNonQuery()
+            End Using
+        Catch
+        End Try
+    End Sub
+
     Private Shared Function ObjectExists(connection As SqlConnection, tableName As String) As Boolean
         Dim sql As String =
             "SELECT 1 FROM sys.tables WHERE name = @name AND schema_id = SCHEMA_ID('dbo');"
