@@ -25,10 +25,11 @@ Partial Class SalesForm
         SuspendLayout()
         ' 
         ' SalesForm
-        '
-        AutoScaleDimensions = New SizeF(8F, 20F)
+        ' 
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(760, 560)
+        ClientSize = New Size(665, 420)
+        Margin = New Padding(3, 2, 3, 2)
         Name = "SalesForm"
         Text = "Group C - Sales / Compute Total"
         ResumeLayout(False)

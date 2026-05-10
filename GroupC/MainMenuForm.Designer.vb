@@ -18,12 +18,13 @@ Partial Class MainMenuForm
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         SuspendLayout()
-        '
+        ' 
         ' MainMenuForm
-        '
-        AutoScaleDimensions = New SizeF(8F, 20F)
+        ' 
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(500, 430)
+        ClientSize = New Size(438, 322)
+        Margin = New Padding(3, 2, 3, 2)
         Name = "MainMenuForm"
         Text = "Group C - Sales & Receipt System"
         ResumeLayout(False)

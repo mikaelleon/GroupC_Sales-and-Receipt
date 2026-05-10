@@ -98,6 +98,29 @@ Public Class ProductsForm
     End Sub
 
     Private Sub CreateControls()
+        ' 1. SUSPEND LAYOUT FOR PERFORMANCE
+        ' This stops the form from flickering while we draw the controls
+        Me.SuspendLayout()
+        Me.Controls.Clear()
+        Me.Padding = New Padding(15) ' Gives a professional border around the whole app
+
+        ' -----------------------------------------------------------
+        ' 2. INITIALIZE ALL CONTROLS
+        ' -----------------------------------------------------------
+        ' Labels
+        Dim lblTitle As New Label() With {.Text = "MANAGE PRODUCTS", .Font = New Font("Segoe UI", 16, FontStyle.Bold), .AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
+        Dim lblName As New Label() With {.Text = "Product Name:", .AutoSize = True, .Anchor = AnchorStyles.Left}
+        Dim lblPrice As New Label() With {.Text = "Price (₱):", .AutoSize = True, .Anchor = AnchorStyles.Left}
+        Dim lblCategory As New Label() With {.Text = "Category:", .AutoSize = True, .Anchor = AnchorStyles.Left}
+
+        ' Inputs
+        txtProductName = New TextBox() With {.Dock = DockStyle.Fill, .MaxLength = 100, .Margin = New Padding(0, 0, 10, 5)}
+        numPrice = New NumericUpDown() With {.Dock = DockStyle.Fill, .DecimalPlaces = 2, .Minimum = 0.01D, .Maximum = 999999.99D, .TextAlign = HorizontalAlignment.Right, .ThousandsSeparator = True, .Margin = New Padding(0, 0, 10, 5)}
+        cmbCategory = New ComboBox() With {.Dock = DockStyle.Fill, .DropDownStyle = ComboBoxStyle.DropDownList, .Margin = New Padding(0, 0, 10, 5)}
+        txtSearch = New TextBox() With {.Width = 200, .PlaceholderText = "Search products...", .Margin = New Padding(0, 4, 10, 0)}
+        cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 150, .Margin = New Padding(0, 4, 10, 0)}
+        cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
+        cmbGridCategoryFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 150, .Margin = New Padding(0, 4, 10, 0)}
         suppressProductFilterEvents = True
         Dim root As New TableLayoutPanel()
         root.Dock = DockStyle.Fill
@@ -192,41 +215,34 @@ Public Class ProductsForm
         btnAdd.TabIndex = 3
         UiTheme.ApplyPrimaryButton(btnAdd)
 
-        btnUpdate = New Button()
-        btnUpdate.Text = "&Update"
-        btnUpdate.AutoSize = True
-        btnUpdate.MinimumSize = New Size(100, 32)
-        btnUpdate.TabIndex = 4
+        ' Buttons (Using your team's UiTheme)
+        btnAdd = New Button() With {.Text = "&Add Product", .AutoSize = True, .MinimumSize = New Size(100, 32)}
+        btnUpdate = New Button() With {.Text = "&Update", .AutoSize = True, .MinimumSize = New Size(100, 32)}
+        btnDelete = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, 32)}
+        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, 32), .Enabled = False}
+        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, 32)}
+        btnTestDb = New Button() With {.Text = "Test DB", .AutoSize = True, .MinimumSize = New Size(90, 32)}
+        btnImportCsv = New Button() With {.Text = "Import CSV", .AutoSize = True, .MinimumSize = New Size(100, 32)}
+
+        UiTheme.ApplyPrimaryButton(btnAdd)
         UiTheme.ApplyPrimaryButton(btnUpdate)
-
-        btnDelete = New Button()
-        btnDelete.Text = "&Deactivate"
-        btnDelete.AutoSize = True
-        btnDelete.MinimumSize = New Size(100, 32)
-        btnDelete.TabIndex = 5
         UiTheme.ApplyWarningButton(btnDelete)
-
-        btnRefresh = New Button()
-        btnRefresh.Text = "&Refresh"
-        btnRefresh.AutoSize = True
-        btnRefresh.MinimumSize = New Size(100, 32)
-        btnRefresh.TabIndex = 6
+        UiTheme.ApplySuccessButton(btnReactivate)
         UiTheme.ApplySecondaryButton(btnRefresh)
-
-        btnTestDb = New Button()
-        btnTestDb.Text = "Te&st DB"
-        btnTestDb.AutoSize = True
-        btnTestDb.MinimumSize = New Size(100, 32)
-        btnTestDb.TabIndex = 7
         UiTheme.ApplySecondaryAccentButton(btnTestDb)
-
-        btnImportCsv = New Button()
-        btnImportCsv.Text = "Import &CSV…"
-        btnImportCsv.AutoSize = True
-        btnImportCsv.MinimumSize = New Size(120, 32)
-        btnImportCsv.TabIndex = 11
         UiTheme.ApplyPrimaryButton(btnImportCsv)
 
+        ' Data Grid & Status
+        dgvProducts = New DataGridView() With {
+            .Dock = DockStyle.Fill,
+            .ReadOnly = True,
+            .AllowUserToAddRows = False,
+            .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            .MultiSelect = False,
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            .BackgroundColor = Color.White,
+            .BorderStyle = BorderStyle.None
+        }
         Dim lblSearch As New Label()
         lblSearch.Text = "Search"
         lblSearch.AutoSize = True
@@ -364,29 +380,91 @@ Public Class ProductsForm
         dgvProducts.TabIndex = 10
         UiTheme.ApplyDataGridViewChrome(dgvProducts)
 
-        gridHost.Controls.Add(dgvProducts)
-        gridHost.Controls.Add(gridToolbar)
-        gridHost.Controls.Add(lblGridMessage)
-        lblGridMessage.BringToFront()
-
-        gridCardInner.Controls.Add(gridHost)
-
-        suppressProductFilterEvents = False
+        lblGridMessage = New Label() With {.Dock = DockStyle.Fill, .TextAlign = ContentAlignment.MiddleCenter, .ForeColor = Color.Gray, .Visible = False}
+        lblProductsInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Margin = New Padding(0, 5, 0, 5)}
 
         statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText)
-        statusLabel.Spring = True
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True}
         statusStrip.Items.Add(statusLabel)
         UiTheme.ApplyStatusStripTheme(statusStrip)
 
-        root.Controls.Add(header, 0, 0)
-        root.Controls.Add(gridCard, 0, 1)
-        root.Controls.Add(statusStrip, 0, 2)
+        ' -----------------------------------------------------------
+        ' 3. BUILD THE LAYOUT (The "Dashboard" structure)
+        ' -----------------------------------------------------------
 
+        ' Panel 1: Top Input Form (Strict Grid alignment)
+        Dim pnlInputForm As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .ColumnCount = 5,
+            .RowCount = 3,
+            .Padding = New Padding(0, 0, 0, 15)
+        }
+        ' Column Setup: Label -> Input -> Spacing -> Action Button 1 -> Action Button 2
+        pnlInputForm.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        pnlInputForm.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        pnlInputForm.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 20)) ' Empty space gap
+        pnlInputForm.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        pnlInputForm.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+
+        ' Row 1
+        pnlInputForm.Controls.Add(lblName, 0, 0)
+        pnlInputForm.Controls.Add(txtProductName, 1, 0)
+        pnlInputForm.Controls.Add(btnAdd, 3, 0)
+        pnlInputForm.Controls.Add(btnUpdate, 4, 0)
+
+        ' Row 2
+        pnlInputForm.Controls.Add(lblPrice, 0, 1)
+        pnlInputForm.Controls.Add(numPrice, 1, 1)
+        pnlInputForm.Controls.Add(btnDelete, 3, 1)
+        pnlInputForm.Controls.Add(btnReactivate, 4, 1)
+
+        ' Row 3
+        pnlInputForm.Controls.Add(lblCategory, 0, 2)
+        pnlInputForm.Controls.Add(cmbCategory, 1, 2)
+
+        ' Panel 2: The Middle Toolbar (Search & Filters flowing horizontally)
+        Dim pnlToolbar As New FlowLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .Padding = New Padding(0, 0, 0, 10),
+            .WrapContents = False
+        }
+        Dim lblSearch As New Label() With {.Text = "Search:", .AutoSize = True, .Margin = New Padding(0, 8, 5, 0)}
+        Dim lblFilter As New Label() With {.Text = "Filter by:", .AutoSize = True, .Margin = New Padding(15, 8, 5, 0)}
+
+        pnlToolbar.Controls.Add(lblSearch)
+        pnlToolbar.Controls.Add(txtSearch)
+        pnlToolbar.Controls.Add(lblFilter)
+        pnlToolbar.Controls.Add(cmbGridCategoryFilter)
+        pnlToolbar.Controls.Add(cmbFilter)
+        pnlToolbar.Controls.Add(btnRefresh)
+        pnlToolbar.Controls.Add(btnImportCsv)
+        pnlToolbar.Controls.Add(btnTestDb)
+
+        ' Panel 3: The Data Grid Container (Fills the remaining bottom space)
+        Dim pnlGrid As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(0, 10, 0, 0)
+        }
+        pnlGrid.Controls.Add(dgvProducts)
+        pnlGrid.Controls.Add(lblGridMessage) ' Sits behind the grid to show errors
+
+        ' -----------------------------------------------------------
+        ' 4. ASSEMBLE EVERYTHING ON THE FORM
+        ' -----------------------------------------------------------
+        ' Note: When using DockStyle.Top, the LAST thing added goes to the VERY TOP.
+        Me.Controls.Add(pnlGrid)
+        Me.Controls.Add(pnlToolbar)
+        Me.Controls.Add(lblProductsInputError)
+        Me.Controls.Add(pnlInputForm)
+        Me.Controls.Add(lblTitle)
+        Me.Controls.Add(statusStrip)
+
+        ' Reset states
         cmbFilter.SelectedIndex = 0
-
-        Me.Controls.Clear()
-        Me.Controls.Add(root)
+        suppressProductFilterEvents = False
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
