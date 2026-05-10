@@ -16,21 +16,27 @@ Public Class LoginForm
 
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = "Group C — Sign in"
-        Me.FormBorderStyle = FormBorderStyle.FixedDialog
+        Me.FormBorderStyle = FormBorderStyle.Sizable
         Me.StartPosition = FormStartPosition.CenterScreen
-        Me.MinimizeBox = False
-        Me.MaximizeBox = False
-        Me.Size = New Size(440, 320)
+        Me.MinimizeBox = True
+        Me.MaximizeBox = True
+        Me.MinimumSize = New Size(520, 460)
+        Me.Size = New Size(600, 520)
         UiTheme.ApplyStandardWindowChrome(Me)
 
         Dim root As New TableLayoutPanel()
         root.Dock = DockStyle.Fill
-        root.Padding = New Padding(16)
+        root.Padding = New Padding(20)
         root.ColumnCount = 1
-        root.RowCount = 7
-        For i As Integer = 0 To 6
-            root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Next
+        root.RowCount = 8
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 36.0F))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         Dim title As New Label() With {
             .Text = "SIGN IN",
@@ -40,25 +46,32 @@ Public Class LoginForm
             .Margin = New Padding(0, 0, 0, 8)
         }
 
-        radAdmin = New RadioButton() With {.Text = "Administrator (full access)", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextPrimary}
-        radCashier = New RadioButton() With {.Text = "Cashier (sales and receipts only)", .AutoSize = True, .Checked = True, .Margin = New Padding(0, 4, 0, 8), .ForeColor = UiTheme.TextPrimary}
+        radAdmin = New RadioButton() With {.Text = "Administrator (full access)", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
+        radCashier = New RadioButton() With {.Text = "Cashier (sales and receipts only)", .AutoSize = True, .Checked = True, .Margin = New Padding(0, 4, 0, 8), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
 
         Dim lblSecret As New Label() With {.Text = "Password / PIN", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextSecondary}
 
-        txtSecret = New TextBox() With {.Dock = DockStyle.Fill, .UseSystemPasswordChar = True}
+        txtSecret = New TextBox() With {.Dock = DockStyle.Fill, .Anchor = AnchorStyles.Left Or AnchorStyles.Right, .UseSystemPasswordChar = True, .Margin = New Padding(0, 2, 0, 4)}
 
         lblHint = New Label() With {
             .Text = "Administrators must enter the configured password. Cashiers: leave blank unless a PIN is configured in DatabaseConfig.",
             .AutoSize = True,
-            .MaximumSize = New Size(400, 0),
             .ForeColor = UiTheme.TextSecondary,
             .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
             .Margin = New Padding(0, 6, 0, 12)
         }
+        UpdateHintWrapWidth()
 
-        Dim buttons As New FlowLayoutPanel() With {.AutoSize = True, .FlowDirection = FlowDirection.RightToLeft, .Dock = DockStyle.Fill, .Padding = New Padding(0, 4, 0, 0)}
-        btnOk = New Button() With {.Text = "OK", .AutoSize = True, .MinimumSize = New Size(100, 32), .DialogResult = DialogResult.None}
-        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(100, 32), .DialogResult = DialogResult.Cancel}
+        Dim spacer As New Panel() With {.Dock = DockStyle.Fill, .Margin = Padding.Empty}
+
+        Dim buttons As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = False,
+            .FlowDirection = FlowDirection.RightToLeft,
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(0, 8, 0, 0)}
+        btnOk = New Button() With {.Text = "Sign in", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.None}
+        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.Cancel}
         UiTheme.ApplyPrimaryButton(btnOk)
         UiTheme.ApplySecondaryButton(btnCancel)
         buttons.Controls.Add(btnCancel)
@@ -70,11 +83,29 @@ Public Class LoginForm
         root.Controls.Add(lblSecret, 0, 3)
         root.Controls.Add(txtSecret, 0, 4)
         root.Controls.Add(lblHint, 0, 5)
-        root.Controls.Add(buttons, 0, 6)
+        root.Controls.Add(spacer, 0, 6)
+        root.Controls.Add(buttons, 0, 7)
 
         Me.Controls.Add(root)
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
+    End Sub
+
+    Private Sub LoginForm_Resize(sender As Object, e As EventArgs) Handles MyBase.Resize
+        UpdateHintWrapWidth()
+    End Sub
+
+    Private Sub UpdateHintWrapWidth()
+        If lblHint Is Nothing Then
+            Return
+        End If
+
+        Dim w As Integer = Me.ClientSize.Width - 64
+        If w < 200 Then
+            w = 200
+        End If
+
+        lblHint.MaximumSize = New Size(w, 0)
     End Sub
 
     Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click

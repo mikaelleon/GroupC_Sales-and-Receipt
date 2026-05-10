@@ -61,8 +61,8 @@ Public Class MainMenuForm
         End If
 
         Me.Text = "Group C - Sales & Receipt System"
-        Me.MinimumSize = New Size(520, 560)
-        Me.Size = New Size(560, 620)
+        Me.MinimumSize = New Size(800, 740)
+        Me.Size = New Size(960, 860)
         Me.StartPosition = FormStartPosition.CenterScreen
 
         dbHealthTooltip = New ToolTip()
@@ -74,12 +74,13 @@ Public Class MainMenuForm
         root.Padding = New Padding(16)
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         Dim title As New Label()
         title.Text = "GROUP C SALES & RECEIPT SYSTEM"
+        title.UseMnemonic = False
         title.AutoSize = False
         title.Dock = DockStyle.Fill
         title.Font = New Font("Segoe UI", 16.0F, FontStyle.Bold)
@@ -96,11 +97,19 @@ Public Class MainMenuForm
         helper.TextAlign = ContentAlignment.MiddleCenter
         helper.Height = 28
 
+        Dim pnlMiddle As New Panel()
+        pnlMiddle.Dock = DockStyle.Fill
+        pnlMiddle.AutoScroll = False
+        pnlMiddle.Padding = Padding.Empty
+        pnlMiddle.Margin = New Padding(0, 0, 0, 8)
+        pnlMiddle.BackColor = UiTheme.FormBackground
+
         Dim dashBoard As New TableLayoutPanel()
         dashBoard.AutoSize = True
         dashBoard.ColumnCount = 1
         dashBoard.RowCount = 3
-        dashBoard.Margin = New Padding(0, 0, 0, 8)
+        dashBoard.Margin = New Padding(0, 0, 0, 0)
+        dashBoard.Dock = DockStyle.Top
 
         lblDbHealth = New Label()
         lblDbHealth.AutoSize = True
@@ -130,8 +139,8 @@ Public Class MainMenuForm
 
         picSalesChart = New PictureBox()
         picSalesChart.Dock = DockStyle.Top
-        picSalesChart.Height = 188
-        picSalesChart.MinimumSize = New Size(280, 160)
+        picSalesChart.Height = 204
+        picSalesChart.MinimumSize = New Size(280, 196)
         picSalesChart.Margin = New Padding(0, 10, 0, 0)
         picSalesChart.BackColor = UiTheme.FormBackground
 
@@ -139,12 +148,19 @@ Public Class MainMenuForm
         dashBoard.Controls.Add(cards, 0, 1)
         dashBoard.Controls.Add(picSalesChart, 0, 2)
 
+        pnlMiddle.Controls.Add(dashBoard)
+
         flowNav = New FlowLayoutPanel()
-        flowNav.Dock = DockStyle.Fill
+        flowNav.Dock = DockStyle.Top
+        flowNav.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
         flowNav.FlowDirection = FlowDirection.TopDown
         flowNav.WrapContents = False
-        flowNav.AutoScroll = True
+        flowNav.AutoScroll = False
+        flowNav.AutoSize = True
+        flowNav.AutoSizeMode = AutoSizeMode.GrowAndShrink
         flowNav.Padding = New Padding(0, 12, 0, 8)
+        flowNav.Margin = New Padding(0, 0, 0, 4)
+        flowNav.BackColor = UiTheme.FormBackground
 
         btnProducts = CreateNavButton("&Add / Manage Products")
         btnSales = CreateNavButton("&Sales / Compute Total")
@@ -185,7 +201,7 @@ Public Class MainMenuForm
 
         root.Controls.Add(title, 0, 0)
         root.Controls.Add(helper, 0, 1)
-        root.Controls.Add(dashBoard, 0, 2)
+        root.Controls.Add(pnlMiddle, 0, 2)
         root.Controls.Add(flowNav, 0, 3)
         root.Controls.Add(exitPanel, 0, 4)
 
@@ -214,13 +230,16 @@ Public Class MainMenuForm
     Private Sub MainMenuForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         If closeDueToLoginFail Then
             Me.Close()
+            Return
         End If
+
+        LayoutNavButtons()
     End Sub
 
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
         Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(10))
         outer.Margin = New Padding(6, 4, 6, 4)
-        outer.MinimumSize = New Size(40, 78)
+        outer.MinimumSize = New Size(132, 82)
         outer.Dock = DockStyle.Fill
 
         Dim inner As Panel = UiTheme.GetCardContentHost(outer)
@@ -346,12 +365,10 @@ Public Class MainMenuForm
             End If
         Next
 
-        Dim w As Integer = Math.Max(320, picSalesChart.ClientSize.Width)
-        If w < 320 Then
-            w = 320
-        End If
+        Dim cw As Integer = picSalesChart.ClientSize.Width
+        Dim w As Integer = Math.Max(320, cw)
+        Dim h As Integer = Math.Max(196, picSalesChart.Height)
 
-        Dim h As Integer = Math.Max(160, picSalesChart.Height)
         Dim bmp As New Bitmap(w, h)
 
         Using g As Graphics = Graphics.FromImage(bmp)
@@ -359,9 +376,11 @@ Public Class MainMenuForm
             g.Clear(UiTheme.FormBackground)
 
             Dim marginLeft As Single = 54.0F
-            Dim marginBottom As Single = 50.0F
-            Dim marginTop As Single = 26.0F
-            Dim chartRect As New RectangleF(marginLeft, marginTop, w - marginLeft - 12.0F, h - marginBottom - marginTop)
+            Dim topTitlePad As Single = 4.0F
+            Dim headerLineH As Single = 20.0F
+            Dim footerPad As Single = 46.0F
+            Dim marginTop As Single = topTitlePad + headerLineH + 4.0F
+            Dim chartRect As New RectangleF(marginLeft, marginTop, w - marginLeft - 12.0F, h - marginTop - footerPad)
 
             Using outline As New Pen(Color.FromArgb(140, 148, 158))
                 g.DrawRectangle(outline, Rectangle.Round(chartRect))
@@ -369,7 +388,7 @@ Public Class MainMenuForm
 
             Using headerBrush As New SolidBrush(UiTheme.TextPrimary)
                 Using hf As New Font("Segoe UI", 9.5F, FontStyle.Bold)
-                    g.DrawString("Sales — last 7 days", hf, headerBrush, marginLeft, 2.0F)
+                    g.DrawString("Sales — last 7 days", hf, headerBrush, marginLeft, topTitlePad)
                 End Using
             End Using
 
@@ -403,10 +422,11 @@ Public Class MainMenuForm
                             g.DrawString(dayLbl, dayFont, labelBrush, x - 4.0F, chartRect.Bottom + 6.0F)
 
                             Dim moneyLbl As String = currencySym & amt.ToString("N0", CultureInfo.CurrentCulture)
-                            If barH > 18.0F Then
-                                g.DrawString(moneyLbl, amtFont, labelBrush, x, y - 16.0F)
+                            Dim labelYAbove As Single = y - 16.0F
+                            If barH > 18.0F AndAlso labelYAbove >= marginTop + 2.0F Then
+                                g.DrawString(moneyLbl, amtFont, labelBrush, x, labelYAbove)
                             Else
-                                g.DrawString(moneyLbl, amtFont, labelBrush, x, chartRect.Bottom + 22.0F)
+                                g.DrawString(moneyLbl, amtFont, labelBrush, x, Math.Min(chartRect.Bottom + 20.0F, h - 14.0F))
                             End If
                         Next
                     End Using
@@ -429,12 +449,22 @@ Public Class MainMenuForm
         LayoutNavButtons()
     End Sub
 
+    Private Sub MainMenuForm_ClientSizeChanged(sender As Object, e As EventArgs) Handles MyBase.ClientSizeChanged
+        LayoutNavButtons()
+    End Sub
+
     Private Sub LayoutNavButtons()
         If flowNav Is Nothing Then
             Return
         End If
 
-        Dim innerWidth As Integer = flowNav.ClientSize.Width - flowNav.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth
+        Dim host As Control = flowNav.Parent
+        If host IsNot Nothing Then
+            Dim innerHost As Integer = host.ClientSize.Width - host.Padding.Horizontal
+            flowNav.Width = Math.Max(260, innerHost - flowNav.Margin.Horizontal)
+        End If
+
+        Dim innerWidth As Integer = flowNav.ClientSize.Width - flowNav.Padding.Horizontal
         If innerWidth < 200 Then
             innerWidth = 200
         End If

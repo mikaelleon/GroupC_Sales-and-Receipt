@@ -81,8 +81,8 @@ Public Class ProductsForm
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = "Group C - Manage Products"
-        Me.MinimumSize = New Size(640, 480)
-        Me.Size = New Size(780, 580)
+        Me.MinimumSize = New Size(720, 540)
+        Me.Size = New Size(840, 620)
         Me.StartPosition = FormStartPosition.CenterScreen
         UiTheme.ApplyStandardWindowChrome(Me)
 
@@ -121,6 +121,99 @@ Public Class ProductsForm
         cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 150, .Margin = New Padding(0, 4, 10, 0)}
         cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
         cmbGridCategoryFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 150, .Margin = New Padding(0, 4, 10, 0)}
+        suppressProductFilterEvents = True
+        Dim root As New TableLayoutPanel()
+        root.Dock = DockStyle.Fill
+        root.ColumnCount = 1
+        root.RowCount = 3
+        root.Padding = New Padding(12)
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim header As New TableLayoutPanel()
+        header.AutoSize = True
+        header.ColumnCount = 1
+        header.RowCount = 2
+        header.Dock = DockStyle.Fill
+
+        Dim title As New Label()
+        title.Text = "ADD / MANAGE PRODUCTS"
+        title.Font = New Font("Segoe UI", 15.0F, FontStyle.Bold)
+        title.ForeColor = UiTheme.TextPrimary
+        title.TextAlign = ContentAlignment.MiddleCenter
+        title.Dock = DockStyle.Fill
+        title.AutoSize = True
+        title.Margin = New Padding(0, 0, 0, 8)
+
+        Dim inputGrid As New TableLayoutPanel()
+        inputGrid.AutoSize = True
+        inputGrid.ColumnCount = 6
+        inputGrid.RowCount = 5
+        inputGrid.Dock = DockStyle.Fill
+        For i As Integer = 0 To 5
+            If i = 1 OrElse i = 3 Then
+                inputGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 22.0F))
+            ElseIf i = 0 OrElse i = 2 Then
+                inputGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+            Else
+                inputGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+            End If
+        Next
+        inputGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inputGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inputGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inputGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inputGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim lblName As New Label()
+        lblName.Text = "Product name"
+        lblName.AutoSize = True
+        lblName.Anchor = AnchorStyles.Left
+        lblName.Margin = New Padding(0, 6, 8, 6)
+        lblName.ForeColor = UiTheme.TextSecondary
+
+        txtProductName = New TextBox()
+        txtProductName.MaxLength = 100
+        txtProductName.Dock = DockStyle.Fill
+        txtProductName.Margin = New Padding(0, 4, 12, 4)
+        txtProductName.TabIndex = 0
+
+        Dim lblPrice As New Label()
+        lblPrice.Text = "Price (₱)"
+        lblPrice.AutoSize = True
+        lblPrice.Margin = New Padding(0, 6, 8, 6)
+        lblPrice.ForeColor = UiTheme.TextSecondary
+
+        numPrice = New NumericUpDown()
+        numPrice.DecimalPlaces = 2
+        numPrice.Minimum = 0.01D
+        numPrice.Maximum = 999999.99D
+        numPrice.Increment = 1D
+        numPrice.ThousandsSeparator = True
+        numPrice.Dock = DockStyle.Fill
+        numPrice.Margin = New Padding(0, 4, 12, 4)
+        numPrice.TabIndex = 1
+        numPrice.TextAlign = HorizontalAlignment.Right
+
+        Dim lblCategory As New Label()
+        lblCategory.Text = "Category"
+        lblCategory.AutoSize = True
+        lblCategory.Anchor = AnchorStyles.Left
+        lblCategory.Margin = New Padding(0, 6, 8, 6)
+        lblCategory.ForeColor = UiTheme.TextSecondary
+
+        cmbCategory = New ComboBox()
+        cmbCategory.DropDownStyle = ComboBoxStyle.DropDownList
+        cmbCategory.Margin = New Padding(0, 4, 12, 4)
+        cmbCategory.TabIndex = 2
+
+        btnAdd = New Button()
+        btnAdd.Text = "&Add"
+        btnAdd.AutoSize = True
+        btnAdd.MinimumSize = New Size(100, 32)
+        btnAdd.TabIndex = 3
+        UiTheme.ApplyPrimaryButton(btnAdd)
 
         ' Buttons (Using your team's UiTheme)
         btnAdd = New Button() With {.Text = "&Add Product", .AutoSize = True, .MinimumSize = New Size(100, 32)}
@@ -150,6 +243,141 @@ Public Class ProductsForm
             .BackgroundColor = Color.White,
             .BorderStyle = BorderStyle.None
         }
+        Dim lblSearch As New Label()
+        lblSearch.Text = "Search"
+        lblSearch.AutoSize = True
+        lblSearch.Margin = New Padding(0, 6, 8, 6)
+        lblSearch.ForeColor = UiTheme.TextSecondary
+
+        txtSearch = New TextBox()
+        txtSearch.Margin = New Padding(0, 4, 12, 4)
+        txtSearch.TabIndex = 8
+        txtSearch.MaxLength = MaxSearchLength
+        txtSearch.PlaceholderText = "Filter by product name"
+
+        Dim lblFilter As New Label()
+        lblFilter.Text = "Show"
+        lblFilter.AutoSize = True
+        lblFilter.Margin = New Padding(0, 6, 8, 6)
+        lblFilter.ForeColor = UiTheme.TextSecondary
+
+        cmbFilter = New ComboBox()
+        cmbFilter.DropDownStyle = ComboBoxStyle.DropDownList
+        cmbFilter.Margin = New Padding(0, 4, 12, 4)
+        cmbFilter.TabIndex = 9
+        cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
+
+        btnReactivate = New Button()
+        btnReactivate.Text = "&Reactivate"
+        btnReactivate.AutoSize = True
+        btnReactivate.MinimumSize = New Size(110, 32)
+        btnReactivate.TabIndex = 10
+        btnReactivate.Enabled = False
+        UiTheme.ApplySuccessButton(btnReactivate)
+
+        inputGrid.Controls.Add(lblName, 0, 0)
+        inputGrid.Controls.Add(txtProductName, 1, 0)
+        inputGrid.Controls.Add(lblPrice, 2, 0)
+        inputGrid.Controls.Add(numPrice, 3, 0)
+        inputGrid.Controls.Add(btnAdd, 4, 0)
+        inputGrid.Controls.Add(btnUpdate, 5, 0)
+
+        inputGrid.Controls.Add(lblCategory, 0, 1)
+        inputGrid.Controls.Add(cmbCategory, 1, 1)
+        inputGrid.SetColumnSpan(cmbCategory, 5)
+
+        inputGrid.Controls.Add(lblSearch, 0, 2)
+        inputGrid.Controls.Add(txtSearch, 1, 2)
+        inputGrid.SetColumnSpan(txtSearch, 3)
+        inputGrid.Controls.Add(btnDelete, 4, 2)
+        inputGrid.Controls.Add(btnRefresh, 5, 2)
+
+        inputGrid.Controls.Add(lblFilter, 0, 3)
+        inputGrid.Controls.Add(cmbFilter, 1, 3)
+        inputGrid.SetColumnSpan(cmbFilter, 2)
+        inputGrid.Controls.Add(btnReactivate, 3, 3)
+        inputGrid.Controls.Add(btnTestDb, 4, 3)
+        inputGrid.SetColumnSpan(btnTestDb, 2)
+
+        Dim lblCsv As New Label()
+        lblCsv.Text = "Bulk CSV (name, price)"
+        lblCsv.AutoSize = True
+        lblCsv.Margin = New Padding(0, 6, 8, 6)
+        lblCsv.ForeColor = UiTheme.TextSecondary
+
+        inputGrid.Controls.Add(lblCsv, 0, 4)
+        inputGrid.SetColumnSpan(lblCsv, 2)
+        inputGrid.Controls.Add(btnImportCsv, 2, 4)
+        inputGrid.SetColumnSpan(btnImportCsv, 4)
+
+        UiTheme.ApplyTableLayoutDropDown(cmbCategory)
+        UiTheme.ApplyTableLayoutDropDown(cmbFilter)
+        UiTheme.ApplyTableLayoutSingleLineTextBox(txtSearch)
+
+        Dim inputCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        Dim inputCardInner As Panel = UiTheme.GetCardContentHost(inputCard)
+        inputCardInner.AutoSize = True
+        inputCardInner.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        inputCardInner.Controls.Add(inputGrid)
+
+        lblProductsInputError = New Label()
+        lblProductsInputError.AutoSize = True
+        lblProductsInputError.Margin = New Padding(0, 6, 0, 0)
+        lblProductsInputError.ForeColor = UiTheme.Danger
+        lblProductsInputError.Visible = False
+        lblProductsInputError.MaximumSize = New Size(720, 0)
+        inputCardInner.Controls.Add(lblProductsInputError)
+
+        inputCard.Dock = DockStyle.Fill
+
+        header.Controls.Add(title, 0, 0)
+        header.Controls.Add(inputCard, 0, 1)
+
+        Dim gridCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        Dim gridCardInner As Panel = UiTheme.GetCardContentHost(gridCard)
+        gridCard.Dock = DockStyle.Fill
+
+        Dim gridHost As New Panel()
+        gridHost.Dock = DockStyle.Fill
+        gridHost.Padding = New Padding(0)
+
+        Dim gridToolbar As New FlowLayoutPanel()
+        gridToolbar.Dock = DockStyle.Top
+        gridToolbar.AutoSize = True
+        gridToolbar.WrapContents = False
+        gridToolbar.Padding = New Padding(0, 0, 0, 6)
+
+        Dim lblGridCatFilter As New Label()
+        lblGridCatFilter.Text = "Category filter"
+        lblGridCatFilter.AutoSize = True
+        lblGridCatFilter.Margin = New Padding(0, 8, 8, 8)
+        lblGridCatFilter.ForeColor = UiTheme.TextSecondary
+
+        cmbGridCategoryFilter = New ComboBox()
+        cmbGridCategoryFilter.DropDownStyle = ComboBoxStyle.DropDownList
+        cmbGridCategoryFilter.Width = 260
+        cmbGridCategoryFilter.Margin = New Padding(0, 4, 12, 4)
+
+        gridToolbar.Controls.Add(lblGridCatFilter)
+        gridToolbar.Controls.Add(cmbGridCategoryFilter)
+        UiTheme.ApplyTableLayoutDropDown(cmbGridCategoryFilter)
+
+        lblGridMessage = New Label()
+        lblGridMessage.Dock = DockStyle.Fill
+        lblGridMessage.TextAlign = ContentAlignment.MiddleCenter
+        lblGridMessage.Font = New Font("Segoe UI", 10.0F, FontStyle.Italic)
+        lblGridMessage.ForeColor = UiTheme.TextSecondary
+        lblGridMessage.Visible = False
+        lblGridMessage.Text = "Could not load products. Check LocalDB and App.config (GroupCSqlServer)."
+
+        dgvProducts = New DataGridView()
+        dgvProducts.Dock = DockStyle.Fill
+        dgvProducts.ReadOnly = True
+        dgvProducts.AllowUserToAddRows = False
+        dgvProducts.SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        dgvProducts.MultiSelect = False
+        dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+        dgvProducts.TabIndex = 10
         UiTheme.ApplyDataGridViewChrome(dgvProducts)
 
         lblGridMessage = New Label() With {.Dock = DockStyle.Fill, .TextAlign = ContentAlignment.MiddleCenter, .ForeColor = Color.Gray, .Visible = False}
