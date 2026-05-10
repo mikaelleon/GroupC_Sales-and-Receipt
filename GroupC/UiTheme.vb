@@ -191,4 +191,72 @@ Public NotInheritable Class UiTheme
         button.FlatAppearance.MouseDownBackColor = pressed
     End Sub
 
+    Public Shared Sub ApplyProfessionalGraphics(targetForm As Form)
+        ' 1. Apply smooth background color
+        targetForm.BackColor = FormBackground
+
+        ' 2. Scan all controls and style them
+        StyleControlsRecursively(targetForm.Controls)
+    End Sub
+
+    Private Shared Sub StyleControlsRecursively(controls As Control.ControlCollection)
+        For Each ctrl As Control In controls
+            ' --- STYLE BUTTONS ---
+            If TypeOf ctrl Is Button Then
+                Dim btn As Button = DirectCast(ctrl, Button)
+                btn.Cursor = Cursors.Hand
+                btn.Font = New Font("Segoe UI", 10, FontStyle.Regular)
+
+                ' Intelligently color buttons based on their names!
+                Dim name As String = btn.Name.ToLower()
+                If name.Contains("delete") Or name.Contains("remove") Or name.Contains("cancel") Then
+                    ApplyDangerButton(btn)
+                ElseIf name.Contains("save") Or name.Contains("add") Or name.Contains("checkout") Or name.Contains("ok") Then
+                    ApplySuccessButton(btn)
+                ElseIf name.Contains("print") Or name.Contains("report") Then
+                    ApplySecondaryAccentButton(btn)
+                Else
+                    ApplyPrimaryButton(btn)
+                End If
+
+                ' --- STYLE TABLES (DataGridView) ---
+            ElseIf TypeOf ctrl Is DataGridView Then
+                Dim grid As DataGridView = DirectCast(ctrl, DataGridView)
+                grid.BackgroundColor = Color.White
+                grid.BorderStyle = BorderStyle.None
+                grid.EnableHeadersVisualStyles = False ' Required to custom-color headers
+                grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single
+
+                ' Modern Header Design
+                grid.ColumnHeadersDefaultCellStyle.BackColor = PrimaryAccent
+                grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White
+                grid.ColumnHeadersDefaultCellStyle.Font = New Font("Segoe UI", 10, FontStyle.Bold)
+                grid.ColumnHeadersHeight = 40
+
+                ' Modern Row Design
+                grid.DefaultCellStyle.SelectionBackColor = SecondaryAccent
+                grid.DefaultCellStyle.Font = New Font("Segoe UI", 9.5!)
+                grid.RowTemplate.Height = 35
+                grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect
+                grid.ReadOnly = True
+                grid.AllowUserToAddRows = False
+
+                ' --- STYLE INPUTS ---
+            ElseIf TypeOf ctrl Is TextBox Or TypeOf ctrl Is ComboBox Or TypeOf ctrl Is NumericUpDown Then
+                ctrl.Font = New Font("Segoe UI", 10)
+
+                ' --- STYLE LABELS ---
+            ElseIf TypeOf ctrl Is Label Then
+                Dim lbl As Label = DirectCast(ctrl, Label)
+                lbl.Font = New Font("Segoe UI", 9.5!)
+            End If
+
+            ' Recursively search inside Panels, GroupBoxes, and TableLayoutPanels
+            If ctrl.HasChildren Then
+                StyleControlsRecursively(ctrl.Controls)
+            End If
+        Next
+    End Sub
+
 End Class

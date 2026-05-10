@@ -53,6 +53,13 @@ Public Class MainMenuForm
                 MessageBoxIcon.Error)
         End Try
 
+        SetupResponsiveLayout()
+
+        ' Initialize PDFsharp Font Resolver (Only do this ONCE)
+        If PdfSharp.Fonts.GlobalFontSettings.FontResolver Is Nothing Then
+            PdfSharp.Fonts.GlobalFontSettings.FontResolver = New WindowsFontResolver()
+        End If
+
         Me.Text = "Group C - Sales & Receipt System"
         Me.MinimumSize = New Size(520, 560)
         Me.Size = New Size(560, 620)
@@ -510,6 +517,83 @@ Public Class MainMenuForm
 
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
         Me.Close()
+    End Sub
+
+    Private Sub SetupResponsiveLayout()
+        ' 1. Create a root layout table
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .BackColor = UiTheme.FormBackground
+        }
+        ' Left column for Navigation (Fixed width), Right column for Dashboard (100% of remaining space)
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 220.0F))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+        ' 2. Configure the Navigation Panel (Left side)
+        If flowNav Is Nothing Then flowNav = New FlowLayoutPanel()
+        flowNav.Dock = DockStyle.Fill
+        flowNav.FlowDirection = FlowDirection.TopDown
+        flowNav.WrapContents = False
+        flowNav.AutoScroll = True
+        flowNav.Padding = New Padding(10)
+
+        ' Standardize button sizes and margins inside the flow panel
+        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnExit}
+        For Each btn In navButtons
+            If btn IsNot Nothing Then
+                btn.Width = 190
+                btn.Height = 45
+                btn.Margin = New Padding(5, 5, 5, 10)
+                flowNav.Controls.Add(btn)
+            End If
+        Next
+
+        ' 3. Configure the Dashboard Panel (Right side)
+        Dim dashLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 5,
+            .Padding = New Padding(20)
+        }
+        ' Let the text labels auto-size, and give all leftover vertical space to the chart
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+
+        ' Add dashboard labels with some bottom spacing
+        Dim dashLabels = {lblDbHealth, lblDashProducts, lblDashSalesToday, lblDashLastSale}
+        For i As Integer = 0 To dashLabels.Length - 1
+            If dashLabels(i) IsNot Nothing Then
+                dashLabels(i).AutoSize = True
+                dashLabels(i).Margin = New Padding(0, 0, 0, 15)
+                dashLayout.Controls.Add(dashLabels(i), 0, i)
+            End If
+        Next
+
+        ' Make the chart fill the rest of the dashboard area
+        If picSalesChart IsNot Nothing Then
+            picSalesChart.Dock = DockStyle.Fill
+            picSalesChart.SizeMode = PictureBoxSizeMode.Zoom
+            dashLayout.Controls.Add(picSalesChart, 0, 4)
+        End If
+
+        ' 4. Assemble the panels into the root table
+        rootTable.Controls.Add(flowNav, 0, 0)
+        rootTable.Controls.Add(dashLayout, 1, 0)
+
+        ' 5. Apply everything to the form
+        Me.Controls.Clear() ' Clear out the old absolute-positioned layout
+        Me.Controls.Add(rootTable)
+
+        ' Ensure the StatusStrip stays locked to the bottom
+        If statusStrip IsNot Nothing Then
+            statusStrip.Dock = DockStyle.Bottom
+            Me.Controls.Add(statusStrip)
+        End If
     End Sub
 
 End Class
