@@ -1,24 +1,53 @@
 # Group C Sales & Receipt System
 
-Windows Forms point-of-sale style app built with VB.NET and SQL Server LocalDB.
+## In plain English
 
-## Overview
+**What is this?**  
+A **desktop program for Windows** that helps a small store **sell items**, **track what was sold**, and **give customers a receipt**. Think of it as a simple electronic cash register with a product list on screen instead of paper sheets.
 
-This project lets users:
+**Who is it for?**  
+Anyone running a small retail counter—school supplies, a booth, a classroom demo—who wants prices and totals calculated automatically and sales remembered after closing the app.
 
-- manage products (`Add`, `Update`, `Deactivate`)
-- build a sale cart and compute totals
-- generate, print, and save receipt text
-- persist products and sales data in SQL Server LocalDB
+**What can you do with it?**
 
-## Tech Stack
+- **Sign in** as either a **cashier** (sell and receipts) or an **administrator** (full access).
+- **Keep a product list** with names, prices, and **categories** (for example “Paper”, “Stationery”).
+- **Ring up a sale**: pick products, set quantities, apply **discounts** (percent or fixed amount), add **tax** if needed, enter cash received, and **finalize** the sale.
+- **See and print a receipt** after a sale.
+- **Glance at the main screen** for today’s totals and a simple **last-seven-days sales chart**.
+- **Administrators** can also change store settings (store name on receipts, currency symbol), **run reports**, review an **audit trail** of important actions, get **backup/restore** guidance, and **manage products** (including CSV import).
+
+**Where is my data saved?**  
+On your computer, in a **local database** (SQL Server LocalDB). You don’t need your own server; the app creates or updates the database the first time it runs when possible.
+
+**Do I need to be technical to use the app?**  
+No for daily use: open the program, sign in, sell, print or save receipts.  
+Yes if something breaks: you may need someone comfortable installing **.NET** and **SQL Server LocalDB**, or follow the **Technical setup** section below.
+
+---
+
+## Overview (technical)
+
+Windows Forms point-of-sale style app (VB.NET, `net10.0-windows`) with SQL Server LocalDB.
+
+Capabilities include:
+
+- Product lifecycle (`Add`, `Update`, deactivate / “soft delete” via `is_active`)
+- **Categories** on products; category filters on sales and product screens
+- Role-based UI (**Admin** vs **Cashier**)
+- Cart totals with **discount** (percent or fixed) and **tax**
+- Receipt preview / persistence
+- **Audit logging** (admin-facing list in Reports)
+- Dashboard chart (**last 7 days** sales by day)
+
+## Tech stack
 
 - VB.NET (`net10.0-windows`)
 - Windows Forms
 - SQL Server LocalDB (`(localdb)\MSSQLLocalDB`)
 - `Microsoft.Data.SqlClient`
 
-## Repository Structure
+## Repository structure
 
 ```text
 GroupC/
@@ -30,94 +59,95 @@ GroupC/
    ├─ ProductsForm.vb
    ├─ SalesForm.vb
    ├─ ReceiptForm.vb
+   ├─ ReportsForm.vb
    ├─ DatabaseConfig.vb
    └─ DatabaseInitializer.vb
 ```
 
-Database scripts live in sibling folder:
+Database scripts (reference / manual setup):
 
 - `../db/01_create_database.sql`
 - `../db/02_create_tables.sql`
 - `../db/03_seed_data.sql`
 - `../db/00_fix_products_identity_conflict.sql` (recovery script)
 
+The app normally creates or upgrades schema on startup via `DatabaseInitializer`.
+
 ## Prerequisites
 
-- Visual Studio 2022+ with .NET desktop workload
+- Visual Studio 2022+ with .NET desktop workload (for development)
 - .NET SDK compatible with `net10.0-windows`
 - SQL Server LocalDB installed (`MSSQLLocalDB`)
 
-## Database Setup (GroupC_DB)
+## Database setup (GroupC_DB)
 
-1. Open SQL Server Object Explorer in Visual Studio.
-2. Connect to `(localdb)\MSSQLLocalDB`.
-3. Create database named `GroupC_DB` (if not existing).
-4. Run scripts in order:
+For **manual** setup:
+
+1. Connect to `(localdb)\MSSQLLocalDB`.
+2. Create database `GroupC_DB` if it does not exist.
+3. Run scripts in order:
    1. `../db/01_create_database.sql`
    2. `../db/02_create_tables.sql`
    3. `../db/03_seed_data.sql`
 
-If you previously modified `dbo.products` in designer and got identity/PK conflicts, run:
+If you previously edited `dbo.products` in the designer and hit identity/PK conflicts:
 
-- `../db/00_fix_products_identity_conflict.sql`
+- Run `../db/00_fix_products_identity_conflict.sql`
 
-## Run the App
+## Run the app
 
-From `GroupC/` directory:
+From the `GroupC/` directory:
 
 ```powershell
 dotnet build GroupC.slnx
 dotnet run --project .\GroupC\GroupC.vbproj
 ```
 
-## Connection Configuration
+## Connection configuration
 
-Connection string key in `GroupC/App.config`:
+- Config key: `GroupCSqlServer` in `GroupC/App.config`
+- Default database: `GroupC_DB`
+- Fallback / constants: `GroupC/DatabaseConfig.vb`
 
-- `GroupCSqlServer`
+## Forms and flow (technical)
 
-Default database target:
-
-- `GroupC_DB`
-
-If needed, update connection string in:
-
-- `GroupC/App.config`
-- `GroupC/DatabaseConfig.vb` (fallback string)
-
-## Forms and Flow
-
-- `MainMenuForm` -> entry point and navigation
-- `ProductsForm` -> product CRUD-like operations (soft delete via `is_active`)
-- `SalesForm` -> cart lines, total calculation, sale persistence
-- `ReceiptForm` -> receipt display, print, save text
+- `MainMenuForm` — entry, login, dashboard, navigation
+- `LoginForm` — role + password/PIN
+- `ProductsForm` — products and categories (admin)
+- `SalesForm` — cart, discounts, tax, finalize sale
+- `ReceiptForm` — receipt preview / history
+- `ReportsForm` — sales summaries; audit log tab (admin)
+- `SettingsForm` — store name, footer, currency symbol (admin)
 
 ## Troubleshooting
 
-### App changes not visible in "View Data"
+### App changes not visible in “View Data”
 
-- Reopen "View Data" window (it does not auto-refresh reliably).
-- Confirm query context:
+- Refresh or reopen the window.
+- Confirm database context:
+
   ```sql
   SELECT DB_NAME() AS current_db;
   ```
-  Must be `GroupC_DB`.
+
+  Expected: `GroupC_DB`.
 
 ### SQL70001 in table designer
 
-- Run full scripts in **New Query** window, not designer script context.
-- Designer parser rejects batch commands like `USE`, `GO`, conditional DDL.
+- Run full scripts in a **New Query** window, not the designer script pane.
+- Designer rejects batches with `USE`, `GO`, conditional DDL.
 
 ### Duplicate identity/PK errors on `dbo.products`
 
-- Use `../db/00_fix_products_identity_conflict.sql`.
-- Ensure `products` table uses only:
-  - `id` as `IDENTITY` primary key
-  - no `product_id` column
+- Run `../db/00_fix_products_identity_conflict.sql`.
+- Prefer `id` as single `IDENTITY` PK on `products`.
 
-## Best Practices for Team
+### Build fails because GroupC.exe is locked
 
-- Prefer script-based schema changes over table designer edits.
-- Keep `id` as single primary key for `products`.
-- Run `dotnet build GroupC.slnx` before pushing changes.
-- Update docs and SQL scripts together when schema changes.
+- Close the running app before `dotnet build`.
+
+## Team practices
+
+- Prefer script-based schema changes over designer-only edits.
+- Run `dotnet build GroupC.slnx` before pushing.
+- Update SQL scripts and `DatabaseInitializer` when schema changes.
