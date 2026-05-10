@@ -584,91 +584,103 @@ Public Class SalesForm
     End Sub
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
-        ClearSalesInputError()
-        Dim productName As String = cmbProductName.Text.Trim()
-        Dim price As Decimal
+        Try
+            ClearSalesInputError()
+            Dim productName As String = cmbProductName.Text.Trim()
+            Dim price As Decimal
 
-        If productName = String.Empty Then
-            ShowSalesInputError("Select a product.")
-            MessageBox.Show("Please select a product.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            cmbProductName.Focus()
-            Return
-        End If
+            If productName = String.Empty Then
+                ShowSalesInputError("Select a product.")
+                MessageBox.Show("Please select a product.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                cmbProductName.Focus()
+                Return
+            End If
 
-        Dim priceText As String = txtPrice.Text.Trim()
-        If priceText.Length = 0 Then
-            ShowSalesInputError("Price cannot be empty.")
-            MessageBox.Show("Price cannot be empty. Select a product with a valid price.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            cmbProductName.Focus()
-            Return
-        End If
+            Dim priceText As String = txtPrice.Text.Trim()
+            If priceText.Length = 0 Then
+                ShowSalesInputError("Price cannot be empty.")
+                MessageBox.Show("Price cannot be empty. Select a product with a valid price.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                cmbProductName.Focus()
+                Return
+            End If
 
-        If Not TryParsePositiveDecimal(priceText, MinLineUnitPrice, MaxLineUnitPrice, price) Then
-            ShowSalesInputError(String.Format(CultureInfo.CurrentCulture, "Price must be a number from {0:N2} to {1:N2}.", MinLineUnitPrice, MaxLineUnitPrice))
-            MessageBox.Show(
+            If Not TryParsePositiveDecimal(priceText, MinLineUnitPrice, MaxLineUnitPrice, price) Then
+                ShowSalesInputError(String.Format(CultureInfo.CurrentCulture, "Price must be a number from {0:N2} to {1:N2}.", MinLineUnitPrice, MaxLineUnitPrice))
+                MessageBox.Show(
                 String.Format(CultureInfo.CurrentCulture, "Enter a valid unit price between {0:N2} and {1:N2}.", MinLineUnitPrice, MaxLineUnitPrice),
                 "Validation",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning)
-            Return
-        End If
+                Return
+            End If
 
-        Dim qtyText As String = numQuantity.Text.Trim()
-        If qtyText.Length = 0 Then
-            ShowSalesInputError("Quantity cannot be empty.")
-            MessageBox.Show("Quantity cannot be empty.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            numQuantity.Focus()
-            Return
-        End If
-
-        Dim qtyDecimal As Decimal
-        If Not Decimal.TryParse(qtyText, NumberStyles.Number, CultureInfo.CurrentCulture, qtyDecimal) Then
-            If Not Decimal.TryParse(qtyText, NumberStyles.Number, CultureInfo.InvariantCulture, qtyDecimal) Then
-                ShowSalesInputError("Quantity must be a valid whole number.")
-                MessageBox.Show("Quantity must be a valid whole number.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Dim qtyText As String = numQuantity.Text.Trim()
+            If qtyText.Length = 0 Then
+                ShowSalesInputError("Quantity cannot be empty.")
+                MessageBox.Show("Quantity cannot be empty.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 numQuantity.Focus()
                 Return
             End If
-        End If
 
-        If qtyDecimal <> Decimal.Truncate(qtyDecimal) Then
-            ShowSalesInputError("Quantity must be a whole number.")
-            MessageBox.Show("Quantity must be a whole number (no decimals).", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            numQuantity.Focus()
-            Return
-        End If
+            Dim qtyDecimal As Decimal
+            If Not Decimal.TryParse(qtyText, NumberStyles.Number, CultureInfo.CurrentCulture, qtyDecimal) Then
+                If Not Decimal.TryParse(qtyText, NumberStyles.Number, CultureInfo.InvariantCulture, qtyDecimal) Then
+                    ShowSalesInputError("Quantity must be a valid whole number.")
+                    MessageBox.Show("Quantity must be a valid whole number.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    numQuantity.Focus()
+                    Return
+                End If
+            End If
 
-        Dim quantity As Integer = CInt(qtyDecimal)
-        If quantity < MinLineQty OrElse quantity > MaxLineQty Then
-            ShowSalesInputError(String.Format(CultureInfo.CurrentCulture, "Quantity must be from {0} to {1}.", MinLineQty, MaxLineQty))
-            MessageBox.Show(
+            If qtyDecimal <> Decimal.Truncate(qtyDecimal) Then
+                ShowSalesInputError("Quantity must be a whole number.")
+                MessageBox.Show("Quantity must be a whole number (no decimals).", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                numQuantity.Focus()
+                Return
+            End If
+
+            Dim quantity As Integer = CInt(qtyDecimal)
+            If quantity < MinLineQty OrElse quantity > MaxLineQty Then
+                ShowSalesInputError(String.Format(CultureInfo.CurrentCulture, "Quantity must be from {0} to {1}.", MinLineQty, MaxLineQty))
+                MessageBox.Show(
                 String.Format(CultureInfo.CurrentCulture, "Quantity must be between {0} and {1}.", MinLineQty, MaxLineQty),
                 "Validation",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning)
-            numQuantity.Focus()
-            Return
-        End If
+                numQuantity.Focus()
+                Return
+            End If
 
-        Dim line As New CartLineItem(productName, price, quantity)
-        Dim rowNumber As Integer = dgvProducts.Rows.Count + 1
+            Dim line As New CartLineItem(productName, price, quantity)
+            Dim rowNumber As Integer = dgvProducts.Rows.Count + 1
 
-        Dim idx As Integer = dgvProducts.Rows.Add(
+            Dim idx As Integer = dgvProducts.Rows.Add(
             rowNumber,
             productName,
             line.UnitPrice.ToString("N2", CultureInfo.CurrentCulture),
             quantity,
             line.LineSubtotal.ToString("N2", CultureInfo.CurrentCulture))
 
-        dgvProducts.Rows(idx).Tag = line
+            dgvProducts.Rows(idx).Tag = line
 
-        cmbProductName.SelectedIndex = -1
-        txtPrice.Clear()
-        numQuantity.Value = MinLineQty
-        cmbProductName.Focus()
-        ClearSalesInputError()
-        UpdateSummaryLabels()
-        ShowStatus("Line added to cart.", False)
+            cmbProductName.SelectedIndex = -1
+            txtPrice.Clear()
+            numQuantity.Value = MinLineQty
+            cmbProductName.Focus()
+            ClearSalesInputError()
+
+            ReindexRows()
+            UpdateSummaryLabels()
+            ShowStatus("Line added to cart.", False)
+
+        Catch ex As Exception
+            ' THIS WILL CATCH THE CRASH AND TELL US EXACTLY WHERE IT HAPPENED!
+            MessageBox.Show(
+            "Crash Location: " & vbCrLf & ex.StackTrace,
+            "Error Details",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+        End Try
     End Sub
 
     Private Sub btnRemove_Click(sender As Object, e As EventArgs) Handles btnRemove.Click
@@ -1227,6 +1239,10 @@ Public Class SalesForm
     End Function
 
     Private Function GetCartSubtotalSum() As Decimal
+        ' --- THE SAFETY SHIELD ---
+        If dgvProducts Is Nothing Then Return 0D
+        ' -------------------------
+
         Dim total As Decimal = 0D
 
         For Each row As DataGridViewRow In dgvProducts.Rows
@@ -1284,8 +1300,13 @@ Public Class SalesForm
     End Function
 
     Private Sub UpdateSummaryLabels()
+        ' --- THE SAFETY SHIELD ---
+        If lblTotal Is Nothing OrElse dgvProducts Is Nothing Then Return
+        ' -------------------------
+
         Dim cartSum As Decimal = GetCartSubtotalSum()
         lblSubtotalValue.Text = FormatMoney(cartSum)
+
         If lblDiscountHeading IsNot Nothing Then
             If radDiscountPercent.Checked Then
                 lblDiscountHeading.Text = "Discount rate (%)"
