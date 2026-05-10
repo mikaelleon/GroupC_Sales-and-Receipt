@@ -26,7 +26,8 @@ Public Class SettingsForm
         Me.StartPosition = FormStartPosition.CenterParent
         Me.MinimizeBox = False
         Me.MaximizeBox = False
-        Me.Size = New Size(480, 320)
+        Me.MinimumSize = New Size(520, 400)
+        Me.Size = New Size(560, 440)
         UiTheme.ApplyStandardWindowChrome(Me)
 
         AppSettings.Reload()

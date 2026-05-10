@@ -191,4 +191,45 @@ Public NotInheritable Class UiTheme
         button.FlatAppearance.MouseDownBackColor = pressed
     End Sub
 
+    ''' <summary>
+    ''' Drop-down combos in <see cref="TableLayoutPanel"/> must not use <see cref="DockStyle.Fill"/> vertically — stretched height makes WinForms paint them like an always-open list.
+    ''' </summary>
+    ''' <param name="combo">Configured combo (typically <see cref="ComboBoxStyle.DropDownList"/>).</param>
+    Public Shared Sub ApplyTableLayoutDropDown(combo As ComboBox)
+        If combo Is Nothing Then
+            Return
+        End If
+
+        combo.IntegralHeight = False
+        combo.Dock = DockStyle.None
+        combo.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
+        Dim h As Integer = combo.PreferredHeight
+        If h < 26 Then
+            h = 28
+        End If
+
+        combo.MinimumSize = New Size(0, h)
+        combo.MaximumSize = New Size(0, h)
+    End Sub
+
+    ''' <summary>
+    ''' Single-line text boxes in table layouts should match combo fix — avoid vertical stretch in AutoSize rows.
+    ''' </summary>
+    ''' <param name="textBox">Text box to constrain.</param>
+    Public Shared Sub ApplyTableLayoutSingleLineTextBox(textBox As TextBox)
+        If textBox Is Nothing Then
+            Return
+        End If
+
+        textBox.Dock = DockStyle.None
+        textBox.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
+        Dim h As Integer = textBox.PreferredHeight
+        If h < 22 Then
+            h = 24
+        End If
+
+        textBox.MinimumSize = New Size(0, h)
+        textBox.MaximumSize = New Size(0, h)
+    End Sub
+
 End Class

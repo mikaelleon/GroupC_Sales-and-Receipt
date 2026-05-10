@@ -32,8 +32,8 @@ Public Class ReportsForm
         UiTheme.ApplyStandardWindowChrome(Me)
 
         Me.Text = "Group C - Reports"
-        Me.MinimumSize = New Size(720, 520)
-        Me.Size = New Size(800, 580)
+        Me.MinimumSize = New Size(760, 560)
+        Me.Size = New Size(880, 640)
         Me.StartPosition = FormStartPosition.CenterParent
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}

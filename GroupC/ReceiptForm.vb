@@ -72,8 +72,8 @@ Public Class ReceiptForm
         End Try
 
         Me.Text = "Group C - Receipt Preview"
-        Me.MinimumSize = New Size(560, 580)
-        Me.Size = New Size(700, 720)
+        Me.MinimumSize = New Size(620, 620)
+        Me.Size = New Size(760, 760)
         Me.StartPosition = FormStartPosition.CenterScreen
 
         CreateControls()
@@ -153,7 +153,6 @@ Public Class ReceiptForm
 
         cmbHistory = New ComboBox()
         cmbHistory.DropDownStyle = ComboBoxStyle.DropDownList
-        cmbHistory.Dock = DockStyle.Fill
         cmbHistory.Margin = New Padding(0, 4, 8, 4)
         cmbHistory.TabIndex = 0
 
@@ -165,6 +164,7 @@ Public Class ReceiptForm
         historyRow.Controls.Add(lblHist, 0, 0)
         historyRow.Controls.Add(cmbHistory, 1, 0)
         historyRow.Controls.Add(btnLoadList, 2, 0)
+        UiTheme.ApplyTableLayoutDropDown(cmbHistory)
 
         Dim historyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
         Dim historyCardInner As Panel = UiTheme.GetCardContentHost(historyCard)

@@ -14,8 +14,8 @@ Public Class BackupRestoreForm
 
     Private Sub BackupRestoreForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = "Group C - Backup / Restore"
-        Me.MinimumSize = New Size(560, 420)
-        Me.Size = New Size(640, 480)
+        Me.MinimumSize = New Size(600, 480)
+        Me.Size = New Size(720, 560)
         Me.StartPosition = FormStartPosition.CenterParent
         UiTheme.ApplyStandardWindowChrome(Me)
 

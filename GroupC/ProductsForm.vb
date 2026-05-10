@@ -81,8 +81,8 @@ Public Class ProductsForm
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = "Group C - Manage Products"
-        Me.MinimumSize = New Size(640, 480)
-        Me.Size = New Size(780, 580)
+        Me.MinimumSize = New Size(720, 540)
+        Me.Size = New Size(840, 620)
         Me.StartPosition = FormStartPosition.CenterScreen
         UiTheme.ApplyStandardWindowChrome(Me)
 
@@ -182,7 +182,6 @@ Public Class ProductsForm
 
         cmbCategory = New ComboBox()
         cmbCategory.DropDownStyle = ComboBoxStyle.DropDownList
-        cmbCategory.Dock = DockStyle.Fill
         cmbCategory.Margin = New Padding(0, 4, 12, 4)
         cmbCategory.TabIndex = 2
 
@@ -235,7 +234,6 @@ Public Class ProductsForm
         lblSearch.ForeColor = UiTheme.TextSecondary
 
         txtSearch = New TextBox()
-        txtSearch.Dock = DockStyle.Fill
         txtSearch.Margin = New Padding(0, 4, 12, 4)
         txtSearch.TabIndex = 8
         txtSearch.MaxLength = MaxSearchLength
@@ -249,7 +247,6 @@ Public Class ProductsForm
 
         cmbFilter = New ComboBox()
         cmbFilter.DropDownStyle = ComboBoxStyle.DropDownList
-        cmbFilter.Dock = DockStyle.Fill
         cmbFilter.Margin = New Padding(0, 4, 12, 4)
         cmbFilter.TabIndex = 9
         cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
@@ -297,6 +294,10 @@ Public Class ProductsForm
         inputGrid.Controls.Add(btnImportCsv, 2, 4)
         inputGrid.SetColumnSpan(btnImportCsv, 4)
 
+        UiTheme.ApplyTableLayoutDropDown(cmbCategory)
+        UiTheme.ApplyTableLayoutDropDown(cmbFilter)
+        UiTheme.ApplyTableLayoutSingleLineTextBox(txtSearch)
+
         Dim inputCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
         Dim inputCardInner As Panel = UiTheme.GetCardContentHost(inputCard)
         inputCardInner.AutoSize = True
@@ -343,6 +344,7 @@ Public Class ProductsForm
 
         gridToolbar.Controls.Add(lblGridCatFilter)
         gridToolbar.Controls.Add(cmbGridCategoryFilter)
+        UiTheme.ApplyTableLayoutDropDown(cmbGridCategoryFilter)
 
         lblGridMessage = New Label()
         lblGridMessage.Dock = DockStyle.Fill
