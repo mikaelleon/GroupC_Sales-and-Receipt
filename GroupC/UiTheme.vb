@@ -257,6 +257,8 @@ Public NotInheritable Class UiTheme
                 StyleControlsRecursively(ctrl.Controls)
             End If
         Next
+    End Sub
+
     ''' <summary>
     ''' Drop-down combos in <see cref="TableLayoutPanel"/> must not use <see cref="DockStyle.Fill"/> vertically — stretched height makes WinForms paint them like an always-open list.
     ''' </summary>

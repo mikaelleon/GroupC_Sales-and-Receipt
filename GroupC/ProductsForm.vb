@@ -109,9 +109,6 @@ Public Class ProductsForm
         ' -----------------------------------------------------------
         ' Labels
         Dim lblTitle As New Label() With {.Text = "MANAGE PRODUCTS", .Font = New Font("Segoe UI", 16, FontStyle.Bold), .AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
-        Dim lblName As New Label() With {.Text = "Product Name:", .AutoSize = True, .Anchor = AnchorStyles.Left}
-        Dim lblPrice As New Label() With {.Text = "Price (₱):", .AutoSize = True, .Anchor = AnchorStyles.Left}
-        Dim lblCategory As New Label() With {.Text = "Category:", .AutoSize = True, .Anchor = AnchorStyles.Left}
 
         ' Inputs
         txtProductName = New TextBox() With {.Dock = DockStyle.Fill, .MaxLength = 100, .Margin = New Padding(0, 0, 10, 5)}
@@ -430,12 +427,12 @@ Public Class ProductsForm
             .Padding = New Padding(0, 0, 0, 10),
             .WrapContents = False
         }
-        Dim lblSearch As New Label() With {.Text = "Search:", .AutoSize = True, .Margin = New Padding(0, 8, 5, 0)}
-        Dim lblFilter As New Label() With {.Text = "Filter by:", .AutoSize = True, .Margin = New Padding(15, 8, 5, 0)}
+        Dim lblToolbarSearch As New Label() With {.Text = "Search:", .AutoSize = True, .Margin = New Padding(0, 8, 5, 0)}
+        Dim lblToolbarFilter As New Label() With {.Text = "Filter by:", .AutoSize = True, .Margin = New Padding(15, 8, 5, 0)}
 
-        pnlToolbar.Controls.Add(lblSearch)
+        pnlToolbar.Controls.Add(lblToolbarSearch)
         pnlToolbar.Controls.Add(txtSearch)
-        pnlToolbar.Controls.Add(lblFilter)
+        pnlToolbar.Controls.Add(lblToolbarFilter)
         pnlToolbar.Controls.Add(cmbGridCategoryFilter)
         pnlToolbar.Controls.Add(cmbFilter)
         pnlToolbar.Controls.Add(btnRefresh)

@@ -609,15 +609,12 @@ Public Class SalesForm
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
         Try
             ClearSalesInputError()
+            If Not IsSalesCartGridReady() Then
+                Return
+            End If
+
             Dim productName As String = cmbProductName.Text.Trim()
             Dim price As Decimal
-        If Not IsSalesCartGridReady() Then
-            Return
-        End If
-
-        ClearSalesInputError()
-        Dim productName As String = cmbProductName.Text.Trim()
-        Dim price As Decimal
 
             If productName = String.Empty Then
                 ShowSalesInputError("Select a product.")
@@ -1373,24 +1370,17 @@ Public Class SalesForm
     End Function
 
     Private Sub UpdateSummaryLabels()
-        ' --- THE SAFETY SHIELD ---
-        If lblTotal Is Nothing OrElse dgvProducts Is Nothing Then Return
-        ' -------------------------
-
-        Dim cartSum As Decimal = GetCartSubtotalSum()
-        lblSubtotalValue.Text = FormatMoney(cartSum)
-
-        If lblDiscountHeading IsNot Nothing Then
         If suppressSalesSummary OrElse Not IsSalesCartGridReady() Then
             Return
         End If
 
-        If lblSubtotalValue Is Nothing OrElse lblDiscountValue Is Nothing OrElse lblTaxValue Is Nothing OrElse lblTotal Is Nothing OrElse lblChangeValue Is Nothing Then
+        If lblSubtotalValue Is Nothing OrElse lblDiscountValue Is Nothing OrElse lblTaxValue Is Nothing OrElse lblTotal Is Nothing OrElse lblChangeValue Is Nothing OrElse dgvProducts Is Nothing Then
             Return
         End If
 
         Dim cartSum As Decimal = GetCartSubtotalSum()
         lblSubtotalValue.Text = FormatMoney(cartSum)
+
         If lblDiscountHeading IsNot Nothing AndAlso radDiscountPercent IsNot Nothing Then
             If radDiscountPercent.Checked Then
                 lblDiscountHeading.Text = "Discount rate (%)"
