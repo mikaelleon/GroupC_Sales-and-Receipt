@@ -11,7 +11,7 @@ Public Class LoginForm
 
     Private Const SecretMaskChar As Char = "*"c
     Private Const SecretPlaceholder As String = "Please enter your password"
-    Private Const SecretFieldWidth As Integer = 300
+    Private Const SecretFieldWidth As Integer = 320
     Private Const SecretFieldHeight As Integer = 44
     Private Const SecretToggleWidth As Integer = 44
     Private Const SecretTextPaddingLeft As Integer = 14
@@ -32,28 +32,25 @@ Public Class LoginForm
         Me.SuspendLayout()
         Me.Text = "Group C — Sign in"
 
-        ' Allow resizing and set default state to Maximized
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.WindowState = FormWindowState.Maximized
-        Me.StartPosition = FormStartPosition.CenterScreen
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 500, 450)
         Me.MinimizeBox = True
         Me.MaximizeBox = True
-        Me.MinimumSize = New Size(500, 450) ' Prevents user from making the window too tiny
 
         UiTheme.ApplyStandardWindowChrome(Me)
 
         ' 2. INITIALIZE CONTROLS
         Dim lblTitle As New Label() With {
             .Text = "Welcome Back",
-            .Font = New Font("Segoe UI", 18, FontStyle.Bold),
+            .Font = New Font("Segoe UI", 22, FontStyle.Bold),
+            .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 20)
+            .Margin = New Padding(0, 0, 0, 8)
         }
 
         Dim lblRole As New Label() With {.Text = "Select Role:", .AutoSize = True, .Margin = New Padding(0, 10, 0, 5)}
 
-        radAdmin = New RadioButton() With {.Text = "Administrator", .AutoSize = True, .Checked = True}
-        radCashier = New RadioButton() With {.Text = "Cashier", .AutoSize = True}
+        radAdmin = New RadioButton() With {.Text = "Administrator", .AutoSize = True, .Checked = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
+        radCashier = New RadioButton() With {.Text = "Cashier", .AutoSize = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
 
         Dim pnlRoles As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
         pnlRoles.Controls.Add(radAdmin)
@@ -72,9 +69,9 @@ Public Class LoginForm
 
         lblHint = New Label() With {
             .Text = "Enter the admin password or cashier PIN.",
-            .ForeColor = Color.Gray,
+            .ForeColor = UiTheme.TextSecondary,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 25)
+            .Margin = New Padding(0, 4, 0, 28)
         }
 
         btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}

@@ -33,10 +33,7 @@ Public Class MainMenuForm
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.SuspendLayout()
         Me.Text = "Group C - Sales & Receipt System"
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.WindowState = FormWindowState.Maximized
-        Me.StartPosition = FormStartPosition.CenterScreen
-        Me.MinimumSize = New Size(960, 600)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
 
         ' THE FIX: Hide the Main Menu completely before Login
         Me.Opacity = 0
@@ -86,6 +83,7 @@ Public Class MainMenuForm
         tmrRefresh = New Timer() With {.Interval = 60000}
         tmrRefresh.Start()
 
+        Me.CancelButton = btnLogout
         RefreshHealthAndDashboard()
         Me.ResumeLayout(True)
     End Sub
@@ -278,6 +276,9 @@ Public Class MainMenuForm
         outer.Dock = DockStyle.Fill
 
         Dim inner As Panel = UiTheme.GetCardContentHost(outer)
+        If inner Is Nothing Then
+            Return outer
+        End If
 
         Dim lblTitle As New Label() With {
             .Text = title,

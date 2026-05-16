@@ -66,10 +66,7 @@ Public Class ReceiptForm
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.Text = "Group C - Receipt Preview"
-        Me.MinimumSize = New Size(1024, 720) ' Increased so the side-by-side layout never crushes
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.WindowState = FormWindowState.Maximized ' Forces full screen
-        Me.StartPosition = FormStartPosition.CenterScreen
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)

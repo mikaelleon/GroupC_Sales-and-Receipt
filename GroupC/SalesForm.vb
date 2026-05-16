@@ -98,10 +98,7 @@ Public Class SalesForm
 
     Private Sub SetupForm()
         Me.Text = "Group C - Point of Sale"
-        Me.MinimumSize = New Size(1024, 720)
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.WindowState = FormWindowState.Maximized ' Start in Full Screen
-        Me.StartPosition = FormStartPosition.CenterScreen
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
     End Sub
 
     Private Sub CreateControls()
@@ -315,11 +312,9 @@ Public Class SalesForm
 
         ' --- CHECKOUT PANEL (Bottom Right Dashboard) ---
         Dim checkoutPanel As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .Dock = DockStyle.Bottom,
             .ColumnCount = 3,
             .RowCount = 1,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .Margin = New Padding(0)
         }
         checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F)) ' Discount & Tax Settings
@@ -363,10 +358,11 @@ Public Class SalesForm
         checkoutPanel.Controls.Add(detailsLayout, 1, 0)
         checkoutPanel.Controls.Add(finalizeLayout, 2, 0)
 
-        Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(0))
-        checkoutCard.AutoSize = True
-        checkoutCard.Dock = DockStyle.Bottom
-        checkoutCard.Controls.Add(checkoutPanel)
+        checkoutPanel.Dock = DockStyle.Fill
+        Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        checkoutCard.Dock = DockStyle.Fill
+        checkoutCard.Margin = New Padding(0, 8, 0, 0)
+        UiTheme.PopulateCardContent(checkoutCard, checkoutPanel)
 
         rightCard.Controls.Add(checkoutCard, 0, 2)
 

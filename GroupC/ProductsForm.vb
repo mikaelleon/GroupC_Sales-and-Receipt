@@ -83,10 +83,7 @@ Public Class ProductsForm
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.Text = "Group C - Manage Products"
-        Me.MinimumSize = New Size(960, 600)
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.WindowState = FormWindowState.Maximized ' Start in Full Screen
-        Me.StartPosition = FormStartPosition.CenterScreen
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
