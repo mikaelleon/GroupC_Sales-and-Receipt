@@ -1,4 +1,6 @@
+Imports System.ComponentModel
 Imports System.Drawing
+Imports System.Drawing.Drawing2D
 Imports System.Windows.Forms
 
 ''' <summary>
@@ -7,88 +9,132 @@ Imports System.Windows.Forms
 Public Class LoginForm
     Inherits Form
 
+    Private Const SecretMaskChar As Char = "*"c
+    Private Const SecretPlaceholder As String = "Please enter your password"
+    Private Const SecretFieldWidth As Integer = 320
+    Private Const SecretFieldHeight As Integer = 44
+    Private Const SecretToggleWidth As Integer = 44
+    Private Const SecretTextPaddingLeft As Integer = 14
+
     Private WithEvents radAdmin As RadioButton
     Private WithEvents radCashier As RadioButton
     Private txtSecret As TextBox
+    Private pnlSecret As Panel
+    Private WithEvents pnlToggleSecret As PasswordTogglePanel
     Private lblHint As Label
     Private WithEvents btnOk As Button
     Private WithEvents btnCancel As Button
 
+    Private passwordVisible As Boolean
+
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        ' 1. FORM SETUP: Full Screen & Responsive
+        Me.SuspendLayout()
         Me.Text = "Group C — Sign in"
-        Me.FormBorderStyle = FormBorderStyle.Sizable
-        Me.StartPosition = FormStartPosition.CenterScreen
+
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 500, 450)
         Me.MinimizeBox = True
         Me.MaximizeBox = True
-        Me.MinimumSize = New Size(520, 460)
-        Me.Size = New Size(600, 520)
+
         UiTheme.ApplyStandardWindowChrome(Me)
 
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.Padding = New Padding(20)
-        root.ColumnCount = 1
-        root.RowCount = 8
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 36.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim title As New Label() With {
-            .Text = "SIGN IN",
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
+        ' 2. INITIALIZE CONTROLS
+        Dim lblTitle As New Label() With {
+            .Text = "Welcome Back",
+            .Font = New Font("Segoe UI", 22, FontStyle.Bold),
+            .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
             .Margin = New Padding(0, 0, 0, 8)
         }
 
-        radAdmin = New RadioButton() With {.Text = "Administrator (full access)", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
-        radCashier = New RadioButton() With {.Text = "Cashier (sales and receipts only)", .AutoSize = True, .Checked = True, .Margin = New Padding(0, 4, 0, 8), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
+        Dim lblRole As New Label() With {.Text = "Select Role:", .AutoSize = True, .Margin = New Padding(0, 10, 0, 5)}
 
-        Dim lblSecret As New Label() With {.Text = "Password / PIN", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextSecondary}
+        radAdmin = New RadioButton() With {.Text = "Administrator", .AutoSize = True, .Checked = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
+        radCashier = New RadioButton() With {.Text = "Cashier", .AutoSize = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
 
-        txtSecret = New TextBox() With {.Dock = DockStyle.Fill, .Anchor = AnchorStyles.Left Or AnchorStyles.Right, .UseSystemPasswordChar = True, .Margin = New Padding(0, 2, 0, 4)}
+        Dim pnlRoles As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
+        pnlRoles.Controls.Add(radAdmin)
+        pnlRoles.Controls.Add(radCashier)
+
+        Dim lblSecret As New Label() With {
+            .Text = "Password / PIN:",
+            .AutoSize = False,
+            .Width = SecretFieldWidth,
+            .Margin = New Padding(0, 5, 0, 6),
+            .ForeColor = UiTheme.TextPrimary,
+            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular)
+        }
+
+        pnlSecret = BuildPasswordField()
 
         lblHint = New Label() With {
-            .Text = "Administrators must enter the configured password. Cashiers: leave blank unless a PIN is configured in DatabaseConfig.",
-            .AutoSize = True,
+            .Text = "Enter the admin password or cashier PIN.",
             .ForeColor = UiTheme.TextSecondary,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-            .Margin = New Padding(0, 6, 0, 12)
-        }
-        UpdateHintWrapWidth()
-
-        Dim spacer As New Panel() With {.Dock = DockStyle.Fill, .Margin = Padding.Empty}
-
-        Dim buttons As New FlowLayoutPanel() With {
             .AutoSize = True,
+            .Margin = New Padding(0, 4, 0, 28)
+        }
+
+        btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}
+        btnCancel = New Button() With {.Text = "Cancel", .Size = New Size(100, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.Cancel}
+
+        Try
+            UiTheme.ApplyPrimaryButton(btnOk)
+            UiTheme.ApplySecondaryButton(btnCancel)
+        Catch
+        End Try
+
+        Dim pnlButtons As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Margin = New Padding(0)
+        }
+        pnlButtons.Controls.Add(btnOk)
+        pnlButtons.Controls.Add(btnCancel)
+
+        ' 3. ASSEMBLE THE "CARD"
+        Dim loginCard As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .FlowDirection = FlowDirection.RightToLeft,
+            .Padding = New Padding(0),
+            .Width = SecretFieldWidth
+        }
+
+        loginCard.Controls.Add(lblTitle)
+        loginCard.Controls.Add(lblRole)
+        loginCard.Controls.Add(pnlRoles)
+        loginCard.Controls.Add(lblSecret)
+        loginCard.Controls.Add(pnlSecret)
+        loginCard.Controls.Add(lblHint)
+        loginCard.Controls.Add(pnlButtons)
+
+        ' 4. THE RESPONSIVE CENTERING GRID
+        ' Because the outer rows/columns are 50%, they act like fluid springs 
+        ' that constantly adjust to window resizing!
+        Dim centerGrid As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .Padding = New Padding(0, 8, 0, 0)}
-        btnOk = New Button() With {.Text = "Sign in", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.None}
-        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.Cancel}
-        UiTheme.ApplyPrimaryButton(btnOk)
-        UiTheme.ApplySecondaryButton(btnCancel)
-        buttons.Controls.Add(btnCancel)
-        buttons.Controls.Add(btnOk)
+            .ColumnCount = 3,
+            .RowCount = 3
+        }
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
 
-        root.Controls.Add(title, 0, 0)
-        root.Controls.Add(radAdmin, 0, 1)
-        root.Controls.Add(radCashier, 0, 2)
-        root.Controls.Add(lblSecret, 0, 3)
-        root.Controls.Add(txtSecret, 0, 4)
-        root.Controls.Add(lblHint, 0, 5)
-        root.Controls.Add(spacer, 0, 6)
-        root.Controls.Add(buttons, 0, 7)
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
 
-        Me.Controls.Add(root)
+        centerGrid.Controls.Add(loginCard, 1, 1)
+
+        ' 5. FINAL WIRING
+        Me.Controls.Clear()
+        Me.Controls.Add(centerGrid)
+
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
+
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub LoginForm_Resize(sender As Object, e As EventArgs) Handles MyBase.Resize
@@ -142,5 +188,252 @@ Public Class LoginForm
         Me.DialogResult = DialogResult.OK
         Me.Close()
     End Sub
+
+    Private Sub btnCancel_Click(sender As Object, e As EventArgs) Handles btnCancel.Click
+        ' Empty password/PIN: dismiss sign-in (startup exits app; logout returns to menu).
+        Me.DialogResult = DialogResult.Cancel
+        Me.Close()
+    End Sub
+
+    Private Function BuildPasswordField() As Panel
+        txtSecret = New TextBox() With {
+            .PasswordChar = SecretMaskChar,
+            .PlaceholderText = SecretPlaceholder,
+            .Font = New Font("Segoe UI", 11.0F),
+            .BorderStyle = BorderStyle.None,
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(SecretTextPaddingLeft, 10, 4, 10),
+            .BackColor = UiTheme.CardSurface
+        }
+
+        pnlToggleSecret = New PasswordTogglePanel() With {
+            .Dock = DockStyle.Fill,
+            .PasswordVisible = passwordVisible,
+            .AccessibleName = "Show password",
+            .AccessibleDescription = "Toggles visibility of the password or PIN."
+        }
+
+        Dim secretLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .BackColor = UiTheme.CardSurface,
+            .Margin = New Padding(0),
+            .Padding = New Padding(0)
+        }
+        secretLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        secretLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, SecretToggleWidth))
+        secretLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        secretLayout.Controls.Add(txtSecret, 0, 0)
+        secretLayout.Controls.Add(pnlToggleSecret, 1, 0)
+
+        Dim inner As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .MinimumSize = New Size(0, SecretFieldHeight - 2)
+        }
+        inner.Controls.Add(secretLayout)
+
+        Dim outer As New Panel() With {
+            .Width = SecretFieldWidth,
+            .Height = SecretFieldHeight,
+            .Margin = New Padding(0, 0, 0, 8),
+            .BackColor = UiTheme.CardBorder,
+            .Padding = New Padding(1)
+        }
+        outer.Controls.Add(inner)
+        Return outer
+    End Function
+
+    Private Sub pnlToggleSecret_PasswordVisibilityChanged(sender As Object, visible As Boolean) Handles pnlToggleSecret.PasswordVisibilityChanged
+        ApplyPasswordVisibility(visible)
+    End Sub
+
+    Private Sub ApplyPasswordVisibility(visible As Boolean)
+        passwordVisible = visible
+        txtSecret.PasswordChar = If(passwordVisible, ChrW(0), SecretMaskChar)
+        pnlToggleSecret.PasswordVisible = passwordVisible
+        pnlToggleSecret.AccessibleName = If(passwordVisible, "Hide password", "Show password")
+        txtSecret.Focus()
+        txtSecret.SelectionStart = txtSecret.Text.Length
+    End Sub
+
+    ''' <summary>Password visibility toggle drawn inside the secret field.</summary>
+    Private Class PasswordTogglePanel
+        Inherits Panel
+
+        Public Event PasswordVisibilityChanged As EventHandler(Of Boolean)
+
+        Private _passwordVisible As Boolean
+        Private _hover As Boolean
+        Private _pressed As Boolean
+
+        <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
+        <Browsable(False)>
+        Public Property PasswordVisible As Boolean
+            Get
+                Return _passwordVisible
+            End Get
+            Set(value As Boolean)
+                If _passwordVisible = value Then
+                    Return
+                End If
+
+                _passwordVisible = value
+                Invalidate()
+            End Set
+        End Property
+
+        Public Sub New()
+            SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.UserPaint Or ControlStyles.OptimizedDoubleBuffer Or ControlStyles.ResizeRedraw, True)
+            UpdateStyles()
+            TabStop = False
+            Cursor = Cursors.Hand
+            BackColor = UiTheme.CardSurface
+            Size = New Size(SecretToggleWidth, SecretFieldHeight)
+        End Sub
+
+        Protected Overrides Sub OnPaint(e As PaintEventArgs)
+            MyBase.OnPaint(e)
+
+            Dim g As Graphics = e.Graphics
+            g.SmoothingMode = SmoothingMode.AntiAlias
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality
+
+            Dim iconColor As Color = UiTheme.TextSecondary
+            Dim fillColor As Color = Color.Transparent
+
+            If _pressed Then
+                fillColor = Color.FromArgb(56, UiTheme.PrimaryAccent)
+                iconColor = UiTheme.PrimaryAccentPressed
+            ElseIf _hover Then
+                fillColor = Color.FromArgb(38, UiTheme.PrimaryAccent)
+                iconColor = UiTheme.PrimaryAccent
+            End If
+
+            Dim bounds As Rectangle = ClientRectangle
+            Dim hitSize As Integer = Math.Min(bounds.Width, bounds.Height) - 10
+            Dim hit As New Rectangle(
+                bounds.X + ((bounds.Width - hitSize) \ 2),
+                bounds.Y + ((bounds.Height - hitSize) \ 2),
+                hitSize,
+                hitSize)
+
+            If fillColor.A > 0 Then
+                Dim radius As Integer = Math.Max(4, hitSize \ 4)
+                Using path As GraphicsPath = CreateRoundedRect(hit, radius)
+                    Using brush As New SolidBrush(fillColor)
+                        g.FillPath(brush, path)
+                    End Using
+                End Using
+            End If
+
+            PasswordEyeIconRenderer.Draw(g, hit, iconColor, _passwordVisible)
+        End Sub
+
+        Protected Overrides Sub OnMouseEnter(e As EventArgs)
+            MyBase.OnMouseEnter(e)
+            _hover = True
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseLeave(e As EventArgs)
+            MyBase.OnMouseLeave(e)
+            _hover = False
+            _pressed = False
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
+            MyBase.OnMouseDown(e)
+            If e.Button <> MouseButtons.Left Then
+                Return
+            End If
+
+            _pressed = True
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseUp(e As MouseEventArgs)
+            MyBase.OnMouseUp(e)
+            If e.Button <> MouseButtons.Left Then
+                Return
+            End If
+
+            Dim wasPressed As Boolean = _pressed
+            _pressed = False
+            Invalidate()
+
+            If Not wasPressed OrElse Not ClientRectangle.Contains(PointToClient(Cursor.Position)) Then
+                Return
+            End If
+
+            PasswordVisible = Not PasswordVisible
+            RaiseEvent PasswordVisibilityChanged(Me, PasswordVisible)
+        End Sub
+
+        Private Shared Function CreateRoundedRect(bounds As Rectangle, radius As Integer) As GraphicsPath
+            Dim path As New GraphicsPath()
+            Dim d As Integer = Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height))
+            If d < 2 Then
+                path.AddRectangle(bounds)
+                Return path
+            End If
+
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90)
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90)
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90)
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90)
+            path.CloseFigure()
+            Return path
+        End Function
+    End Class
+
+    Private NotInheritable Class PasswordEyeIconRenderer
+        Private Sub New()
+        End Sub
+
+        ''' <param name="passwordVisible">When true, draws the "hidden" eye-off icon.</param>
+        Public Shared Sub Draw(g As Graphics, bounds As Rectangle, color As Color, passwordVisible As Boolean)
+            Dim cx As Single = bounds.X + (bounds.Width / 2.0F)
+            Dim cy As Single = bounds.Y + (bounds.Height / 2.0F)
+            Dim halfW As Single = bounds.Width * 0.38F
+            Dim halfH As Single = bounds.Height * 0.24F
+
+            Using path As New GraphicsPath()
+                path.AddBezier(
+                    cx - halfW, cy,
+                    cx - halfW * 0.55F, cy - halfH,
+                    cx + halfW * 0.55F, cy - halfH,
+                    cx + halfW, cy)
+                path.AddBezier(
+                    cx + halfW, cy,
+                    cx + halfW * 0.55F, cy + halfH,
+                    cx - halfW * 0.55F, cy + halfH,
+                    cx - halfW, cy)
+
+                Using pen As New Pen(color, 1.75F)
+                    pen.StartCap = LineCap.Round
+                    pen.EndCap = LineCap.Round
+                    pen.LineJoin = LineJoin.Round
+                    g.DrawPath(pen, path)
+                End Using
+            End Using
+
+            Dim pupil As Single = Math.Min(bounds.Width, bounds.Height) * 0.16F
+            Using brush As New SolidBrush(color)
+                g.FillEllipse(brush, cx - pupil, cy - pupil, pupil * 2.0F, pupil * 2.0F)
+            End Using
+
+            If passwordVisible Then
+                Using pen As New Pen(color, 1.75F)
+                    pen.StartCap = LineCap.Round
+                    pen.EndCap = LineCap.Round
+                    Dim pad As Single = bounds.Width * 0.12F
+                    g.DrawLine(pen, bounds.Left + pad, bounds.Bottom - pad, bounds.Right - pad, bounds.Top + pad)
+                End Using
+            End If
+        End Sub
+    End Class
 
 End Class

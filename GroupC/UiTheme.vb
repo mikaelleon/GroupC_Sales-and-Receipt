@@ -122,6 +122,53 @@ Public NotInheritable Class UiTheme
         Return TryCast(card.Controls(0), Panel)
     End Function
 
+    ''' <summary>
+    ''' Adds controls to a card's inner host, or to <paramref name="card"/> when no host exists.
+    ''' </summary>
+    Public Shared Function PopulateCardContent(card As Panel, ParamArray contents() As Control) As Panel
+        If card Is Nothing Then
+            Return Nothing
+        End If
+
+        Dim host As Panel = GetCardContentHost(card)
+        If host Is Nothing Then
+            host = card
+        End If
+
+        If contents IsNot Nothing Then
+            For Each item As Control In contents
+                If item IsNot Nothing Then
+                    host.Controls.Add(item)
+                End If
+            Next
+        End If
+
+        Return host
+    End Function
+
+    ''' <summary>
+    ''' Shared sizing and window state for primary workspace forms shown maximized.
+    ''' </summary>
+    Public Shared Sub ApplyMaximizedWorkspaceDefaults(form As Form, Optional minWidth As Integer = 1024, Optional minHeight As Integer = 720)
+        form.FormBorderStyle = FormBorderStyle.Sizable
+        form.WindowState = FormWindowState.Maximized
+        form.StartPosition = FormStartPosition.CenterScreen
+        form.MinimumSize = New Size(minWidth, minHeight)
+    End Sub
+
+    ''' <summary>
+    ''' Consistent caption styling for filters and form fields.
+    ''' </summary>
+    Public Shared Function CreateSecondaryLabel(text As String) As Label
+        Return New Label() With {
+            .Text = text,
+            .AutoSize = True,
+            .ForeColor = TextSecondary,
+            .Margin = New Padding(0, 8, 8, 8),
+            .Font = StandardUiFont
+        }
+    End Function
+
     Public Shared Sub ApplyReadOnlyGridTheme(dgv As DataGridView)
         dgv.BackgroundColor = CardSurface
         dgv.BorderStyle = BorderStyle.None

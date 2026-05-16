@@ -90,7 +90,12 @@ Public Class SettingsForm
         fields.SetColumnSpan(buttonRow, 2)
         fields.Controls.Add(buttonRow, 0, 4)
 
-        cardInner.Controls.Add(fields)
+        If cardInner IsNot Nothing Then
+            cardInner.Controls.Add(fields)
+        Else
+            cardOuter.Controls.Add(fields)
+        End If
+
         root.Controls.Add(cardOuter, 0, 0)
 
         Me.Controls.Add(root)
