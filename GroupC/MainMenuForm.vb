@@ -13,7 +13,7 @@ Public Class MainMenuForm
     Private WithEvents btnSettings As Button
     Private WithEvents btnReports As Button
     Private WithEvents btnBackup As Button
-    Private WithEvents btnExit As Button
+    Private WithEvents btnLogout As Button
 
     Private lblDbHealth As Label
     Private lblDashProducts As Label
@@ -86,7 +86,6 @@ Public Class MainMenuForm
         tmrRefresh = New Timer() With {.Interval = 60000}
         tmrRefresh.Start()
 
-        Me.CancelButton = btnExit
         RefreshHealthAndDashboard()
         Me.ResumeLayout(True)
     End Sub
@@ -128,7 +127,7 @@ Public Class MainMenuForm
         btnReports = CreateNavButton("&Reports")
         btnSettings = CreateNavButton("&Settings")
         btnBackup = CreateNavButton("&Backup / Restore")
-        btnExit = CreateNavButton("E&xit")
+        btnLogout = CreateNavButton("Log &out")
 
         ' THE FIX: Hierarchical theming for a professional look
         Try
@@ -138,15 +137,11 @@ Public Class MainMenuForm
             UiTheme.ApplySecondaryAccentButton(btnReports)
             UiTheme.ApplySecondaryButton(btnSettings)
             UiTheme.ApplySecondaryButton(btnBackup)
-            UiTheme.ApplyDangerButton(btnExit)
+            UiTheme.ApplyDangerButton(btnLogout)
         Catch
         End Try
 
-        Dim showAdminNav As Boolean = AppSession.IsAdmin()
-        btnProducts.Visible = showAdminNav
-        btnReports.Visible = showAdminNav
-        btnSettings.Visible = showAdminNav
-        btnBackup.Visible = showAdminNav
+        ApplyRoleBasedNavigation()
 
         ' Status Strip
         statusStrip = New StatusStrip()
@@ -189,7 +184,7 @@ Public Class MainMenuForm
         flowNav.Padding = New Padding(0)
 
         ' Expand buttons to fit the new, wider sidebar perfectly
-        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnExit}
+        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnLogout}
         For Each btn In navButtons
             If btn IsNot Nothing Then
                 btn.Width = 220
@@ -564,8 +559,35 @@ Public Class MainMenuForm
         End Using
     End Sub
 
-    Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
-        Me.Close()
+    Private Sub ApplyRoleBasedNavigation()
+        Dim showAdminNav As Boolean = AppSession.IsAdmin()
+        If btnProducts IsNot Nothing Then btnProducts.Visible = showAdminNav
+        If btnReports IsNot Nothing Then btnReports.Visible = showAdminNav
+        If btnSettings IsNot Nothing Then btnSettings.Visible = showAdminNav
+        If btnBackup IsNot Nothing Then btnBackup.Visible = showAdminNav
+    End Sub
+
+    Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+        Try
+            AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.CurrentRole)
+        Catch
+        End Try
+
+        Me.Opacity = 0
+        Me.ShowInTaskbar = False
+
+        Using loginForm As New LoginForm()
+            If loginForm.ShowDialog() <> DialogResult.OK Then
+                Me.Opacity = 1
+                Me.ShowInTaskbar = True
+                Return
+            End If
+        End Using
+
+        Me.Opacity = 1
+        Me.ShowInTaskbar = True
+        ApplyRoleBasedNavigation()
+        RefreshHealthAndDashboard()
     End Sub
 
 End Class

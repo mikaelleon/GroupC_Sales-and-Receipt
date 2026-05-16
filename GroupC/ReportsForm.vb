@@ -53,10 +53,7 @@ Public Class ReportsForm
         If dtpTo IsNot Nothing Then dtpTo.Value = DateTime.Today
 
         ' 4. LOAD INITIAL DATA
-        Try
-            RunReport()
-        Catch
-        End Try
+        RunReport()
     End Sub
 
     Private Sub CreateControls()
@@ -105,7 +102,7 @@ Public Class ReportsForm
         ' -----------------------------------------------------------
         ' Top Header & Back Button
         Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand, .Margin = New Padding(0, 0, 20, 0)}
-        AddHandler btnBack.Click, Sub(s, ev) Me.DialogResult = DialogResult.Cancel
+        AddHandler btnBack.Click, Sub(s, ev) Me.Close()
         Try : UiTheme.ApplySecondaryButton(btnBack) : Catch : End Try
 
         Dim headerPanel As New TableLayoutPanel() With {
@@ -179,8 +176,13 @@ Public Class ReportsForm
         mainContainer.Controls.Add(tabReports)
         mainContainer.Controls.Add(headerPanel)
 
-        Me.Controls.Add(mainContainer)
-        Me.Controls.Add(statusStrip)
+        Dim shell As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
+        shell.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        shell.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        shell.Controls.Add(mainContainer, 0, 0)
+        shell.Controls.Add(statusStrip, 0, 1)
+
+        Me.Controls.Add(shell)
 
         Me.ResumeLayout(True)
     End Sub
@@ -258,6 +260,10 @@ Public Class ReportsForm
     End Sub
 
     Private Sub RunReport()
+        If dtpFrom Is Nothing OrElse dtpTo Is Nothing OrElse dgvDaily Is Nothing OrElse dgvTop Is Nothing OrElse lblSummary Is Nothing Then
+            Return
+        End If
+
         Dim start As DateTime = dtpFrom.Value.Date
         Dim [end] As DateTime = dtpTo.Value.Date
         If [end] < start Then
@@ -287,20 +293,7 @@ Public Class ReportsForm
                 End Using
 
                 dgvDaily.DataSource = dt
-                If dgvDaily.Columns.Count > 0 Then
-                    If dgvDaily.Columns.Contains("sale_day") Then
-                        dgvDaily.Columns("sale_day").HeaderText = "Date"
-                    End If
-
-                    If dgvDaily.Columns.Contains("sale_count") Then
-                        dgvDaily.Columns("sale_count").HeaderText = "Sales"
-                    End If
-
-                    If dgvDaily.Columns.Contains("revenue") Then
-                        dgvDaily.Columns("revenue").HeaderText = "Revenue"
-                        dgvDaily.Columns("revenue").DefaultCellStyle.Format = "N2"
-                    End If
-                End If
+                ApplyDailyGridColumns(dgvDaily)
 
                 Dim topSql As String =
                     "SELECT TOP 20 si.product_name, SUM(si.quantity) AS qty, SUM(si.subtotal) AS revenue " &
@@ -318,20 +311,7 @@ Public Class ReportsForm
                 End Using
 
                 dgvTop.DataSource = top
-                If dgvTop.Columns.Count > 0 Then
-                    If dgvTop.Columns.Contains("product_name") Then
-                        dgvTop.Columns("product_name").HeaderText = "Product"
-                    End If
-
-                    If dgvTop.Columns.Contains("qty") Then
-                        dgvTop.Columns("qty").HeaderText = "Qty"
-                    End If
-
-                    If dgvTop.Columns.Contains("revenue") Then
-                        dgvTop.Columns("revenue").HeaderText = "Revenue"
-                        dgvTop.Columns("revenue").DefaultCellStyle.Format = "N2"
-                    End If
-                End If
+                ApplyTopGridColumns(dgvTop)
 
                 Dim sumSql As String = "SELECT ISNULL(SUM(total_amount),0) FROM sales WHERE sale_date >= @from AND sale_date < @to;"
                 Dim total As Decimal = 0D
@@ -361,33 +341,59 @@ Public Class ReportsForm
         End Try
     End Sub
 
+    Private Shared Sub ApplyDailyGridColumns(dgv As DataGridView)
+        If dgv.Columns.Count = 0 Then Return
+
+        If dgv.Columns.Contains("sale_day") Then
+            dgv.Columns("sale_day").HeaderText = "Date"
+        End If
+
+        If dgv.Columns.Contains("sale_count") Then
+            dgv.Columns("sale_count").HeaderText = "Sales"
+        End If
+
+        If dgv.Columns.Contains("revenue") Then
+            dgv.Columns("revenue").HeaderText = "Revenue"
+            dgv.Columns("revenue").DefaultCellStyle.Format = "N2"
+        End If
+    End Sub
+
+    Private Shared Sub ApplyTopGridColumns(dgv As DataGridView)
+        If dgv.Columns.Count = 0 Then Return
+
+        If dgv.Columns.Contains("product_name") Then
+            dgv.Columns("product_name").HeaderText = "Product"
+        End If
+
+        If dgv.Columns.Contains("qty") Then
+            dgv.Columns("qty").HeaderText = "Qty"
+        End If
+
+        If dgv.Columns.Contains("revenue") Then
+            dgv.Columns("revenue").HeaderText = "Revenue"
+            dgv.Columns("revenue").DefaultCellStyle.Format = "N2"
+        End If
+    End Sub
+
     Private Function WrapInCard(title As String, grid As DataGridView) As Panel
-        Dim innerPanel As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .BackColor = Color.White,
-            .Padding = New Padding(15)
-        }
+        grid.Dock = DockStyle.Fill
 
         Dim lbl As New Label() With {
             .Text = title,
+            .Dock = DockStyle.Top,
+            .Height = 28,
             .Font = New Font("Segoe UI", 12, FontStyle.Bold),
-            .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 10),
-            .Dock = DockStyle.Top
+            .ForeColor = UiTheme.TextPrimary
         }
 
-        innerPanel.Controls.Add(grid)
-        innerPanel.Controls.Add(lbl)
+        Dim card As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        card.Dock = DockStyle.Fill
+        Dim host As Panel = UiTheme.GetCardContentHost(card)
+        host.Controls.Add(grid)
+        host.Controls.Add(lbl)
+        lbl.BringToFront()
 
-        Try
-            Dim themeCard = UiTheme.CreateCardPanel(New Padding(0))
-            themeCard.Dock = DockStyle.Fill
-            themeCard.Controls.Add(innerPanel)
-            Return themeCard
-        Catch
-            innerPanel.BorderStyle = BorderStyle.FixedSingle
-            Return innerPanel
-        End Try
+        Return card
     End Function
 
 End Class

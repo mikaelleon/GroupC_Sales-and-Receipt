@@ -1,4 +1,6 @@
+Imports System.ComponentModel
 Imports System.Drawing
+Imports System.Drawing.Drawing2D
 Imports System.Windows.Forms
 
 ''' <summary>
@@ -7,12 +9,23 @@ Imports System.Windows.Forms
 Public Class LoginForm
     Inherits Form
 
+    Private Const SecretMaskChar As Char = "*"c
+    Private Const SecretPlaceholder As String = "Please enter your password"
+    Private Const SecretFieldWidth As Integer = 300
+    Private Const SecretFieldHeight As Integer = 44
+    Private Const SecretToggleWidth As Integer = 44
+    Private Const SecretTextPaddingLeft As Integer = 14
+
     Private WithEvents radAdmin As RadioButton
     Private WithEvents radCashier As RadioButton
     Private txtSecret As TextBox
+    Private pnlSecret As Panel
+    Private WithEvents pnlToggleSecret As PasswordTogglePanel
     Private lblHint As Label
     Private WithEvents btnOk As Button
     Private WithEvents btnCancel As Button
+
+    Private passwordVisible As Boolean
 
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP: Full Screen & Responsive
@@ -46,14 +59,16 @@ Public Class LoginForm
         pnlRoles.Controls.Add(radAdmin)
         pnlRoles.Controls.Add(radCashier)
 
-        Dim lblSecret As New Label() With {.Text = "Password / PIN:", .AutoSize = True, .Margin = New Padding(0, 5, 0, 5)}
-
-        txtSecret = New TextBox() With {
-            .PasswordChar = "*"c,
-            .Width = 280,
-            .Font = New Font("Segoe UI", 12),
-            .Margin = New Padding(0, 0, 0, 5)
+        Dim lblSecret As New Label() With {
+            .Text = "Password / PIN:",
+            .AutoSize = False,
+            .Width = SecretFieldWidth,
+            .Margin = New Padding(0, 5, 0, 6),
+            .ForeColor = UiTheme.TextPrimary,
+            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular)
         }
+
+        pnlSecret = BuildPasswordField()
 
         lblHint = New Label() With {
             .Text = "Enter the admin password or cashier PIN.",
@@ -62,8 +77,8 @@ Public Class LoginForm
             .Margin = New Padding(0, 0, 0, 25)
         }
 
-        btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand}
-        btnCancel = New Button() With {.Text = "Cancel", .Size = New Size(100, 36), .Cursor = Cursors.Hand}
+        btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}
+        btnCancel = New Button() With {.Text = "Cancel", .Size = New Size(100, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.Cancel}
 
         Try
             UiTheme.ApplyPrimaryButton(btnOk)
@@ -85,14 +100,15 @@ Public Class LoginForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .Padding = New Padding(0)
+            .Padding = New Padding(0),
+            .Width = SecretFieldWidth
         }
 
         loginCard.Controls.Add(lblTitle)
         loginCard.Controls.Add(lblRole)
         loginCard.Controls.Add(pnlRoles)
         loginCard.Controls.Add(lblSecret)
-        loginCard.Controls.Add(txtSecret)
+        loginCard.Controls.Add(pnlSecret)
         loginCard.Controls.Add(lblHint)
         loginCard.Controls.Add(pnlButtons)
 
@@ -175,5 +191,252 @@ Public Class LoginForm
         Me.DialogResult = DialogResult.OK
         Me.Close()
     End Sub
+
+    Private Sub btnCancel_Click(sender As Object, e As EventArgs) Handles btnCancel.Click
+        ' Empty password/PIN: dismiss sign-in (startup exits app; logout returns to menu).
+        Me.DialogResult = DialogResult.Cancel
+        Me.Close()
+    End Sub
+
+    Private Function BuildPasswordField() As Panel
+        txtSecret = New TextBox() With {
+            .PasswordChar = SecretMaskChar,
+            .PlaceholderText = SecretPlaceholder,
+            .Font = New Font("Segoe UI", 11.0F),
+            .BorderStyle = BorderStyle.None,
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(SecretTextPaddingLeft, 10, 4, 10),
+            .BackColor = UiTheme.CardSurface
+        }
+
+        pnlToggleSecret = New PasswordTogglePanel() With {
+            .Dock = DockStyle.Fill,
+            .PasswordVisible = passwordVisible,
+            .AccessibleName = "Show password",
+            .AccessibleDescription = "Toggles visibility of the password or PIN."
+        }
+
+        Dim secretLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .BackColor = UiTheme.CardSurface,
+            .Margin = New Padding(0),
+            .Padding = New Padding(0)
+        }
+        secretLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        secretLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, SecretToggleWidth))
+        secretLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        secretLayout.Controls.Add(txtSecret, 0, 0)
+        secretLayout.Controls.Add(pnlToggleSecret, 1, 0)
+
+        Dim inner As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .MinimumSize = New Size(0, SecretFieldHeight - 2)
+        }
+        inner.Controls.Add(secretLayout)
+
+        Dim outer As New Panel() With {
+            .Width = SecretFieldWidth,
+            .Height = SecretFieldHeight,
+            .Margin = New Padding(0, 0, 0, 8),
+            .BackColor = UiTheme.CardBorder,
+            .Padding = New Padding(1)
+        }
+        outer.Controls.Add(inner)
+        Return outer
+    End Function
+
+    Private Sub pnlToggleSecret_PasswordVisibilityChanged(sender As Object, visible As Boolean) Handles pnlToggleSecret.PasswordVisibilityChanged
+        ApplyPasswordVisibility(visible)
+    End Sub
+
+    Private Sub ApplyPasswordVisibility(visible As Boolean)
+        passwordVisible = visible
+        txtSecret.PasswordChar = If(passwordVisible, ChrW(0), SecretMaskChar)
+        pnlToggleSecret.PasswordVisible = passwordVisible
+        pnlToggleSecret.AccessibleName = If(passwordVisible, "Hide password", "Show password")
+        txtSecret.Focus()
+        txtSecret.SelectionStart = txtSecret.Text.Length
+    End Sub
+
+    ''' <summary>Password visibility toggle drawn inside the secret field.</summary>
+    Private Class PasswordTogglePanel
+        Inherits Panel
+
+        Public Event PasswordVisibilityChanged As EventHandler(Of Boolean)
+
+        Private _passwordVisible As Boolean
+        Private _hover As Boolean
+        Private _pressed As Boolean
+
+        <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
+        <Browsable(False)>
+        Public Property PasswordVisible As Boolean
+            Get
+                Return _passwordVisible
+            End Get
+            Set(value As Boolean)
+                If _passwordVisible = value Then
+                    Return
+                End If
+
+                _passwordVisible = value
+                Invalidate()
+            End Set
+        End Property
+
+        Public Sub New()
+            SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.UserPaint Or ControlStyles.OptimizedDoubleBuffer Or ControlStyles.ResizeRedraw, True)
+            UpdateStyles()
+            TabStop = False
+            Cursor = Cursors.Hand
+            BackColor = UiTheme.CardSurface
+            Size = New Size(SecretToggleWidth, SecretFieldHeight)
+        End Sub
+
+        Protected Overrides Sub OnPaint(e As PaintEventArgs)
+            MyBase.OnPaint(e)
+
+            Dim g As Graphics = e.Graphics
+            g.SmoothingMode = SmoothingMode.AntiAlias
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality
+
+            Dim iconColor As Color = UiTheme.TextSecondary
+            Dim fillColor As Color = Color.Transparent
+
+            If _pressed Then
+                fillColor = Color.FromArgb(56, UiTheme.PrimaryAccent)
+                iconColor = UiTheme.PrimaryAccentPressed
+            ElseIf _hover Then
+                fillColor = Color.FromArgb(38, UiTheme.PrimaryAccent)
+                iconColor = UiTheme.PrimaryAccent
+            End If
+
+            Dim bounds As Rectangle = ClientRectangle
+            Dim hitSize As Integer = Math.Min(bounds.Width, bounds.Height) - 10
+            Dim hit As New Rectangle(
+                bounds.X + ((bounds.Width - hitSize) \ 2),
+                bounds.Y + ((bounds.Height - hitSize) \ 2),
+                hitSize,
+                hitSize)
+
+            If fillColor.A > 0 Then
+                Dim radius As Integer = Math.Max(4, hitSize \ 4)
+                Using path As GraphicsPath = CreateRoundedRect(hit, radius)
+                    Using brush As New SolidBrush(fillColor)
+                        g.FillPath(brush, path)
+                    End Using
+                End Using
+            End If
+
+            PasswordEyeIconRenderer.Draw(g, hit, iconColor, _passwordVisible)
+        End Sub
+
+        Protected Overrides Sub OnMouseEnter(e As EventArgs)
+            MyBase.OnMouseEnter(e)
+            _hover = True
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseLeave(e As EventArgs)
+            MyBase.OnMouseLeave(e)
+            _hover = False
+            _pressed = False
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
+            MyBase.OnMouseDown(e)
+            If e.Button <> MouseButtons.Left Then
+                Return
+            End If
+
+            _pressed = True
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnMouseUp(e As MouseEventArgs)
+            MyBase.OnMouseUp(e)
+            If e.Button <> MouseButtons.Left Then
+                Return
+            End If
+
+            Dim wasPressed As Boolean = _pressed
+            _pressed = False
+            Invalidate()
+
+            If Not wasPressed OrElse Not ClientRectangle.Contains(PointToClient(Cursor.Position)) Then
+                Return
+            End If
+
+            PasswordVisible = Not PasswordVisible
+            RaiseEvent PasswordVisibilityChanged(Me, PasswordVisible)
+        End Sub
+
+        Private Shared Function CreateRoundedRect(bounds As Rectangle, radius As Integer) As GraphicsPath
+            Dim path As New GraphicsPath()
+            Dim d As Integer = Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height))
+            If d < 2 Then
+                path.AddRectangle(bounds)
+                Return path
+            End If
+
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90)
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90)
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90)
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90)
+            path.CloseFigure()
+            Return path
+        End Function
+    End Class
+
+    Private NotInheritable Class PasswordEyeIconRenderer
+        Private Sub New()
+        End Sub
+
+        ''' <param name="passwordVisible">When true, draws the "hidden" eye-off icon.</param>
+        Public Shared Sub Draw(g As Graphics, bounds As Rectangle, color As Color, passwordVisible As Boolean)
+            Dim cx As Single = bounds.X + (bounds.Width / 2.0F)
+            Dim cy As Single = bounds.Y + (bounds.Height / 2.0F)
+            Dim halfW As Single = bounds.Width * 0.38F
+            Dim halfH As Single = bounds.Height * 0.24F
+
+            Using path As New GraphicsPath()
+                path.AddBezier(
+                    cx - halfW, cy,
+                    cx - halfW * 0.55F, cy - halfH,
+                    cx + halfW * 0.55F, cy - halfH,
+                    cx + halfW, cy)
+                path.AddBezier(
+                    cx + halfW, cy,
+                    cx + halfW * 0.55F, cy + halfH,
+                    cx - halfW * 0.55F, cy + halfH,
+                    cx - halfW, cy)
+
+                Using pen As New Pen(color, 1.75F)
+                    pen.StartCap = LineCap.Round
+                    pen.EndCap = LineCap.Round
+                    pen.LineJoin = LineJoin.Round
+                    g.DrawPath(pen, path)
+                End Using
+            End Using
+
+            Dim pupil As Single = Math.Min(bounds.Width, bounds.Height) * 0.16F
+            Using brush As New SolidBrush(color)
+                g.FillEllipse(brush, cx - pupil, cy - pupil, pupil * 2.0F, pupil * 2.0F)
+            End Using
+
+            If passwordVisible Then
+                Using pen As New Pen(color, 1.75F)
+                    pen.StartCap = LineCap.Round
+                    pen.EndCap = LineCap.Round
+                    Dim pad As Single = bounds.Width * 0.12F
+                    g.DrawLine(pen, bounds.Left + pad, bounds.Bottom - pad, bounds.Right - pad, bounds.Top + pad)
+                End Using
+            End If
+        End Sub
+    End Class
 
 End Class
