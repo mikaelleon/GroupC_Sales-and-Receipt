@@ -181,11 +181,11 @@ Public Class MainMenuForm
         flowNav.BackColor = Color.White
         flowNav.Padding = New Padding(0)
 
-        ' Expand buttons to fit the new, wider sidebar perfectly
+        ' Expand buttons to fit the sidebar, leaving room for a vertical scrollbar
         Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnLogout}
         For Each btn In navButtons
             If btn IsNot Nothing Then
-                btn.Width = 220
+                btn.Width = 200 ' <--- Reduced from 220 to 200
                 btn.Margin = New Padding(10, 5, 10, 10)
                 flowNav.Controls.Add(btn)
             End If
