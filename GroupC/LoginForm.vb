@@ -15,80 +15,113 @@ Public Class LoginForm
     Private WithEvents btnCancel As Button
 
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        ' 1. FORM SETUP: Full Screen & Responsive
+        Me.SuspendLayout()
         Me.Text = "Group C — Sign in"
+
+        ' Allow resizing and set default state to Maximized
         Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.WindowState = FormWindowState.Maximized
         Me.StartPosition = FormStartPosition.CenterScreen
         Me.MinimizeBox = True
         Me.MaximizeBox = True
-        Me.MinimumSize = New Size(520, 460)
-        Me.Size = New Size(600, 520)
+        Me.MinimumSize = New Size(500, 450) ' Prevents user from making the window too tiny
+
         UiTheme.ApplyStandardWindowChrome(Me)
 
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.Padding = New Padding(20)
-        root.ColumnCount = 1
-        root.RowCount = 8
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 36.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim title As New Label() With {
-            .Text = "SIGN IN",
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
+        ' 2. INITIALIZE CONTROLS
+        Dim lblTitle As New Label() With {
+            .Text = "Welcome Back",
+            .Font = New Font("Segoe UI", 18, FontStyle.Bold),
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 8)
+            .Margin = New Padding(0, 0, 0, 20)
         }
 
-        radAdmin = New RadioButton() With {.Text = "Administrator (full access)", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
-        radCashier = New RadioButton() With {.Text = "Cashier (sales and receipts only)", .AutoSize = True, .Checked = True, .Margin = New Padding(0, 4, 0, 8), .ForeColor = UiTheme.TextPrimary, .Anchor = AnchorStyles.Left}
+        Dim lblRole As New Label() With {.Text = "Select Role:", .AutoSize = True, .Margin = New Padding(0, 10, 0, 5)}
 
-        Dim lblSecret As New Label() With {.Text = "Password / PIN", .AutoSize = True, .Margin = New Padding(0, 4, 0, 4), .ForeColor = UiTheme.TextSecondary}
+        radAdmin = New RadioButton() With {.Text = "Administrator", .AutoSize = True, .Checked = True}
+        radCashier = New RadioButton() With {.Text = "Cashier", .AutoSize = True}
 
-        txtSecret = New TextBox() With {.Dock = DockStyle.Fill, .Anchor = AnchorStyles.Left Or AnchorStyles.Right, .UseSystemPasswordChar = True, .Margin = New Padding(0, 2, 0, 4)}
+        Dim pnlRoles As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
+        pnlRoles.Controls.Add(radAdmin)
+        pnlRoles.Controls.Add(radCashier)
+
+        Dim lblSecret As New Label() With {.Text = "Password / PIN:", .AutoSize = True, .Margin = New Padding(0, 5, 0, 5)}
+
+        txtSecret = New TextBox() With {
+            .PasswordChar = "*"c,
+            .Width = 280,
+            .Font = New Font("Segoe UI", 12),
+            .Margin = New Padding(0, 0, 0, 5)
+        }
 
         lblHint = New Label() With {
-            .Text = "Administrators must enter the configured password. Cashiers: leave blank unless a PIN is configured in DatabaseConfig.",
+            .Text = "Enter the admin password or cashier PIN.",
+            .ForeColor = Color.Gray,
             .AutoSize = True,
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-            .Margin = New Padding(0, 6, 0, 12)
+            .Margin = New Padding(0, 0, 0, 25)
         }
-        UpdateHintWrapWidth()
 
-        Dim spacer As New Panel() With {.Dock = DockStyle.Fill, .Margin = Padding.Empty}
+        btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand}
+        btnCancel = New Button() With {.Text = "Cancel", .Size = New Size(100, 36), .Cursor = Cursors.Hand}
 
-        Dim buttons As New FlowLayoutPanel() With {
+        Try
+            UiTheme.ApplyPrimaryButton(btnOk)
+            UiTheme.ApplySecondaryButton(btnCancel)
+        Catch
+        End Try
+
+        Dim pnlButtons As New FlowLayoutPanel() With {
             .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Margin = New Padding(0)
+        }
+        pnlButtons.Controls.Add(btnOk)
+        pnlButtons.Controls.Add(btnCancel)
+
+        ' 3. ASSEMBLE THE "CARD"
+        Dim loginCard As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .FlowDirection = FlowDirection.RightToLeft,
+            .Padding = New Padding(0)
+        }
+
+        loginCard.Controls.Add(lblTitle)
+        loginCard.Controls.Add(lblRole)
+        loginCard.Controls.Add(pnlRoles)
+        loginCard.Controls.Add(lblSecret)
+        loginCard.Controls.Add(txtSecret)
+        loginCard.Controls.Add(lblHint)
+        loginCard.Controls.Add(pnlButtons)
+
+        ' 4. THE RESPONSIVE CENTERING GRID
+        ' Because the outer rows/columns are 50%, they act like fluid springs 
+        ' that constantly adjust to window resizing!
+        Dim centerGrid As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .Padding = New Padding(0, 8, 0, 0)}
-        btnOk = New Button() With {.Text = "Sign in", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.None}
-        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(120, 36), .DialogResult = DialogResult.Cancel}
-        UiTheme.ApplyPrimaryButton(btnOk)
-        UiTheme.ApplySecondaryButton(btnCancel)
-        buttons.Controls.Add(btnCancel)
-        buttons.Controls.Add(btnOk)
+            .ColumnCount = 3,
+            .RowCount = 3
+        }
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
 
-        root.Controls.Add(title, 0, 0)
-        root.Controls.Add(radAdmin, 0, 1)
-        root.Controls.Add(radCashier, 0, 2)
-        root.Controls.Add(lblSecret, 0, 3)
-        root.Controls.Add(txtSecret, 0, 4)
-        root.Controls.Add(lblHint, 0, 5)
-        root.Controls.Add(spacer, 0, 6)
-        root.Controls.Add(buttons, 0, 7)
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
 
-        Me.Controls.Add(root)
+        centerGrid.Controls.Add(loginCard, 1, 1)
+
+        ' 5. FINAL WIRING
+        Me.Controls.Clear()
+        Me.Controls.Add(centerGrid)
+
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
+
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub LoginForm_Resize(sender As Object, e As EventArgs) Handles MyBase.Resize

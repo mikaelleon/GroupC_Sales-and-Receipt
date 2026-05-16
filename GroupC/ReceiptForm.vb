@@ -64,19 +64,28 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        UiTheme.ApplyStandardWindowChrome(Me)
+        ' 1. FORM SETUP (Full Screen & Responsive)
+        Me.Text = "Group C - Receipt Preview"
+        Me.MinimumSize = New Size(1024, 720) ' Increased so the side-by-side layout never crushes
+        Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.WindowState = FormWindowState.Maximized ' Forces full screen
+        Me.StartPosition = FormStartPosition.CenterScreen
+
+        Try
+            UiTheme.ApplyStandardWindowChrome(Me)
+        Catch
+        End Try
 
         Try
             DatabaseInitializer.EnsureDatabase()
         Catch
         End Try
 
-        Me.Text = "Group C - Receipt Preview"
-        Me.MinimumSize = New Size(620, 620)
-        Me.Size = New Size(760, 760)
-        Me.StartPosition = FormStartPosition.CenterScreen
-
+        ' 2. BUILD THE RESPONSIVE UI 
+        ' (This calls the massive CreateControls method we built in the previous step!)
         CreateControls()
+
+        ' 3. YOUR ORIGINAL DATA LOADING LOGIC
         suppressHistoryEvent = True
         LoadHistoryCombo()
 
@@ -89,6 +98,7 @@ Public Class ReceiptForm
                 lblSaleMeta.Text = "Current receipt (from sales screen)."
             End If
             suppressHistoryEvent = False
+
         ElseIf receiptText.Trim().Length > 0 Then
             ApplyReceiptContent(receiptText, False)
             If saleIdForMeta >= 0 Then
@@ -97,6 +107,7 @@ Public Class ReceiptForm
                 lblSaleMeta.Text = "Current receipt (from sales screen)."
             End If
             suppressHistoryEvent = False
+
         Else
             suppressHistoryEvent = False
             If cmbHistory.Items.Count > 0 Then
@@ -107,93 +118,59 @@ Public Class ReceiptForm
         End If
     End Sub
 
+    Private Sub SetupForm()
+        Me.Text = "Group C - Receipt Viewer"
+        Me.MinimumSize = New Size(1024, 720)
+        Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.WindowState = FormWindowState.Maximized ' Start in Full Screen
+        Me.StartPosition = FormStartPosition.CenterScreen
+    End Sub
+
     Private Sub CreateControls()
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.Padding = New Padding(12)
-        root.BackColor = UiTheme.FormBackground
-        root.ColumnCount = 1
-        root.RowCount = 5
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Me.SuspendLayout()
+        Me.Controls.Clear()
+        Me.BackColor = UiTheme.FormBackground
 
-        Dim title As New Label()
-        title.Text = "RECEIPT PREVIEW"
-        title.Dock = DockStyle.Fill
-        title.Font = New Font("Segoe UI", 15.0F, FontStyle.Bold)
-        title.ForeColor = UiTheme.TextPrimary
-        title.TextAlign = ContentAlignment.MiddleCenter
-        title.AutoSize = True
-        title.Margin = New Padding(0, 0, 0, 8)
+        ' -----------------------------------------------------------
+        ' 1. INITIALIZE CONTROLS
+        ' -----------------------------------------------------------
+        cmbHistory = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Font = New Font("Segoe UI", 11), .Dock = DockStyle.Fill}
 
-        lblSaleMeta = New Label()
-        lblSaleMeta.Dock = DockStyle.Fill
-        lblSaleMeta.AutoSize = True
-        lblSaleMeta.Font = New Font("Segoe UI", 9.0F, FontStyle.Italic)
-        lblSaleMeta.ForeColor = UiTheme.TextSecondary
-        lblSaleMeta.Text = "Select a saved sale or load latest."
-        lblSaleMeta.Margin = New Padding(0, 0, 0, 8)
+        btnLoadList = New Button() With {.Text = "Refresh", .Size = New Size(100, 36), .Cursor = Cursors.Hand}
+        btnPrint = New Button() With {.Text = "Print Receipt", .Size = New Size(180, 50), .Font = New Font("Segoe UI", 11, FontStyle.Bold), .Cursor = Cursors.Hand}
+        btnSave = New Button() With {.Text = "Save as Text", .Size = New Size(180, 40), .Cursor = Cursors.Hand}
+        btnSavePdf = New Button() With {.Text = "Save as PDF", .Size = New Size(180, 40), .Cursor = Cursors.Hand}
+        btnCopy = New Button() With {.Text = "Copy to Clipboard", .Size = New Size(180, 40), .Cursor = Cursors.Hand}
 
-        Dim historyRow As New TableLayoutPanel()
-        historyRow.AutoSize = True
-        historyRow.ColumnCount = 3
-        historyRow.RowCount = 1
-        historyRow.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        historyRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        historyRow.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        ' Dynamic Back Button logic directly injected
+        Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
+        AddHandler btnBack.Click, Sub(s, ev) Me.Close()
 
-        Dim lblHist As New Label()
-        lblHist.Text = "Saved sales:"
-        lblHist.AutoSize = True
-        lblHist.Margin = New Padding(0, 8, 8, 8)
-        lblHist.ForeColor = UiTheme.TextSecondary
+        lblSaleMeta = New Label() With {.Text = "Sale Details will appear here...", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Font = New Font("Segoe UI", 10)}
 
-        cmbHistory = New ComboBox()
-        cmbHistory.DropDownStyle = ComboBoxStyle.DropDownList
-        cmbHistory.Margin = New Padding(0, 4, 8, 4)
-        cmbHistory.TabIndex = 0
+        ' The Receipt Paper
+        rtbReceipt = New RichTextBox() With {
+            .Dock = DockStyle.Fill,
+            .Font = New Font("Courier New", 11),
+            .ReadOnly = True,
+            .BackColor = Color.White,
+            .BorderStyle = BorderStyle.None
+        }
 
-        btnLoadList = New Button()
-        btnLoadList.Text = "&Refresh list"
-        btnLoadList.AutoSize = True
-        UiTheme.ApplySecondaryAccentButton(btnLoadList)
+        dgvLines = New DataGridView() With {
+            .Dock = DockStyle.Fill,
+            .AllowUserToAddRows = False,
+            .AllowUserToDeleteRows = False,
+            .ReadOnly = True,
+            .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            .MultiSelect = False,
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            .BackgroundColor = Color.White,
+            .BorderStyle = BorderStyle.None,
+            .Visible = False ' Hidden by default unless your code uses it
+        }
 
-        historyRow.Controls.Add(lblHist, 0, 0)
-        historyRow.Controls.Add(cmbHistory, 1, 0)
-        historyRow.Controls.Add(btnLoadList, 2, 0)
-        UiTheme.ApplyTableLayoutDropDown(cmbHistory)
-
-        Dim historyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
-        Dim historyCardInner As Panel = UiTheme.GetCardContentHost(historyCard)
-        historyCardInner.Controls.Add(historyRow)
-        historyRow.Dock = DockStyle.Top
-        historyCard.AutoSize = True
-        historyCard.AutoSizeMode = AutoSizeMode.GrowAndShrink
-
-        Dim splitHost As New TableLayoutPanel()
-        splitHost.Dock = DockStyle.Fill
-        splitHost.ColumnCount = 1
-        splitHost.RowCount = 2
-        splitHost.RowStyles.Add(New RowStyle(SizeType.Percent, 42.0F))
-        splitHost.RowStyles.Add(New RowStyle(SizeType.Percent, 58.0F))
-
-        Dim lblGridTitle As New Label()
-        lblGridTitle.Text = "Line items"
-        lblGridTitle.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
-        lblGridTitle.Dock = DockStyle.Top
-        lblGridTitle.Height = 22
-        lblGridTitle.ForeColor = UiTheme.TextPrimary
-
-        dgvLines = New DataGridView()
-        dgvLines.Dock = DockStyle.Fill
-        dgvLines.ReadOnly = True
-        dgvLines.AllowUserToAddRows = False
-        dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-        dgvLines.TabIndex = 1
-        UiTheme.ApplyDataGridViewChrome(dgvLines)
+        ' ---> ADD THESE LINES RIGHT HERE <---
         dgvLines.Columns.Add("ProductName", "Product")
         dgvLines.Columns.Add("Qty", "Qty")
         dgvLines.Columns.Add("UnitPrice", "Unit price")
@@ -201,84 +178,154 @@ Public Class ReceiptForm
         dgvLines.Columns("Qty").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
         dgvLines.Columns("UnitPrice").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
         dgvLines.Columns("LineTotal").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+        ' ------------------------------------
 
-        Dim gridPanel As New Panel()
-        gridPanel.Dock = DockStyle.Fill
-        gridPanel.Controls.Add(dgvLines)
-        gridPanel.Controls.Add(lblGridTitle)
-        lblGridTitle.BringToFront()
-
-        rtbReceipt = New RichTextBox()
-        rtbReceipt.Dock = DockStyle.Fill
-        rtbReceipt.ReadOnly = True
-        rtbReceipt.Font = New Font("Courier New", 10.0F)
-        rtbReceipt.BackColor = UiTheme.CardSurface
-        rtbReceipt.ForeColor = UiTheme.TextPrimary
-        rtbReceipt.BorderStyle = BorderStyle.FixedSingle
-        rtbReceipt.TabIndex = 2
-
-        splitHost.Controls.Add(gridPanel, 0, 0)
-        splitHost.Controls.Add(rtbReceipt, 0, 1)
-
-        Dim bodyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
-        Dim bodyCardInner As Panel = UiTheme.GetCardContentHost(bodyCard)
-        bodyCard.Dock = DockStyle.Fill
-        bodyCardInner.Controls.Add(splitHost)
-        splitHost.Dock = DockStyle.Fill
-
-        Dim buttonFlow As New FlowLayoutPanel()
-        buttonFlow.AutoSize = True
-        buttonFlow.Dock = DockStyle.Fill
-        buttonFlow.FlowDirection = FlowDirection.LeftToRight
-        buttonFlow.WrapContents = False
-        buttonFlow.Padding = New Padding(0, 8, 0, 0)
-
-        btnPrint = New Button()
-        btnPrint.Text = "&Print"
-        btnPrint.AutoSize = True
-        btnPrint.MinimumSize = New Size(110, 36)
-        UiTheme.ApplyPrimaryButton(btnPrint)
-
-        btnSave = New Button()
-        btnSave.Text = "&Save TXT"
-        btnSave.AutoSize = True
-        btnSave.MinimumSize = New Size(110, 36)
-        UiTheme.ApplySecondaryButton(btnSave)
-
-        btnSavePdf = New Button()
-        btnSavePdf.Text = "Save &PDF"
-        btnSavePdf.AutoSize = True
-        btnSavePdf.MinimumSize = New Size(110, 36)
-        UiTheme.ApplySecondaryButton(btnSavePdf)
-
-        btnCopy = New Button()
-        btnCopy.Text = "&Copy"
-        btnCopy.AutoSize = True
-        btnCopy.MinimumSize = New Size(100, 36)
-        UiTheme.ApplySecondaryButton(btnCopy)
-
-        buttonFlow.Controls.AddRange(New Control() {btnPrint, btnSave, btnSavePdf, btnCopy})
-
-        printDocument = New PrintDocument()
-
-        root.Controls.Add(title, 0, 0)
-        root.Controls.Add(lblSaleMeta, 0, 1)
-        root.Controls.Add(historyCard, 0, 2)
-        root.Controls.Add(bodyCard, 0, 3)
-        root.Controls.Add(buttonFlow, 0, 4)
+        Try
+            UiTheme.ApplyTableLayoutDropDown(cmbHistory)
+            UiTheme.ApplySuccessButton(btnPrint)
+            UiTheme.ApplySecondaryButton(btnSave)
+            UiTheme.ApplySecondaryButton(btnSavePdf)
+            UiTheme.ApplySecondaryButton(btnCopy)
+            UiTheme.ApplySecondaryButton(btnLoadList)
+            UiTheme.ApplySecondaryButton(btnBack)
+            UiTheme.ApplyDataGridViewChrome(dgvLines)
+        Catch
+        End Try
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
-        statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText)
-        statusLabel.Spring = True
-        statusStrip.Items.Add(statusLabel)
-        UiTheme.ApplyStatusStripTheme(statusStrip)
 
-        Me.Controls.Clear()
+        statusStrip = New StatusStrip()
+        statusLabel = New ToolStripStatusLabel("Ready") With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
+        statusStrip.Items.Add(statusLabel)
+        Try
+            UiTheme.ApplyStatusStripTheme(statusStrip)
+        Catch
+        End Try
+
+        ' -----------------------------------------------------------
+        ' 2. BUILD THE RESPONSIVE LAYOUT (Side-by-Side)
+        ' -----------------------------------------------------------
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = New Padding(0),
+            .BackColor = UiTheme.FormBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 350.0F))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+        ' --- LEFT SIDEBAR (Actions & History) ---
+        Dim leftSidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Color.White, .Padding = New Padding(25, 30, 25, 30)}
+        Dim leftLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 4
+        }
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Title
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Inputs & Actions
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Dynamic Spacer
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Back Button
+
+        Dim lblTitleLeft As New Label() With {
+            .Text = "Receipt Actions",
+            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .ForeColor = UiTheme.PrimaryAccent,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, 20)
+        }
+        leftLayout.Controls.Add(lblTitleLeft, 0, 0)
+
+        Dim actionLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .ColumnCount = 1,
+            .RowCount = 10,
+            .Margin = New Padding(0)
+        }
+
+        Dim CreateLabel = Function(text As String) New Label() With {.Text = text, .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Margin = New Padding(0, 15, 0, 5)}
+
+        actionLayout.Controls.Add(CreateLabel("Select Past Sale:"), 0, 0)
+        actionLayout.Controls.Add(cmbHistory, 0, 1)
+
+        Dim pnlRefresh As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 5, 0, 20)}
+        pnlRefresh.Controls.Add(btnLoadList)
+        actionLayout.Controls.Add(pnlRefresh, 0, 2)
+
+        actionLayout.Controls.Add(lblSaleMeta, 0, 3)
+
+        ' Action Buttons Stacked
+        Dim pnlActions As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.TopDown,
+            .Margin = New Padding(0, 30, 0, 0)
+        }
+        pnlActions.Controls.Add(btnPrint)
+        btnSavePdf.Margin = New Padding(0, 15, 0, 0)
+        pnlActions.Controls.Add(btnSavePdf)
+        btnSave.Margin = New Padding(0, 10, 0, 0)
+        pnlActions.Controls.Add(btnSave)
+        btnCopy.Margin = New Padding(0, 10, 0, 0)
+        pnlActions.Controls.Add(btnCopy)
+
+        actionLayout.Controls.Add(pnlActions, 0, 4)
+        leftLayout.Controls.Add(actionLayout, 0, 1)
+
+        Dim pnlUtility As New FlowLayoutPanel() With {
+            .Dock = DockStyle.Bottom,
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.TopDown
+        }
+        pnlUtility.Controls.Add(btnBack)
+
+        leftLayout.Controls.Add(pnlUtility, 0, 3)
+        leftSidebar.Controls.Add(leftLayout)
+
+        ' --- RIGHT CARD (Receipt Preview) ---
+        Dim rightCard As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .Padding = New Padding(30, 30, 30, 30)
+        }
+        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Header
+        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Preview Area
+
+        Dim lblTitleRight As New Label() With {
+            .Text = "Receipt Preview",
+            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .ForeColor = UiTheme.PrimaryAccent,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, 15)
+        }
+        rightCard.Controls.Add(lblTitleRight, 0, 0)
+
+        ' Mocking a "piece of paper" for the receipt
+        Dim paperPanel As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = Color.White,
+            .Padding = New Padding(30),
+            .BorderStyle = BorderStyle.FixedSingle ' Gives it a crisp paper edge!
+        }
+
+        paperPanel.Controls.Add(rtbReceipt)
+        paperPanel.Controls.Add(dgvLines)
+
+        ' THE FIX 1: Guarantee the text box is physically stacked on top of the grid
+        rtbReceipt.BringToFront()
+
+        ' THE FIX 2: Add the paper directly to the right card to avoid the custom Card Theme hiding it completely!
+        rightCard.Controls.Add(paperPanel, 0, 1)
+
+        ' 3. ASSEMBLE ALL
+        rootTable.Controls.Add(leftSidebar, 0, 0)
+        rootTable.Controls.Add(rightCard, 1, 0)
+
+        Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
-        Me.Controls.Add(root)
-        statusStrip.Dock = DockStyle.Bottom
-        root.Dock = DockStyle.Fill
+
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub ShowStatus(message As String, isError As Boolean)

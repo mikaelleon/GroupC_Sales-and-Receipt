@@ -30,17 +30,38 @@ Public Class MainMenuForm
     Private closeDueToLoginFail As Boolean
 
     Private Sub MainMenuForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        UiTheme.ApplyStandardWindowChrome(Me)
+        ' 1. FORM SETUP (Full Screen & Responsive)
+        Me.SuspendLayout()
+        Me.Text = "Group C - Sales & Receipt System"
+        Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.WindowState = FormWindowState.Maximized
+        Me.StartPosition = FormStartPosition.CenterScreen
+        Me.MinimumSize = New Size(960, 600)
 
+        ' THE FIX: Hide the Main Menu completely before Login
+        Me.Opacity = 0
+        Me.ShowInTaskbar = False
+
+        Try
+            UiTheme.ApplyStandardWindowChrome(Me)
+        Catch
+        End Try
+
+        ' 2. LOGIN VERIFICATION
         Using loginForm As New LoginForm()
-            If loginForm.ShowDialog(Me) <> DialogResult.OK Then
+            ' Notice we removed "Me" from ShowDialog() so it doesn't inherit invisibility
+            If loginForm.ShowDialog() <> DialogResult.OK Then
                 closeDueToLoginFail = True
                 Return
             End If
         End Using
-
         closeDueToLoginFail = False
 
+        ' THE FIX: Bring the Main Menu back now that Login is successful!
+        Me.Opacity = 1
+        Me.ShowInTaskbar = True
+
+        ' 3. DATABASE & PDF INIT
         Try
             DatabaseInitializer.EnsureDatabase()
         Catch ex As Exception
@@ -53,178 +74,21 @@ Public Class MainMenuForm
                 MessageBoxIcon.Error)
         End Try
 
-        SetupResponsiveLayout()
-
-        ' Initialize PDFsharp Font Resolver (Only do this ONCE)
         If PdfSharp.Fonts.GlobalFontSettings.FontResolver Is Nothing Then
             PdfSharp.Fonts.GlobalFontSettings.FontResolver = New WindowsFontResolver()
         End If
 
-        Me.Text = "Group C - Sales & Receipt System"
-        Me.MinimumSize = New Size(800, 740)
-        Me.Size = New Size(960, 860)
-        Me.StartPosition = FormStartPosition.CenterScreen
+        ' 4. INITIALIZE CONTROLS & BUILD LAYOUT
+        InitializeControls()
+        SetupResponsiveLayout()
 
-        dbHealthTooltip = New ToolTip()
-
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.ColumnCount = 1
-        root.RowCount = 5
-        root.Padding = New Padding(16)
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim title As New Label()
-        title.Text = "GROUP C SALES & RECEIPT SYSTEM"
-        title.UseMnemonic = False
-        title.AutoSize = False
-        title.Dock = DockStyle.Fill
-        title.Font = New Font("Segoe UI", 16.0F, FontStyle.Bold)
-        title.ForeColor = UiTheme.TextPrimary
-        title.TextAlign = ContentAlignment.MiddleCenter
-        title.Height = 44
-
-        Dim helper As New Label()
-        helper.Text = "Manage products → run sales → preview receipt"
-        helper.AutoSize = False
-        helper.Dock = DockStyle.Fill
-        helper.Font = New Font("Segoe UI", 9.5F, FontStyle.Italic)
-        helper.ForeColor = UiTheme.TextSecondary
-        helper.TextAlign = ContentAlignment.MiddleCenter
-        helper.Height = 28
-
-        Dim pnlMiddle As New Panel()
-        pnlMiddle.Dock = DockStyle.Fill
-        pnlMiddle.AutoScroll = False
-        pnlMiddle.Padding = Padding.Empty
-        pnlMiddle.Margin = New Padding(0, 0, 0, 8)
-        pnlMiddle.BackColor = UiTheme.FormBackground
-
-        Dim dashBoard As New TableLayoutPanel()
-        dashBoard.AutoSize = True
-        dashBoard.ColumnCount = 1
-        dashBoard.RowCount = 3
-        dashBoard.Margin = New Padding(0, 0, 0, 0)
-        dashBoard.Dock = DockStyle.Top
-
-        lblDbHealth = New Label()
-        lblDbHealth.AutoSize = True
-        lblDbHealth.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
-        lblDbHealth.Text = "Database: checking…"
-        lblDbHealth.ForeColor = UiTheme.TextSecondary
-
-        Dim cards As New TableLayoutPanel()
-        cards.AutoSize = True
-        cards.ColumnCount = 3
-        cards.RowCount = 1
-        cards.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
-        cards.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.34F))
-        cards.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
-
-        lblDashProducts = CreateDashValueLabel("—")
-        lblDashSalesToday = CreateDashValueLabel("—")
-        lblDashLastSale = CreateDashValueLabel("—")
-
-        cards.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
-        cards.Controls.Add(CreateDashCard("Today's sales total", lblDashSalesToday), 1, 0)
-        cards.Controls.Add(CreateDashCard("Latest sale #", lblDashLastSale), 2, 0)
-
-        dashBoard.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashBoard.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashBoard.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        picSalesChart = New PictureBox()
-        picSalesChart.Dock = DockStyle.Top
-        picSalesChart.Height = 204
-        picSalesChart.MinimumSize = New Size(280, 196)
-        picSalesChart.Margin = New Padding(0, 10, 0, 0)
-        picSalesChart.BackColor = UiTheme.FormBackground
-
-        dashBoard.Controls.Add(lblDbHealth, 0, 0)
-        dashBoard.Controls.Add(cards, 0, 1)
-        dashBoard.Controls.Add(picSalesChart, 0, 2)
-
-        pnlMiddle.Controls.Add(dashBoard)
-
-        flowNav = New FlowLayoutPanel()
-        flowNav.Dock = DockStyle.Top
-        flowNav.Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top
-        flowNav.FlowDirection = FlowDirection.TopDown
-        flowNav.WrapContents = False
-        flowNav.AutoScroll = False
-        flowNav.AutoSize = True
-        flowNav.AutoSizeMode = AutoSizeMode.GrowAndShrink
-        flowNav.Padding = New Padding(0, 12, 0, 8)
-        flowNav.Margin = New Padding(0, 0, 0, 4)
-        flowNav.BackColor = UiTheme.FormBackground
-
-        btnProducts = CreateNavButton("&Add / Manage Products")
-        btnSales = CreateNavButton("&Sales / Compute Total")
-        btnReceipt = CreateNavButton("&Receipt Preview")
-        btnSettings = CreateNavButton("&Settings")
-        btnReports = CreateNavButton("&Reports")
-        btnBackup = CreateNavButton("&Backup / Restore help")
-        flowNav.Controls.Add(btnProducts)
-        flowNav.Controls.Add(btnSales)
-        flowNav.Controls.Add(btnReceipt)
-        flowNav.Controls.Add(btnSettings)
-        flowNav.Controls.Add(btnReports)
-        flowNav.Controls.Add(btnBackup)
-
-        Dim showAdminNav As Boolean = AppSession.IsAdmin()
-        btnProducts.Visible = showAdminNav
-        btnReports.Visible = showAdminNav
-        btnSettings.Visible = showAdminNav
-        btnBackup.Visible = showAdminNav
-
-        Dim exitPanel As New TableLayoutPanel()
-        exitPanel.Dock = DockStyle.Fill
-        exitPanel.ColumnCount = 3
-        exitPanel.RowCount = 1
-        exitPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        exitPanel.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        exitPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        exitPanel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        exitPanel.Padding = New Padding(0, 8, 0, 0)
-
-        btnExit = New Button()
-        btnExit.Text = "E&xit"
-        btnExit.AutoSize = True
-        btnExit.MinimumSize = New Size(120, 36)
-        btnExit.Margin = New Padding(3)
-        UiTheme.ApplyDangerButton(btnExit)
-        exitPanel.Controls.Add(btnExit, 1, 0)
-
-        root.Controls.Add(title, 0, 0)
-        root.Controls.Add(helper, 0, 1)
-        root.Controls.Add(pnlMiddle, 0, 2)
-        root.Controls.Add(flowNav, 0, 3)
-        root.Controls.Add(exitPanel, 0, 4)
-
-        statusStrip = New StatusStrip()
-        statusStrip.Dock = DockStyle.Bottom
-        statusLabel = New ToolStripStatusLabel("SQL Server LocalDB — connection string in App.config (GroupCSqlServer).")
-        statusLabel.Spring = True
-        statusLabel.TextAlign = ContentAlignment.MiddleLeft
-        Dim groupLabel As New ToolStripStatusLabel("Group C")
-        statusStrip.Items.Add(statusLabel)
-        statusStrip.Items.Add(groupLabel)
-        UiTheme.ApplyStatusStripTheme(statusStrip)
-
+        ' 5. FINAL WIRING
         tmrRefresh = New Timer() With {.Interval = 60000}
         tmrRefresh.Start()
 
-        Me.Controls.Clear()
-        Me.Controls.Add(root)
-        Me.Controls.Add(statusStrip)
-
         Me.CancelButton = btnExit
-        LayoutNavButtons()
         RefreshHealthAndDashboard()
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub MainMenuForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
@@ -232,9 +96,185 @@ Public Class MainMenuForm
             Me.Close()
             Return
         End If
-
-        LayoutNavButtons()
     End Sub
+
+    ' -----------------------------------------------------------
+    ' UI BUILDER METHODS
+    ' -----------------------------------------------------------
+    Private Sub InitializeControls()
+        dbHealthTooltip = New ToolTip()
+
+        ' Dashboard Labels
+        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 12.0F, FontStyle.Bold), .Text = "Database: checking…"}
+        lblDashProducts = CreateDashValueLabel("—")
+        lblDashSalesToday = CreateDashValueLabel("—")
+        lblDashLastSale = CreateDashValueLabel("—")
+
+        ' Chart
+        picSalesChart = New PictureBox() With {.BackColor = UiTheme.FormBackground, .SizeMode = PictureBoxSizeMode.Zoom}
+
+        ' Navigation Panel
+        flowNav = New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .WrapContents = False,
+            .AutoScroll = True,
+            .Padding = New Padding(10)
+        }
+
+        ' Buttons
+        btnProducts = CreateNavButton("&Add / Manage Products")
+        btnSales = CreateNavButton("&Sales / Compute Total")
+        btnReceipt = CreateNavButton("&Receipt Preview")
+        btnReports = CreateNavButton("&Reports")
+        btnSettings = CreateNavButton("&Settings")
+        btnBackup = CreateNavButton("&Backup / Restore")
+        btnExit = CreateNavButton("E&xit")
+
+        ' THE FIX: Hierarchical theming for a professional look
+        Try
+            UiTheme.ApplyPrimaryButton(btnSales)
+            UiTheme.ApplyPrimaryButton(btnProducts)
+            UiTheme.ApplySecondaryAccentButton(btnReceipt)
+            UiTheme.ApplySecondaryAccentButton(btnReports)
+            UiTheme.ApplySecondaryButton(btnSettings)
+            UiTheme.ApplySecondaryButton(btnBackup)
+            UiTheme.ApplyDangerButton(btnExit)
+        Catch
+        End Try
+
+        Dim showAdminNav As Boolean = AppSession.IsAdmin()
+        btnProducts.Visible = showAdminNav
+        btnReports.Visible = showAdminNav
+        btnSettings.Visible = showAdminNav
+        btnBackup.Visible = showAdminNav
+
+        ' Status Strip
+        statusStrip = New StatusStrip()
+        statusLabel = New ToolStripStatusLabel("SQL Server LocalDB — connection string in App.config (GroupCSqlServer).") With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
+        statusStrip.Items.Add(statusLabel)
+        statusStrip.Items.Add(New ToolStripStatusLabel("Group C"))
+
+        Try
+            UiTheme.ApplyStatusStripTheme(statusStrip)
+        Catch
+        End Try
+    End Sub
+
+    Private Sub SetupResponsiveLayout()
+        Me.Controls.Clear()
+
+        ' 1. Root Layout: 2 Columns
+        ' We use margin 0 to ensure it touches the absolute edges of the screen
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .BackColor = UiTheme.FormBackground,
+            .Margin = New Padding(0)
+        }
+        ' Make the sidebar a bit wider (260px) for a premium feel
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 260.0F))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+        ' 2. Left Sidebar (Navigation)
+        ' Give it a distinct White background to stand out from the gray dashboard
+        Dim navContainer As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = Color.White,
+            .Padding = New Padding(10, 20, 10, 20)
+        }
+
+        flowNav.Dock = DockStyle.Fill
+        flowNav.BackColor = Color.White
+        flowNav.Padding = New Padding(0)
+
+        ' Expand buttons to fit the new, wider sidebar perfectly
+        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnExit}
+        For Each btn In navButtons
+            If btn IsNot Nothing Then
+                btn.Width = 220
+                btn.Margin = New Padding(10, 5, 10, 10)
+                flowNav.Controls.Add(btn)
+            End If
+        Next
+        navContainer.Controls.Add(flowNav)
+
+        ' 3. Right Dashboard Container
+        ' Generous 30px padding creates modern "breathing room" around the edges
+        Dim dashLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Padding = New Padding(30, 30, 30, 20)
+        }
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Header
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Cards
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Chart
+
+        ' --- Header Section ---
+        ' Add a professional title above the database health label
+        Dim headerLayout As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .Margin = New Padding(0, 0, 0, 25)
+        }
+        Dim lblTitle As New Label() With {
+            .Text = "Dashboard Overview",
+            .Font = New Font("Segoe UI", 18.0F, FontStyle.Bold),
+            .ForeColor = UiTheme.PrimaryAccent,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, 5)
+        }
+        lblDbHealth.Margin = New Padding(2, 0, 0, 0) ' Slight indent to align visually
+        lblDbHealth.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold) ' Shrink DB health so it isn't distracting
+
+        headerLayout.Controls.Add(lblTitle, 0, 0)
+        headerLayout.Controls.Add(lblDbHealth, 0, 1)
+        dashLayout.Controls.Add(headerLayout, 0, 0)
+
+        ' --- Metric Cards Section ---
+        Dim cardsLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 3,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, 20),
+            .Height = 110 ' Fixed height ensures cards don't look crushed
+        }
+        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+
+        cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
+        cardsLayout.Controls.Add(CreateDashCard("Today's sales total", lblDashSalesToday), 1, 0)
+        cardsLayout.Controls.Add(CreateDashCard("Latest sale #", lblDashLastSale), 2, 0)
+
+        dashLayout.Controls.Add(cardsLayout, 0, 1)
+
+        ' --- Chart Section ---
+        picSalesChart.Dock = DockStyle.Fill
+        dashLayout.Controls.Add(picSalesChart, 0, 2)
+
+        ' 4. Final Assembly
+        rootTable.Controls.Add(navContainer, 0, 0)
+        rootTable.Controls.Add(dashLayout, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
+    End Sub
+
+    Private Function CreateNavButton(text As String) As Button
+        ' THE FIX: Removed the automatic theme application here so we can customize them in InitializeControls
+        Dim button As New Button() With {
+            .Text = text,
+            .Width = 200,
+            .Height = 45,
+            .Margin = New Padding(10, 5, 10, 10),
+            .Cursor = Cursors.Hand
+        }
+        Return button
+    End Function
 
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
         Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(10))
@@ -244,16 +284,17 @@ Public Class MainMenuForm
 
         Dim inner As Panel = UiTheme.GetCardContentHost(outer)
 
-        Dim lblTitle As New Label()
-        lblTitle.Text = title
-        lblTitle.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
-        lblTitle.ForeColor = UiTheme.TextSecondary
-        lblTitle.Dock = DockStyle.Top
-        lblTitle.Height = 22
+        Dim lblTitle As New Label() With {
+            .Text = title,
+            .Font = New Font("Segoe UI", 9.0F, FontStyle.Bold),
+            .ForeColor = UiTheme.TextSecondary,
+            .Dock = DockStyle.Top,
+            .Height = 22
+        }
 
         valueLabel.Dock = DockStyle.Fill
         valueLabel.TextAlign = ContentAlignment.MiddleLeft
-        valueLabel.Font = New Font("Segoe UI", 14.0F, FontStyle.Bold)
+        valueLabel.Font = New Font("Segoe UI", 18.0F, FontStyle.Bold)
         valueLabel.ForeColor = UiTheme.PrimaryAccent
 
         inner.Controls.Add(lblTitle)
@@ -262,18 +303,19 @@ Public Class MainMenuForm
     End Function
 
     Private Function CreateDashValueLabel(initial As String) As Label
-        Dim label As New Label()
-        label.Text = initial
-        label.AutoSize = False
-        Return label
+        Return New Label() With {.Text = initial, .AutoSize = False}
     End Function
 
+    ' -----------------------------------------------------------
+    ' DATA & CHART METHODS
+    ' -----------------------------------------------------------
     Private Sub RefreshHealthAndDashboard()
         Dim lastErr As String = Nothing
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
+
                 lblDbHealth.Text = "Database: OK"
                 lblDbHealth.ForeColor = UiTheme.Success
                 dbHealthTooltip.SetToolTip(lblDbHealth, "Connected to " & DatabaseConfig.DatabaseName)
@@ -287,8 +329,7 @@ Public Class MainMenuForm
                 End Using
                 lblDashProducts.Text = activeCount.ToString(CultureInfo.CurrentCulture)
 
-                Dim todaySql As String =
-                    "SELECT ISNULL(SUM(total_amount), 0) FROM sales WHERE CAST(sale_date AS DATE) = CAST(GETDATE() AS DATE);"
+                Dim todaySql As String = "SELECT ISNULL(SUM(total_amount), 0) FROM sales WHERE CAST(sale_date AS DATE) = CAST(GETDATE() AS DATE);"
                 Dim todayTotal As Decimal = 0D
                 Using cmd As New SqlCommand(todaySql, connection)
                     todayTotal = Convert.ToDecimal(cmd.ExecuteScalar())
@@ -317,10 +358,7 @@ Public Class MainMenuForm
     End Sub
 
     Private Sub ClearSalesChart()
-        If picSalesChart Is Nothing Then
-            Return
-        End If
-
+        If picSalesChart Is Nothing Then Return
         If picSalesChart.Image IsNot Nothing Then
             picSalesChart.Image.Dispose()
             picSalesChart.Image = Nothing
@@ -328,9 +366,7 @@ Public Class MainMenuForm
     End Sub
 
     Private Sub PaintSevenDaySalesChart(connection As SqlConnection, currencySym As String)
-        If picSalesChart Is Nothing Then
-            Return
-        End If
+        If picSalesChart Is Nothing Then Return
 
         Dim amounts As New Dictionary(Of DateTime, Decimal)()
         For i As Integer = 0 To 6
@@ -339,10 +375,9 @@ Public Class MainMenuForm
 
         Dim rangeStart As DateTime = DateTime.Today.AddDays(-6)
         Dim rangeEndExclusive As DateTime = DateTime.Today.AddDays(1)
-        Dim aggSql As String =
-            "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
-            "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
-            "GROUP BY CAST(sale_date AS DATE);"
+        Dim aggSql As String = "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
+                               "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
+                               "GROUP BY CAST(sale_date AS DATE);"
 
         Using cmd As New SqlCommand(aggSql, connection)
             cmd.Parameters.AddWithValue("@start", rangeStart)
@@ -360,9 +395,7 @@ Public Class MainMenuForm
 
         Dim maxVal As Decimal = 1D
         For Each kv As KeyValuePair(Of DateTime, Decimal) In amounts
-            If kv.Value > maxVal Then
-                maxVal = kv.Value
-            End If
+            If kv.Value > maxVal Then maxVal = kv.Value
         Next
 
         Dim cw As Integer = picSalesChart.ClientSize.Width
@@ -404,9 +437,7 @@ Public Class MainMenuForm
                             Dim day As DateTime = DateTime.Today.AddDays(-6 + i)
                             Dim amt As Decimal = amounts(day)
                             Dim frac As Single = CSng(amt / maxVal)
-                            If frac > 1.0F Then
-                                frac = 1.0F
-                            End If
+                            If frac > 1.0F Then frac = 1.0F
 
                             Dim barH As Single = frac * chartRect.Height
                             Dim x As Single = chartRect.Left + i * slotW + gap
@@ -445,101 +476,89 @@ Public Class MainMenuForm
         RefreshHealthAndDashboard()
     End Sub
 
-    Private Sub FlowNav_Resize(sender As Object, e As EventArgs) Handles flowNav.Resize
-        LayoutNavButtons()
-    End Sub
-
     Private Sub MainMenuForm_ClientSizeChanged(sender As Object, e As EventArgs) Handles MyBase.ClientSizeChanged
-        LayoutNavButtons()
-    End Sub
-
-    Private Sub LayoutNavButtons()
-        If flowNav Is Nothing Then
+        ' Prevent crash if the window resizes before the controls are built
+        If lblDbHealth Is Nothing OrElse picSalesChart Is Nothing Then
             Return
         End If
 
-        Dim host As Control = flowNav.Parent
-        If host IsNot Nothing Then
-            Dim innerHost As Integer = host.ClientSize.Width - host.Padding.Horizontal
-            flowNav.Width = Math.Max(260, innerHost - flowNav.Margin.Horizontal)
-        End If
-
-        Dim innerWidth As Integer = flowNav.ClientSize.Width - flowNav.Padding.Horizontal
-        If innerWidth < 200 Then
-            innerWidth = 200
-        End If
-
-        For Each ctrl As Control In flowNav.Controls
-            Dim button As Button = TryCast(ctrl, Button)
-            If button IsNot Nothing Then
-                button.Width = innerWidth
-            End If
-        Next
+        RefreshHealthAndDashboard() ' Redraws the chart so it stretches to fill the window
     End Sub
 
-    Private Function CreateNavButton(text As String) As Button
-        Dim button As New Button()
-        button.Text = text
-        button.Height = 40
-        button.Margin = New Padding(0, 0, 0, 10)
-        UiTheme.ApplyPrimaryButton(button)
-        Return button
-    End Function
-
+    ' -----------------------------------------------------------
+    ' BUTTON CLICK HANDLERS
+    ' -----------------------------------------------------------
     Private Sub btnProducts_Click(sender As Object, e As EventArgs) Handles btnProducts.Click
-        If Not AppSession.RequireAdmin(Me) Then
-            Return
-        End If
+        If Not AppSession.RequireAdmin(Me) Then Return
+
+        Me.Hide() ' <-- Hides the Main Menu
 
         Using form As New ProductsForm()
-            form.ShowDialog()
+            form.ShowDialog() ' <-- Opens the Products Form
         End Using
 
+        Me.Show() ' <-- Instantly brings the Main Menu back when Products closes
         RefreshHealthAndDashboard()
     End Sub
 
     Private Sub btnSales_Click(sender As Object, e As EventArgs) Handles btnSales.Click
+        ' 1. Hide the Main Menu so ONLY the Sales Form is visible
+        Me.Hide()
+
+        ' 2. Open the Sales Form
         Using form As New SalesForm()
             form.ShowDialog()
         End Using
 
+        ' 3. The Sales Form has closed (user clicked "← Back to Menu").
+        ' Show the Main Menu again!
+        Me.Show()
+
+        ' Refresh dashboard stats in case they made a sale
         RefreshHealthAndDashboard()
     End Sub
 
     Private Sub btnReceipt_Click(sender As Object, e As EventArgs) Handles btnReceipt.Click
+        Me.Hide()
+
         Using form As New ReceiptForm()
             form.ShowDialog()
         End Using
+
+        ' Safely show the menu only if it hasn't been destroyed
+        If Not Me.IsDisposed Then
+            Me.Show()
+        End If
     End Sub
 
     Private Sub btnSettings_Click(sender As Object, e As EventArgs) Handles btnSettings.Click
-        If Not AppSession.RequireAdmin(Me) Then
-            Return
-        End If
-
+        If Not AppSession.RequireAdmin(Me) Then Return
         Using form As New SettingsForm()
             form.ShowDialog()
         End Using
-
         AppSettings.Reload()
         RefreshHealthAndDashboard()
     End Sub
 
     Private Sub btnReports_Click(sender As Object, e As EventArgs) Handles btnReports.Click
-        If Not AppSession.RequireAdmin(Me) Then
-            Return
-        End If
+        If Not AppSession.RequireAdmin(Me) Then Return
 
+        ' 1. Hide Main Menu
+        Me.Hide()
+
+        ' 2. Open Reports Full Screen
         Using form As New ReportsForm()
             form.ShowDialog()
         End Using
+
+        ' 3. Safely Show Main Menu again when back is clicked
+        If Not Me.IsDisposed Then
+            Me.Show()
+        End If
     End Sub
 
     Private Sub btnBackup_Click(sender As Object, e As EventArgs) Handles btnBackup.Click
-        If Not AppSession.RequireAdmin(Me) Then
-            Return
-        End If
-
+        If Not AppSession.RequireAdmin(Me) Then Return
         Using form As New BackupRestoreForm()
             form.ShowDialog()
         End Using
@@ -547,83 +566,6 @@ Public Class MainMenuForm
 
     Private Sub btnExit_Click(sender As Object, e As EventArgs) Handles btnExit.Click
         Me.Close()
-    End Sub
-
-    Private Sub SetupResponsiveLayout()
-        ' 1. Create a root layout table
-        Dim rootTable As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 2,
-            .RowCount = 1,
-            .BackColor = UiTheme.FormBackground
-        }
-        ' Left column for Navigation (Fixed width), Right column for Dashboard (100% of remaining space)
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 220.0F))
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-
-        ' 2. Configure the Navigation Panel (Left side)
-        If flowNav Is Nothing Then flowNav = New FlowLayoutPanel()
-        flowNav.Dock = DockStyle.Fill
-        flowNav.FlowDirection = FlowDirection.TopDown
-        flowNav.WrapContents = False
-        flowNav.AutoScroll = True
-        flowNav.Padding = New Padding(10)
-
-        ' Standardize button sizes and margins inside the flow panel
-        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnExit}
-        For Each btn In navButtons
-            If btn IsNot Nothing Then
-                btn.Width = 190
-                btn.Height = 45
-                btn.Margin = New Padding(5, 5, 5, 10)
-                flowNav.Controls.Add(btn)
-            End If
-        Next
-
-        ' 3. Configure the Dashboard Panel (Right side)
-        Dim dashLayout As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 5,
-            .Padding = New Padding(20)
-        }
-        ' Let the text labels auto-size, and give all leftover vertical space to the chart
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-
-        ' Add dashboard labels with some bottom spacing
-        Dim dashLabels = {lblDbHealth, lblDashProducts, lblDashSalesToday, lblDashLastSale}
-        For i As Integer = 0 To dashLabels.Length - 1
-            If dashLabels(i) IsNot Nothing Then
-                dashLabels(i).AutoSize = True
-                dashLabels(i).Margin = New Padding(0, 0, 0, 15)
-                dashLayout.Controls.Add(dashLabels(i), 0, i)
-            End If
-        Next
-
-        ' Make the chart fill the rest of the dashboard area
-        If picSalesChart IsNot Nothing Then
-            picSalesChart.Dock = DockStyle.Fill
-            picSalesChart.SizeMode = PictureBoxSizeMode.Zoom
-            dashLayout.Controls.Add(picSalesChart, 0, 4)
-        End If
-
-        ' 4. Assemble the panels into the root table
-        rootTable.Controls.Add(flowNav, 0, 0)
-        rootTable.Controls.Add(dashLayout, 1, 0)
-
-        ' 5. Apply everything to the form
-        Me.Controls.Clear() ' Clear out the old absolute-positioned layout
-        Me.Controls.Add(rootTable)
-
-        ' Ensure the StatusStrip stays locked to the bottom
-        If statusStrip IsNot Nothing Then
-            statusStrip.Dock = DockStyle.Bottom
-            Me.Controls.Add(statusStrip)
-        End If
     End Sub
 
 End Class

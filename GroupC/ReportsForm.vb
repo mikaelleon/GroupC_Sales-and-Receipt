@@ -29,193 +29,160 @@ Public Class ReportsForm
     Private WithEvents statusClearTimer As Timer
 
     Private Sub ReportsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        UiTheme.ApplyStandardWindowChrome(Me)
-
+        ' 1. FORM SETUP
         Me.Text = "Group C - Reports"
-        Me.MinimumSize = New Size(760, 560)
-        Me.Size = New Size(880, 640)
+        Me.MinimumSize = New Size(1024, 720)
+        Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.WindowState = FormWindowState.Maximized
         Me.StartPosition = FormStartPosition.CenterParent
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
 
         Try
+            UiTheme.ApplyStandardWindowChrome(Me)
             DatabaseInitializer.EnsureDatabase()
         Catch
         End Try
 
-        tabReports = New TabControl() With {.Dock = DockStyle.Fill}
+        ' 2. INSTANTIATE AND RESTRUCTURE THE UI
+        CreateControls()
 
-        Dim tabSales As New TabPage("Sales reports")
-        tabSales.BackColor = UiTheme.FormBackground
-        tabSales.Padding = New Padding(8)
+        ' 3. EXPLICITLY SET INITIAL FILTER DATE VALUES
+        ' This ensures the controls have valid values before RunReport reads them
+        If dtpFrom IsNot Nothing Then dtpFrom.Value = DateTime.Today.AddDays(-30)
+        If dtpTo IsNot Nothing Then dtpTo.Value = DateTime.Today
 
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.Padding = New Padding(4)
-        root.BackColor = UiTheme.FormBackground
-        root.ColumnCount = 1
-        root.RowCount = 4
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        ' 4. LOAD INITIAL DATA
+        Try
+            RunReport()
+        Catch
+        End Try
+    End Sub
 
-        Dim title As New Label() With {
-            .Text = "SALES REPORTS",
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
-            .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .AutoSize = True
+    Private Sub CreateControls()
+        Me.SuspendLayout()
+        Me.Controls.Clear()
+        Me.BackColor = UiTheme.FormBackground
+
+        ' -----------------------------------------------------------
+        ' 1. INSTANTIATE ALL CONTROLS (The Missing Code!)
+        ' -----------------------------------------------------------
+        tabReports = New TabControl() With {.Dock = DockStyle.Fill, .Padding = New Point(15, 10), .Font = New Font("Segoe UI", 11)}
+
+        ' Sales Tab Controls
+        dtpFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today.AddDays(-30)}
+        dtpTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today}
+        btnRun = New Button() With {.Text = "&Run report", .Size = New Size(120, 32), .Cursor = Cursors.Hand}
+        lblSummary = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 11, FontStyle.Bold), .Margin = New Padding(30, 6, 0, 0)}
+
+        dgvDaily = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False, .BackgroundColor = Color.White, .BorderStyle = BorderStyle.None}
+        dgvTop = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False, .BackgroundColor = Color.White, .BorderStyle = BorderStyle.None}
+
+        ' Audit Tab Controls
+        dtpAuditFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today.AddDays(-30)}
+        dtpAuditTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today}
+        btnAuditRefresh = New Button() With {.Text = "&Load log", .Size = New Size(120, 32), .Cursor = Cursors.Hand}
+        dgvAudit = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False, .BackgroundColor = Color.White, .BorderStyle = BorderStyle.None}
+
+        ' Status Strip
+        statusStrip = New StatusStrip()
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
+        statusStrip.Items.Add(statusLabel)
+
+        ' Apply Themes
+        Try
+            UiTheme.ApplyPrimaryButton(btnRun)
+            UiTheme.ApplyPrimaryButton(btnAuditRefresh)
+            UiTheme.ApplyDataGridViewChrome(dgvDaily)
+            UiTheme.ApplyDataGridViewChrome(dgvTop)
+            UiTheme.ApplyDataGridViewChrome(dgvAudit)
+            UiTheme.ApplyStatusStripTheme(statusStrip)
+        Catch
+        End Try
+
+        ' -----------------------------------------------------------
+        ' 2. BUILD THE RESPONSIVE LAYOUT
+        ' -----------------------------------------------------------
+        ' Top Header & Back Button
+        Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand, .Margin = New Padding(0, 0, 20, 0)}
+        AddHandler btnBack.Click, Sub(s, ev) Me.DialogResult = DialogResult.Cancel
+        Try : UiTheme.ApplySecondaryButton(btnBack) : Catch : End Try
+
+        Dim headerPanel As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top, .Height = 80, .ColumnCount = 2, .RowCount = 1,
+            .Padding = New Padding(30, 20, 30, 20), .BackColor = Color.White
         }
+        headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim filter As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 7, .RowCount = 1}
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        filter.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        Dim lblTitle As New Label() With {.Text = "System Reports & Audit", .Font = New Font("Segoe UI", 18, FontStyle.Bold), .ForeColor = UiTheme.PrimaryAccent, .AutoSize = True, .Anchor = AnchorStyles.Left Or AnchorStyles.Top Or AnchorStyles.Bottom, .TextAlign = ContentAlignment.MiddleLeft}
+        headerPanel.Controls.Add(btnBack, 0, 0)
+        headerPanel.Controls.Add(lblTitle, 1, 0)
 
-        dtpFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 120, .Value = DateTime.Today.AddDays(-7)}
-        dtpTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 120, .Value = DateTime.Today}
-        btnRun = New Button() With {.Text = "&Run report", .AutoSize = True}
-        UiTheme.ApplySecondaryAccentButton(btnRun)
+        ' Sales Tab Assembly
+        Dim tabSales As New TabPage("Sales & Revenue") With {.BackColor = UiTheme.FormBackground, .Padding = New Padding(20)}
+        Dim salesLayout As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
+        salesLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        salesLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
-        filter.Controls.Add(New Label() With {.Text = "From", .AutoSize = True, .Margin = New Padding(0, 6, 8, 6), .ForeColor = UiTheme.TextSecondary}, 0, 0)
-        filter.Controls.Add(dtpFrom, 1, 0)
-        filter.Controls.Add(New Label() With {.Text = "To", .AutoSize = True, .Margin = New Padding(12, 6, 8, 6), .ForeColor = UiTheme.TextSecondary}, 2, 0)
-        filter.Controls.Add(dtpTo, 3, 0)
-        filter.Controls.Add(btnRun, 4, 0)
+        Dim pnlSalesFilters As New FlowLayoutPanel() With {.Dock = DockStyle.Fill, .AutoSize = True, .Padding = New Padding(0, 0, 0, 20), .WrapContents = False}
+        pnlSalesFilters.Controls.Add(New Label() With {.Text = "From:", .AutoSize = True, .Margin = New Padding(0, 8, 5, 0)})
+        pnlSalesFilters.Controls.Add(dtpFrom)
+        pnlSalesFilters.Controls.Add(New Label() With {.Text = "To:", .AutoSize = True, .Margin = New Padding(15, 8, 5, 0)})
+        pnlSalesFilters.Controls.Add(dtpTo)
+        btnRun.Margin = New Padding(20, 0, 0, 0)
+        pnlSalesFilters.Controls.Add(btnRun)
+        pnlSalesFilters.Controls.Add(lblSummary)
+        salesLayout.Controls.Add(pnlSalesFilters, 0, 0)
 
-        lblSummary = New Label() With {.AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Margin = New Padding(0, 8, 0, 4), .Dock = DockStyle.Top}
+        Dim gridsLayout As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 1, .ColumnCount = 2}
+        gridsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 60.0F))
+        gridsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 40.0F))
 
-        Dim filterStack As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1, .RowCount = 2}
-        filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        filterStack.Controls.Add(filter, 0, 0)
-        filterStack.Controls.Add(lblSummary, 0, 1)
+        Dim pnlDaily As Panel = WrapInCard("Daily Revenue", dgvDaily)
+        pnlDaily.Margin = New Padding(0, 0, 10, 0)
+        gridsLayout.Controls.Add(pnlDaily, 0, 0)
 
-        Dim filterCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
-        Dim filterCardInner As Panel = UiTheme.GetCardContentHost(filterCard)
-        filterCard.Dock = DockStyle.Top
-        filterCard.AutoSize = True
-        filterCardInner.Controls.Add(filterStack)
-        filterStack.Dock = DockStyle.Top
+        Dim pnlTop As Panel = WrapInCard("Top Products", dgvTop)
+        pnlTop.Margin = New Padding(10, 0, 0, 0)
+        gridsLayout.Controls.Add(pnlTop, 1, 0)
 
-        dgvDaily = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False}
-        dgvTop = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False}
-        UiTheme.ApplyDataGridViewChrome(dgvDaily)
-        UiTheme.ApplyDataGridViewChrome(dgvTop)
-
-        Dim split As New SplitContainer() With {.Dock = DockStyle.Fill, .Orientation = Orientation.Horizontal, .SplitterDistance = 220}
-        split.BackColor = UiTheme.FormBackground
-        split.Panel1.BackColor = UiTheme.FormBackground
-        split.Panel2.BackColor = UiTheme.FormBackground
-        Dim l1 As New Label() With {
-            .Text = "Sales by day",
-            .Dock = DockStyle.Top,
-            .Height = 26,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary
-        }
-        Dim l2 As New Label() With {
-            .Text = "Top products (qty) in range",
-            .Dock = DockStyle.Top,
-            .Height = 26,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary
-        }
-
-        Dim dailyCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
-        Dim dailyInner As Panel = UiTheme.GetCardContentHost(dailyCard)
-        dailyCard.Dock = DockStyle.Fill
-        dailyInner.Controls.Add(dgvDaily)
-        dailyInner.Controls.Add(l1)
-        l1.BringToFront()
-
-        Dim topCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
-        Dim topInner As Panel = UiTheme.GetCardContentHost(topCard)
-        topCard.Dock = DockStyle.Fill
-        topInner.Controls.Add(dgvTop)
-        topInner.Controls.Add(l2)
-        l2.BringToFront()
-
-        split.Panel1.Controls.Add(dailyCard)
-        split.Panel2.Controls.Add(topCard)
-
-        root.Controls.Add(title, 0, 0)
-        root.Controls.Add(filterCard, 0, 1)
-        root.Controls.Add(split, 0, 2)
-
-        tabSales.Controls.Add(root)
+        salesLayout.Controls.Add(gridsLayout, 0, 1)
+        tabSales.Controls.Add(salesLayout)
         tabReports.TabPages.Add(tabSales)
 
+        ' Audit Tab Assembly
         If AppSession.IsAdmin() Then
-            tabAuditPage = New TabPage("Audit log")
-            tabAuditPage.BackColor = UiTheme.FormBackground
-            tabAuditPage.Padding = New Padding(10)
+            tabAuditPage = New TabPage("System Audit Logs") With {.BackColor = UiTheme.FormBackground, .Padding = New Padding(20)}
+            Dim auditLayout As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
+            auditLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            auditLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
-            Dim auditRoot As New TableLayoutPanel() With {
-                .Dock = DockStyle.Fill,
-                .ColumnCount = 1,
-                .RowCount = 3,
-                .BackColor = UiTheme.FormBackground
-            }
-            auditRoot.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-            auditRoot.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-            auditRoot.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+            Dim pnlAuditFilters As New FlowLayoutPanel() With {.Dock = DockStyle.Fill, .AutoSize = True, .Padding = New Padding(0, 0, 0, 20), .WrapContents = False}
+            pnlAuditFilters.Controls.Add(New Label() With {.Text = "From:", .AutoSize = True, .Margin = New Padding(0, 8, 5, 0)})
+            pnlAuditFilters.Controls.Add(dtpAuditFrom)
+            pnlAuditFilters.Controls.Add(New Label() With {.Text = "To:", .AutoSize = True, .Margin = New Padding(15, 8, 5, 0)})
+            pnlAuditFilters.Controls.Add(dtpAuditTo)
+            btnAuditRefresh.Margin = New Padding(20, 0, 0, 0)
+            pnlAuditFilters.Controls.Add(btnAuditRefresh)
+            auditLayout.Controls.Add(pnlAuditFilters, 0, 0)
 
-            Dim auditFilter As New FlowLayoutPanel() With {.AutoSize = True, .WrapContents = False}
-            auditFilter.Controls.Add(New Label() With {.Text = "From", .AutoSize = True, .Margin = New Padding(0, 10, 8, 8), .ForeColor = UiTheme.TextSecondary})
-            dtpAuditFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 120, .Value = DateTime.Today.AddDays(-7)}
-            auditFilter.Controls.Add(dtpAuditFrom)
-            auditFilter.Controls.Add(New Label() With {.Text = "To", .AutoSize = True, .Margin = New Padding(16, 10, 8, 8), .ForeColor = UiTheme.TextSecondary})
-            dtpAuditTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 120, .Value = DateTime.Today}
-            auditFilter.Controls.Add(dtpAuditTo)
-            btnAuditRefresh = New Button() With {.Text = "&Load log", .AutoSize = True, .Margin = New Padding(16, 6, 0, 0)}
-            UiTheme.ApplySecondaryAccentButton(btnAuditRefresh)
-            auditFilter.Controls.Add(btnAuditRefresh)
+            Dim pnlAuditGrid As Panel = WrapInCard("Audit Logs", dgvAudit)
+            auditLayout.Controls.Add(pnlAuditGrid, 0, 1)
 
-            Dim auditHint As New Label() With {
-                .Text = "Unified audit trail (product changes, sales, sign-in, settings).",
-                .AutoSize = True,
-                .ForeColor = UiTheme.TextSecondary,
-                .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-                .Margin = New Padding(0, 4, 0, 8)
-            }
-
-            dgvAudit = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False}
-            UiTheme.ApplyDataGridViewChrome(dgvAudit)
-
-            Dim auditCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
-            Dim auditInner As Panel = UiTheme.GetCardContentHost(auditCard)
-            auditCard.Dock = DockStyle.Fill
-            auditInner.Controls.Add(dgvAudit)
-
-            auditRoot.Controls.Add(auditFilter, 0, 0)
-            auditRoot.Controls.Add(auditHint, 0, 1)
-            auditRoot.Controls.Add(auditCard, 0, 2)
-
-            tabAuditPage.Controls.Add(auditRoot)
+            tabAuditPage.Controls.Add(auditLayout)
             tabReports.TabPages.Add(tabAuditPage)
         End If
 
-        statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText)
-        statusLabel.Spring = True
-        statusStrip.Items.Add(statusLabel)
-        UiTheme.ApplyStatusStripTheme(statusStrip)
+        ' Final App Assembly
+        Dim mainContainer As New Panel() With {.Dock = DockStyle.Fill, .Padding = New Padding(0)}
+        mainContainer.Controls.Add(tabReports)
+        mainContainer.Controls.Add(headerPanel)
 
-        Dim shell As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        shell.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        shell.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        shell.Controls.Add(tabReports, 0, 0)
-        shell.Controls.Add(statusStrip, 0, 1)
+        Me.Controls.Add(mainContainer)
+        Me.Controls.Add(statusStrip)
 
-        Me.Controls.Add(shell)
-        RunReport()
+        Me.ResumeLayout(True)
     End Sub
 
     Private Sub btnAuditRefresh_Click(sender As Object, e As EventArgs) Handles btnAuditRefresh.Click
@@ -393,5 +360,34 @@ Public Class ReportsForm
             ErrorLogger.Log(ex, NameOf(ReportsForm) & "." & NameOf(RunReport))
         End Try
     End Sub
+
+    Private Function WrapInCard(title As String, grid As DataGridView) As Panel
+        Dim innerPanel As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = Color.White,
+            .Padding = New Padding(15)
+        }
+
+        Dim lbl As New Label() With {
+            .Text = title,
+            .Font = New Font("Segoe UI", 12, FontStyle.Bold),
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, 10),
+            .Dock = DockStyle.Top
+        }
+
+        innerPanel.Controls.Add(grid)
+        innerPanel.Controls.Add(lbl)
+
+        Try
+            Dim themeCard = UiTheme.CreateCardPanel(New Padding(0))
+            themeCard.Dock = DockStyle.Fill
+            themeCard.Controls.Add(innerPanel)
+            Return themeCard
+        Catch
+            innerPanel.BorderStyle = BorderStyle.FixedSingle
+            Return innerPanel
+        End Try
+    End Function
 
 End Class
