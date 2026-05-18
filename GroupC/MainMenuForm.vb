@@ -2,10 +2,30 @@
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
 Imports System.Globalization
+Imports System.Linq
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
 
 Public Class MainMenuForm
+
+    Private Class ChartDayPoint
+        Public Property Day As DateTime
+        Public Property Amount As Decimal
+    End Class
+
+    Private Enum DashboardChartSort
+        DateAscending = 0
+        DateDescending = 1
+        AmountDescending = 2
+        AmountAscending = 3
+    End Enum
+
+    Private Const MaxChartDays As Integer = 90
+    Private Const ChartPresetLast7 As String = "Last 7 days"
+    Private Const ChartPresetLast14 As String = "Last 14 days"
+    Private Const ChartPresetLast30 As String = "Last 30 days"
+    Private Const ChartPresetThisMonth As String = "This month"
+    Private Const ChartPresetCustom As String = "Custom range"
 
     Private WithEvents btnProducts As Button
     Private WithEvents btnCategories As Button
@@ -22,17 +42,27 @@ Public Class MainMenuForm
     Private lblDashLastSale As Label
     Private lblDashSevenDay As Label
     Private WithEvents pnlSalesChart As Panel
+    Private WithEvents dtpChartFrom As DateTimePicker
+    Private WithEvents dtpChartTo As DateTimePicker
+    Private WithEvents cmbChartPreset As ComboBox
+    Private WithEvents cmbChartSort As ComboBox
+    Private WithEvents btnApplyChart As Button
+    Private lblChartFilterError As Label
     Private dbHealthTooltip As ToolTip
     Private lastSaleTooltip As ToolTip
     Private WithEvents tmrRefresh As Timer
     Private WithEvents tmrChartRedraw As Timer
 
-    Private ReadOnly chartAmounts As Decimal() = New Decimal(6) {}
-    Private ReadOnly chartDays As DateTime() = New DateTime(6) {}
+    Private ReadOnly chartPoints As New List(Of ChartDayPoint)()
     Private chartCurrencySymbol As String = "₱"
-    Private chartSevenDayTotal As Decimal
+    Private chartPeriodTotal As Decimal
+    Private chartRangeStart As Date = Date.Today.AddDays(-6)
+    Private chartRangeEnd As Date = Date.Today
     Private chartDataLoaded As Boolean
     Private chartLoadFailed As Boolean
+    Private chartRangeTooWide As Boolean
+    Private chartEmptyMessage As String
+    Private suppressChartPresetEvents As Boolean
 
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
@@ -130,6 +160,32 @@ Public Class MainMenuForm
 
         tmrChartRedraw = New Timer() With {.Interval = 150}
 
+        dtpChartFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 118, .Margin = New Padding(0, 4, 12, 4)}
+        dtpChartTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 118, .Margin = New Padding(0, 4, 12, 4)}
+        dtpChartFrom.Value = DateTime.Today.AddDays(-6)
+        dtpChartTo.Value = DateTime.Today
+
+        cmbChartPreset = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 140, .Margin = New Padding(0, 4, 12, 4)}
+        cmbChartPreset.Items.AddRange(New Object() {ChartPresetLast7, ChartPresetLast14, ChartPresetLast30, ChartPresetThisMonth, ChartPresetCustom})
+
+        cmbChartSort = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 170, .Margin = New Padding(0, 4, 12, 4)}
+        cmbChartSort.Items.AddRange(New Object() {"Date (oldest first)", "Date (newest first)", "Highest day", "Lowest day"})
+
+        btnApplyChart = New Button() With {.Text = "Apply", .AutoSize = True, .MinimumSize = New Size(88, 36), .Margin = New Padding(8, 2, 0, 2)}
+        UiTheme.ApplyPrimaryButton(btnApplyChart)
+
+        lblChartFilterError = New Label() With {
+            .AutoSize = True,
+            .ForeColor = UiTheme.Danger,
+            .Visible = False,
+            .Margin = New Padding(0, 4, 0, 0)
+        }
+
+        suppressChartPresetEvents = True
+        cmbChartPreset.SelectedIndex = 0
+        cmbChartSort.SelectedIndex = 0
+        suppressChartPresetEvents = False
+
         ' Navigation Panel
         flowNav = New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
@@ -167,7 +223,7 @@ Public Class MainMenuForm
         statusStrip = New StatusStrip()
         statusLabel = New ToolStripStatusLabel("SQL Server LocalDB — connection string in App.config (GroupCSqlServer).") With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
         statusStrip.Items.Add(statusLabel)
-        statusStrip.Items.Add(New ToolStripStatusLabel("Group C"))
+        statusStrip.Items.Add(New ToolStripStatusLabel(AppBranding.ApplicationName))
 
         Try
             UiTheme.ApplyStatusStripTheme(statusStrip)
@@ -222,8 +278,10 @@ Public Class MainMenuForm
             .RowCount = 3,
             .Padding = New Padding(30, 30, 30, 20)
         }
+        dashLayout.RowCount = 4
         dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Header
         dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Cards
+        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Chart filters
         dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Chart
 
         ' --- Header Section ---
@@ -264,21 +322,56 @@ Public Class MainMenuForm
 
         cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
         cardsLayout.Controls.Add(CreateDashCard("Today's sales", lblDashSalesToday), 1, 0)
-        cardsLayout.Controls.Add(CreateDashCard("7-day revenue", lblDashSevenDay), 0, 1)
+        cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 0, 1)
         cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 1, 1)
 
         dashLayout.Controls.Add(cardsLayout, 0, 1)
+
+        ' --- Chart filters ---
+        Dim filterCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        filterCard.Dock = DockStyle.Fill
+        filterCard.Margin = New Padding(0, 0, 0, 10)
+        Dim filterInner As Panel = UiTheme.GetCardContentHost(filterCard)
+        If filterInner IsNot Nothing Then
+            Dim filterStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .AutoSize = True}
+            filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+            Dim filterBar As New FlowLayoutPanel() With {
+                .AutoSize = True,
+                .WrapContents = True,
+                .FlowDirection = FlowDirection.LeftToRight,
+                .Margin = New Padding(0)
+            }
+            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("From"))
+            filterBar.Controls.Add(dtpChartFrom)
+            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("To"))
+            filterBar.Controls.Add(dtpChartTo)
+            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Preset"))
+            filterBar.Controls.Add(cmbChartPreset)
+            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Sort"))
+            filterBar.Controls.Add(cmbChartSort)
+            filterBar.Controls.Add(btnApplyChart)
+
+            filterStack.Controls.Add(filterBar, 0, 0)
+            filterStack.Controls.Add(lblChartFilterError, 0, 1)
+            filterInner.Controls.Add(filterStack)
+        End If
+
+        dashLayout.Controls.Add(filterCard, 0, 2)
 
         ' --- Chart Section (card + paint panel) ---
         Dim chartCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
         chartCard.Dock = DockStyle.Fill
         chartCard.Margin = New Padding(0)
+        chartCard.MinimumSize = New Size(0, 240)
         Dim chartInner As Panel = UiTheme.GetCardContentHost(chartCard)
         If chartInner IsNot Nothing Then
+            pnlSalesChart.Dock = DockStyle.Fill
             chartInner.Controls.Add(pnlSalesChart)
         End If
 
-        dashLayout.Controls.Add(chartCard, 0, 2)
+        dashLayout.Controls.Add(chartCard, 0, 3)
 
         ' 4. Final Assembly
         rootTable.Controls.Add(navContainer, 0, 0)
@@ -338,6 +431,7 @@ Public Class MainMenuForm
     ' -----------------------------------------------------------
     Private Sub RefreshHealthAndDashboard()
         Dim lastErr As String = Nothing
+        ApplyChartFilterFromControls()
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
@@ -383,9 +477,14 @@ Public Class MainMenuForm
                     End Using
                 End Using
 
-                LoadSevenDayChartData(connection, sym)
+                LoadChartDataForRange(connection, sym, chartRangeStart, chartRangeEnd)
                 chartLoadFailed = False
             End Using
+
+            If chartRangeTooWide AndAlso Not String.IsNullOrEmpty(chartEmptyMessage) Then
+                lblChartFilterError.Text = chartEmptyMessage
+                lblChartFilterError.Visible = True
+            End If
 
             chartDataLoaded = True
             InvalidateSalesChart()
@@ -400,38 +499,185 @@ Public Class MainMenuForm
             lblDashSevenDay.Text = "—"
             chartDataLoaded = False
             chartLoadFailed = True
-            chartSevenDayTotal = 0D
+            chartPeriodTotal = 0D
+            chartPoints.Clear()
             InvalidateSalesChart()
         End Try
     End Sub
 
-    Private Sub LoadSevenDayChartData(connection As SqlConnection, currencySym As String)
-        chartCurrencySymbol = currencySym
-        chartSevenDayTotal = 0D
+    Private Sub btnApplyChart_Click(sender As Object, e As EventArgs) Handles btnApplyChart.Click
+        ApplyChartFilterFromControls()
+        RefreshHealthAndDashboard()
+    End Sub
 
-        For i As Integer = 0 To 6
-            chartDays(i) = DateTime.Today.AddDays(-6 + i)
-            chartAmounts(i) = 0D
+    Private Sub cmbChartPreset_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbChartPreset.SelectedIndexChanged
+        If suppressChartPresetEvents OrElse cmbChartPreset.SelectedItem Is Nothing Then
+            Return
+        End If
+
+        ApplyChartPresetDates(cmbChartPreset.SelectedItem.ToString())
+        If cmbChartPreset.SelectedItem.ToString() <> ChartPresetCustom Then
+            ApplyChartFilterFromControls()
+            RefreshHealthAndDashboard()
+        End If
+    End Sub
+
+    Private Sub cmbChartSort_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbChartSort.SelectedIndexChanged
+        If Not chartDataLoaded OrElse chartPoints.Count = 0 Then
+            Return
+        End If
+
+        ApplyChartSort()
+        InvalidateSalesChart()
+    End Sub
+
+    Private Sub ApplyChartPresetDates(preset As String)
+        Dim today As Date = Date.Today
+        Select Case preset
+            Case ChartPresetLast14
+                dtpChartFrom.Value = today.AddDays(-13)
+                dtpChartTo.Value = today
+            Case ChartPresetLast30
+                dtpChartFrom.Value = today.AddDays(-29)
+                dtpChartTo.Value = today
+            Case ChartPresetThisMonth
+                dtpChartFrom.Value = New Date(today.Year, today.Month, 1)
+                dtpChartTo.Value = today
+            Case ChartPresetCustom
+                ' Keep manual dates.
+            Case Else
+                dtpChartFrom.Value = today.AddDays(-6)
+                dtpChartTo.Value = today
+        End Select
+    End Sub
+
+    Private Sub ApplyChartFilterFromControls()
+        chartRangeStart = dtpChartFrom.Value.Date
+        chartRangeEnd = dtpChartTo.Value.Date
+        If chartRangeEnd < chartRangeStart Then
+            Dim swap As Date = chartRangeStart
+            chartRangeStart = chartRangeEnd
+            chartRangeEnd = swap
+        End If
+
+        Dim dayCount As Integer = CInt((chartRangeEnd - chartRangeStart).TotalDays) + 1
+        If dayCount > MaxChartDays Then
+            lblChartFilterError.Text = "Date range too wide. Select " & MaxChartDays.ToString(CultureInfo.InvariantCulture) & " days or fewer."
+            lblChartFilterError.Visible = True
+        Else
+            lblChartFilterError.Visible = False
+            lblChartFilterError.Text = String.Empty
+        End If
+    End Sub
+
+    Private Sub dtpChartFrom_ValueChanged(sender As Object, e As EventArgs) Handles dtpChartFrom.ValueChanged
+        MarkChartPresetCustom()
+    End Sub
+
+    Private Sub dtpChartTo_ValueChanged(sender As Object, e As EventArgs) Handles dtpChartTo.ValueChanged
+        MarkChartPresetCustom()
+    End Sub
+
+    Private Sub MarkChartPresetCustom()
+        If suppressChartPresetEvents OrElse cmbChartPreset Is Nothing Then
+            Return
+        End If
+
+        For i As Integer = 0 To cmbChartPreset.Items.Count - 1
+            If String.Equals(cmbChartPreset.Items(i).ToString(), ChartPresetCustom, StringComparison.Ordinal) Then
+                If cmbChartPreset.SelectedIndex <> i Then
+                    suppressChartPresetEvents = True
+                    cmbChartPreset.SelectedIndex = i
+                    suppressChartPresetEvents = False
+                End If
+                Exit For
+            End If
+        Next
+    End Sub
+
+    Private Function GetSelectedChartSort() As DashboardChartSort
+        Select Case cmbChartSort.SelectedIndex
+            Case 1
+                Return DashboardChartSort.DateDescending
+            Case 2
+                Return DashboardChartSort.AmountDescending
+            Case 3
+                Return DashboardChartSort.AmountAscending
+            Case Else
+                Return DashboardChartSort.DateAscending
+        End Select
+    End Function
+
+    Private Sub ApplyChartSort()
+        Select Case GetSelectedChartSort()
+            Case DashboardChartSort.DateDescending
+                chartPoints.Sort(Function(a, b) b.Day.CompareTo(a.Day))
+            Case DashboardChartSort.AmountDescending
+                chartPoints.Sort(Function(a, b)
+                                     Dim cmp = b.Amount.CompareTo(a.Amount)
+                                     If cmp <> 0 Then
+                                         Return cmp
+                                     End If
+                                     Return a.Day.CompareTo(b.Day)
+                                 End Function)
+            Case DashboardChartSort.AmountAscending
+                chartPoints.Sort(Function(a, b)
+                                     Dim cmp = a.Amount.CompareTo(b.Amount)
+                                     If cmp <> 0 Then
+                                         Return cmp
+                                     End If
+                                     Return a.Day.CompareTo(b.Day)
+                                 End Function)
+            Case Else
+                chartPoints.Sort(Function(a, b) a.Day.CompareTo(b.Day))
+        End Select
+    End Sub
+
+    Private Sub LoadChartDataForRange(connection As SqlConnection, currencySym As String, rangeStart As Date, rangeEnd As Date)
+        chartCurrencySymbol = currencySym
+        chartPeriodTotal = 0D
+        chartPoints.Clear()
+        chartRangeTooWide = False
+        chartEmptyMessage = Nothing
+
+        Dim start As Date = rangeStart.Date
+        Dim [end] As Date = rangeEnd.Date
+        If [end] < start Then
+            Dim swap As Date = start
+            start = [end]
+            [end] = swap
+        End If
+
+        Dim dayCount As Integer = CInt(([end] - start).TotalDays) + 1
+        If dayCount > MaxChartDays Then
+            chartRangeTooWide = True
+            chartEmptyMessage = "Date range too wide. Select " & MaxChartDays.ToString(CultureInfo.InvariantCulture) & " days or fewer."
+            lblDashSevenDay.Text = "—"
+            chartPoints.Clear()
+            Return
+        End If
+
+        For offset As Integer = 0 To dayCount - 1
+            chartPoints.Add(New ChartDayPoint With {.Day = start.AddDays(offset), .Amount = 0D})
         Next
 
-        Dim rangeStart As DateTime = DateTime.Today.AddDays(-6)
-        Dim rangeEndExclusive As DateTime = DateTime.Today.AddDays(1)
+        Dim rangeEndExclusive As Date = [end].AddDays(1)
         Dim aggSql As String =
             "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
             "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
-            "GROUP BY CAST(sale_date AS DATE);"
+            "GROUP BY CAST(sale_date AS DATE) ORDER BY sale_day;"
 
         Using cmd As New SqlCommand(aggSql, connection)
-            cmd.Parameters.AddWithValue("@start", rangeStart)
+            cmd.Parameters.AddWithValue("@start", start)
             cmd.Parameters.AddWithValue("@end_ex", rangeEndExclusive)
             Using reader As SqlDataReader = cmd.ExecuteReader()
                 While reader.Read()
                     Dim d As DateTime = Convert.ToDateTime(reader("sale_day"), CultureInfo.InvariantCulture).Date
                     Dim total As Decimal = Convert.ToDecimal(reader("day_total"))
-                    For i As Integer = 0 To 6
-                        If chartDays(i).Date = d Then
-                            chartAmounts(i) = total
-                            chartSevenDayTotal += total
+                    For Each pt As ChartDayPoint In chartPoints
+                        If pt.Day.Date = d Then
+                            pt.Amount = total
+                            chartPeriodTotal += total
                             Exit For
                         End If
                     Next
@@ -439,7 +685,8 @@ Public Class MainMenuForm
             End Using
         End Using
 
-        lblDashSevenDay.Text = currencySym & chartSevenDayTotal.ToString("N2", CultureInfo.CurrentCulture)
+        ApplyChartSort()
+        lblDashSevenDay.Text = currencySym & chartPeriodTotal.ToString("N2", CultureInfo.CurrentCulture)
     End Sub
 
     Private Sub InvalidateSalesChart()
@@ -467,11 +714,17 @@ Public Class MainMenuForm
             Return
         End If
 
+        If chartRangeTooWide Then
+            Dim detail As String = If(String.IsNullOrEmpty(chartEmptyMessage), "Narrow the date range and click Apply.", chartEmptyMessage)
+            DrawChartMessage(g, bounds, "Date range too wide", detail, UiTheme.Danger)
+            Return
+        End If
+
         Dim pad As Single = 14.0F
         Dim marginLeft As Single = 58.0F
         Dim marginRight As Single = 16.0F
         Dim headerH As Single = 44.0F
-        Dim footerH As Single = 52.0F
+        Dim footerH As Single = 56.0F
 
         Dim chartRect As New RectangleF(
             marginLeft,
@@ -479,12 +732,18 @@ Public Class MainMenuForm
             Math.Max(40.0F, bounds.Width - marginLeft - marginRight),
             Math.Max(40.0F, bounds.Height - pad - headerH - footerH - pad))
 
-        Dim rangeStart As DateTime = chartDays(0)
-        Dim rangeEnd As DateTime = chartDays(6)
+        Dim displayStart As Date = chartRangeStart
+        Dim displayEnd As Date = chartRangeEnd
+        If displayEnd < displayStart Then
+            Dim swap As Date = displayStart
+            displayStart = displayEnd
+            displayEnd = swap
+        End If
+
         Dim subtitle As String =
-            rangeStart.ToString("MMM d", CultureInfo.CurrentCulture) & " – " &
-            rangeEnd.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) &
-            " · Total " & chartCurrencySymbol & chartSevenDayTotal.ToString("N2", CultureInfo.CurrentCulture)
+            displayStart.ToString("MMM d", CultureInfo.CurrentCulture) & " – " &
+            displayEnd.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) &
+            " · Total " & chartCurrencySymbol & chartPeriodTotal.ToString("N2", CultureInfo.CurrentCulture)
 
         Using titleFont As New Font("Segoe UI", 11.0F, FontStyle.Bold)
             Using subFont As New Font("Segoe UI", 9.0F, FontStyle.Regular)
@@ -497,20 +756,30 @@ Public Class MainMenuForm
             End Using
         End Using
 
-        If chartSevenDayTotal <= 0D Then
+        If chartPoints.Count = 0 Then
             DrawChartMessage(
                 g,
                 Rectangle.Round(chartRect),
-                "No sales in the last 7 days",
+                "No days in range",
+                "Pick a valid from/to date and click Apply.",
+                UiTheme.TextSecondary)
+            Return
+        End If
+
+        If chartPeriodTotal <= 0D Then
+            DrawChartMessage(
+                g,
+                Rectangle.Round(chartRect),
+                "No sales in selected period",
                 "Totals will appear here after you finalize sales.",
                 UiTheme.TextSecondary)
             Return
         End If
 
         Dim maxVal As Decimal = 0D
-        For i As Integer = 0 To 6
-            If chartAmounts(i) > maxVal Then
-                maxVal = chartAmounts(i)
+        For Each pt As ChartDayPoint In chartPoints
+            If pt.Amount > maxVal Then
+                maxVal = pt.Amount
             End If
         Next
         If maxVal <= 0D Then
@@ -537,19 +806,27 @@ Public Class MainMenuForm
             End Using
         End Using
 
-        Dim slotCount As Integer = 7
-        Dim slotW As Single = chartRect.Width / slotCount
-        Dim barW As Single = Math.Max(8.0F, slotW * 0.55F)
+        Dim slotCount As Integer = chartPoints.Count
+        Dim slotW As Single = chartRect.Width / Math.Max(1, slotCount)
+        Dim barW As Single = Math.Max(2.0F, Math.Min(28.0F, slotW * 0.72F))
         Dim gap As Single = (slotW - barW) / 2.0F
+        Dim labelStep As Integer = 1
+        If slotCount > 21 Then
+            labelStep = CInt(Math.Ceiling(slotCount / 14.0))
+        ElseIf slotCount > 14 Then
+            labelStep = 2
+        End If
+        Dim showValueLabels As Boolean = slotCount <= 14
 
-        Using dayFont As New Font("Segoe UI", 8.5F, FontStyle.Regular)
-            Using valueFont As New Font("Segoe UI", 8.0F, FontStyle.Regular)
+        Using dayFont As New Font("Segoe UI", 8.0F, FontStyle.Regular)
+            Using valueFont As New Font("Segoe UI", 7.5F, FontStyle.Regular)
                 Using labelBrush As New SolidBrush(UiTheme.TextSecondary)
                     Using todayBrush As New SolidBrush(UiTheme.SecondaryAccent)
                         Using defaultBrush As New SolidBrush(UiTheme.PrimaryAccent)
-                            For i As Integer = 0 To 6
-                                Dim day As DateTime = chartDays(i)
-                                Dim amt As Decimal = chartAmounts(i)
+                            For i As Integer = 0 To slotCount - 1
+                                Dim pt As ChartDayPoint = chartPoints(i)
+                                Dim day As DateTime = pt.Day
+                                Dim amt As Decimal = pt.Amount
                                 Dim frac As Single = CSng(amt / maxVal)
                                 If frac < 0F Then frac = 0F
                                 If frac > 1.0F Then frac = 1.0F
@@ -562,27 +839,38 @@ Public Class MainMenuForm
                                 Dim barBrush As Brush = If(isToday, todayBrush, defaultBrush)
                                 If barH >= 1.0F Then
                                     g.FillRectangle(barBrush, x, y, barW, barH)
-                                ElseIf isToday Then
+                                ElseIf isToday AndAlso amt > 0D Then
                                     g.FillEllipse(barBrush, x + barW / 2.0F - 3.0F, chartRect.Bottom - 6.0F, 6.0F, 6.0F)
                                 End If
 
-                                Dim dayLbl As String = day.ToString("ddd", CultureInfo.CurrentCulture)
-                                Dim daySize As SizeF = g.MeasureString(dayLbl, dayFont)
-                                g.DrawString(
-                                    dayLbl,
-                                    dayFont,
-                                    If(isToday, todayBrush, labelBrush),
-                                    x + (barW - daySize.Width) / 2.0F,
-                                    chartRect.Bottom + 8.0F)
+                                If i Mod labelStep = 0 OrElse i = slotCount - 1 Then
+                                    Dim dayLbl As String
+                                    If slotCount <= 7 Then
+                                        dayLbl = day.ToString("ddd", CultureInfo.CurrentCulture)
+                                    ElseIf slotCount <= 31 Then
+                                        dayLbl = day.ToString("M/d", CultureInfo.CurrentCulture)
+                                    Else
+                                        dayLbl = day.ToString("d", CultureInfo.CurrentCulture)
+                                    End If
+                                    Dim daySize As SizeF = g.MeasureString(dayLbl, dayFont)
+                                    g.DrawString(
+                                        dayLbl,
+                                        dayFont,
+                                        If(isToday, todayBrush, labelBrush),
+                                        x + (barW - daySize.Width) / 2.0F,
+                                        chartRect.Bottom + 8.0F)
+                                End If
 
-                                Dim moneyLbl As String = chartCurrencySymbol & amt.ToString("N0", CultureInfo.CurrentCulture)
-                                Dim moneySize As SizeF = g.MeasureString(moneyLbl, valueFont)
-                                Dim labelX As Single = x + (barW - moneySize.Width) / 2.0F
-                                Dim labelYAbove As Single = y - moneySize.Height - 4.0F
-                                If barH > 22.0F AndAlso labelYAbove >= chartRect.Top + 2.0F Then
-                                    g.DrawString(moneyLbl, valueFont, labelBrush, labelX, labelYAbove)
-                                Else
-                                    g.DrawString(moneyLbl, valueFont, labelBrush, labelX, chartRect.Bottom + 26.0F)
+                                If showValueLabels AndAlso amt > 0D Then
+                                    Dim moneyLbl As String = chartCurrencySymbol & amt.ToString("N0", CultureInfo.CurrentCulture)
+                                    Dim moneySize As SizeF = g.MeasureString(moneyLbl, valueFont)
+                                    Dim labelX As Single = x + (barW - moneySize.Width) / 2.0F
+                                    Dim labelYAbove As Single = y - moneySize.Height - 4.0F
+                                    If barH > 22.0F AndAlso labelYAbove >= chartRect.Top + 2.0F Then
+                                        g.DrawString(moneyLbl, valueFont, labelBrush, labelX, labelYAbove)
+                                    Else
+                                        g.DrawString(moneyLbl, valueFont, labelBrush, labelX, chartRect.Bottom + 26.0F)
+                                    End If
                                 End If
                             Next
                         End Using
