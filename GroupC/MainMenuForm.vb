@@ -19,9 +19,19 @@ Public Class MainMenuForm
     Private lblDashProducts As Label
     Private lblDashSalesToday As Label
     Private lblDashLastSale As Label
-    Private picSalesChart As PictureBox
+    Private lblDashSevenDay As Label
+    Private WithEvents pnlSalesChart As Panel
     Private dbHealthTooltip As ToolTip
+    Private lastSaleTooltip As ToolTip
     Private WithEvents tmrRefresh As Timer
+    Private WithEvents tmrChartRedraw As Timer
+
+    Private ReadOnly chartAmounts(6) As Decimal
+    Private ReadOnly chartDays(6) As DateTime
+    Private chartCurrencySymbol As String = "₱"
+    Private chartSevenDayTotal As Decimal
+    Private chartDataLoaded As Boolean
+    Private chartLoadFailed As Boolean
 
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
@@ -102,13 +112,22 @@ Public Class MainMenuForm
         dbHealthTooltip = New ToolTip()
 
         ' Dashboard Labels
-        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 12.0F, FontStyle.Bold), .Text = "Database: checking…"}
+        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold), .Text = "Database: checking…"}
         lblDashProducts = CreateDashValueLabel("—")
         lblDashSalesToday = CreateDashValueLabel("—")
         lblDashLastSale = CreateDashValueLabel("—")
+        lblDashSevenDay = CreateDashValueLabel("—")
 
-        ' Chart
-        picSalesChart = New PictureBox() With {.BackColor = UiTheme.FormBackground, .SizeMode = PictureBoxSizeMode.Zoom}
+        lastSaleTooltip = New ToolTip()
+
+        ' Chart host — Paint handler keeps vectors sharp on resize (no stretched bitmap)
+        pnlSalesChart = New Panel() With {
+            .BackColor = UiTheme.CardSurface,
+            .Dock = DockStyle.Fill,
+            .MinimumSize = New Size(280, 220)
+        }
+
+        tmrChartRedraw = New Timer() With {.Interval = 150}
 
         ' Navigation Panel
         flowNav = New FlowLayoutPanel() With {
@@ -227,27 +246,36 @@ Public Class MainMenuForm
         headerLayout.Controls.Add(lblDbHealth, 0, 1)
         dashLayout.Controls.Add(headerLayout, 0, 0)
 
-        ' --- Metric Cards Section ---
+        ' --- Metric Cards Section (2×2 KPI grid) ---
         Dim cardsLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .ColumnCount = 3,
-            .RowCount = 1,
+            .ColumnCount = 2,
+            .RowCount = 2,
             .Margin = New Padding(0, 0, 0, 20),
-            .Height = 110 ' Fixed height ensures cards don't look crushed
+            .AutoSize = True
         }
-        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
-        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
-        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
-        cardsLayout.Controls.Add(CreateDashCard("Today's sales total", lblDashSalesToday), 1, 0)
-        cardsLayout.Controls.Add(CreateDashCard("Latest sale #", lblDashLastSale), 2, 0)
+        cardsLayout.Controls.Add(CreateDashCard("Today's sales", lblDashSalesToday), 1, 0)
+        cardsLayout.Controls.Add(CreateDashCard("7-day revenue", lblDashSevenDay), 0, 1)
+        cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 1, 1)
 
         dashLayout.Controls.Add(cardsLayout, 0, 1)
 
-        ' --- Chart Section ---
-        picSalesChart.Dock = DockStyle.Fill
-        dashLayout.Controls.Add(picSalesChart, 0, 2)
+        ' --- Chart Section (card + paint panel) ---
+        Dim chartCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        chartCard.Dock = DockStyle.Fill
+        chartCard.Margin = New Padding(0)
+        Dim chartInner As Panel = UiTheme.GetCardContentHost(chartCard)
+        If chartInner IsNot Nothing Then
+            chartInner.Controls.Add(pnlSalesChart)
+        End If
+
+        dashLayout.Controls.Add(chartCard, 0, 2)
 
         ' 4. Final Assembly
         rootTable.Controls.Add(navContainer, 0, 0)
@@ -272,7 +300,7 @@ Public Class MainMenuForm
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
         Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(10))
         outer.Margin = New Padding(6, 4, 6, 4)
-        outer.MinimumSize = New Size(132, 82)
+        outer.MinimumSize = New Size(140, 88)
         outer.Dock = DockStyle.Fill
 
         Dim inner As Panel = UiTheme.GetCardContentHost(outer)
@@ -332,15 +360,32 @@ Public Class MainMenuForm
                 End Using
                 lblDashSalesToday.Text = sym & todayTotal.ToString("N2", CultureInfo.CurrentCulture)
 
-                Dim lastIdSql As String = "SELECT ISNULL(MAX(sale_id), 0) FROM sales;"
-                Dim lastId As Integer = 0
-                Using cmd As New SqlCommand(lastIdSql, connection)
-                    lastId = Convert.ToInt32(cmd.ExecuteScalar())
+                Dim lastSaleSql As String =
+                    "SELECT TOP 1 sale_id, sale_date, total_amount FROM sales ORDER BY sale_id DESC;"
+                Using cmd As New SqlCommand(lastSaleSql, connection)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        If reader.Read() Then
+                            Dim saleId As Integer = Convert.ToInt32(reader("sale_id"))
+                            Dim saleWhen As DateTime = Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)
+                            Dim lastAmt As Decimal = Convert.ToDecimal(reader("total_amount"))
+                            Dim lastSaleWhen As String = saleWhen.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)
+                            lblDashLastSale.Text = "#" & saleId.ToString(CultureInfo.CurrentCulture)
+                            lastSaleTooltip.SetToolTip(
+                                lblDashLastSale,
+                                lastSaleWhen & " · " & sym & lastAmt.ToString("N2", CultureInfo.CurrentCulture))
+                        Else
+                            lblDashLastSale.Text = "—"
+                            lastSaleTooltip.SetToolTip(lblDashLastSale, "No sales recorded yet.")
+                        End If
+                    End Using
                 End Using
-                lblDashLastSale.Text = If(lastId = 0, "—", "#" & lastId.ToString(CultureInfo.CurrentCulture))
 
-                PaintSevenDaySalesChart(connection, sym)
+                LoadSevenDayChartData(connection, sym)
+                chartLoadFailed = False
             End Using
+
+            chartDataLoaded = True
+            InvalidateSalesChart()
         Catch ex As Exception
             lastErr = ex.Message
             lblDbHealth.Text = "Database: offline"
@@ -349,31 +394,29 @@ Public Class MainMenuForm
             lblDashProducts.Text = "—"
             lblDashSalesToday.Text = "—"
             lblDashLastSale.Text = "—"
-            ClearSalesChart()
+            lblDashSevenDay.Text = "—"
+            chartDataLoaded = False
+            chartLoadFailed = True
+            chartSevenDayTotal = 0D
+            InvalidateSalesChart()
         End Try
     End Sub
 
-    Private Sub ClearSalesChart()
-        If picSalesChart Is Nothing Then Return
-        If picSalesChart.Image IsNot Nothing Then
-            picSalesChart.Image.Dispose()
-            picSalesChart.Image = Nothing
-        End If
-    End Sub
+    Private Sub LoadSevenDayChartData(connection As SqlConnection, currencySym As String)
+        chartCurrencySymbol = currencySym
+        chartSevenDayTotal = 0D
 
-    Private Sub PaintSevenDaySalesChart(connection As SqlConnection, currencySym As String)
-        If picSalesChart Is Nothing Then Return
-
-        Dim amounts As New Dictionary(Of DateTime, Decimal)()
         For i As Integer = 0 To 6
-            amounts(DateTime.Today.AddDays(-6 + i)) = 0D
+            chartDays(i) = DateTime.Today.AddDays(-6 + i)
+            chartAmounts(i) = 0D
         Next
 
         Dim rangeStart As DateTime = DateTime.Today.AddDays(-6)
         Dim rangeEndExclusive As DateTime = DateTime.Today.AddDays(1)
-        Dim aggSql As String = "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
-                               "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
-                               "GROUP BY CAST(sale_date AS DATE);"
+        Dim aggSql As String =
+            "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
+            "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
+            "GROUP BY CAST(sale_date AS DATE);"
 
         Using cmd As New SqlCommand(aggSql, connection)
             cmd.Parameters.AddWithValue("@start", rangeStart)
@@ -382,103 +425,228 @@ Public Class MainMenuForm
                 While reader.Read()
                     Dim d As DateTime = Convert.ToDateTime(reader("sale_day"), CultureInfo.InvariantCulture).Date
                     Dim total As Decimal = Convert.ToDecimal(reader("day_total"))
-                    If amounts.ContainsKey(d) Then
-                        amounts(d) = total
-                    End If
+                    For i As Integer = 0 To 6
+                        If chartDays(i).Date = d Then
+                            chartAmounts(i) = total
+                            chartSevenDayTotal += total
+                            Exit For
+                        End If
+                    Next
                 End While
             End Using
         End Using
 
-        Dim maxVal As Decimal = 1D
-        For Each kv As KeyValuePair(Of DateTime, Decimal) In amounts
-            If kv.Value > maxVal Then maxVal = kv.Value
-        Next
+        lblDashSevenDay.Text = currencySym & chartSevenDayTotal.ToString("N2", CultureInfo.CurrentCulture)
+    End Sub
 
-        Dim cw As Integer = picSalesChart.ClientSize.Width
-        Dim w As Integer = Math.Max(320, cw)
-        Dim h As Integer = Math.Max(196, picSalesChart.Height)
+    Private Sub InvalidateSalesChart()
+        If pnlSalesChart IsNot Nothing AndAlso Not pnlSalesChart.IsDisposed Then
+            pnlSalesChart.Invalidate()
+        End If
+    End Sub
 
-        Dim bmp As New Bitmap(w, h)
+    Private Sub pnlSalesChart_Paint(sender As Object, e As PaintEventArgs) Handles pnlSalesChart.Paint
+        PaintSalesChart(e.Graphics, pnlSalesChart.ClientRectangle)
+    End Sub
 
-        Using g As Graphics = Graphics.FromImage(bmp)
-            g.SmoothingMode = SmoothingMode.AntiAlias
-            g.Clear(UiTheme.FormBackground)
+    Private Sub PaintSalesChart(g As Graphics, bounds As Rectangle)
+        g.SmoothingMode = SmoothingMode.AntiAlias
+        g.TextRenderingHint = Drawing.Text.TextRenderingHint.ClearTypeGridFit
+        g.Clear(UiTheme.CardSurface)
 
-            Dim marginLeft As Single = 54.0F
-            Dim topTitlePad As Single = 4.0F
-            Dim headerLineH As Single = 20.0F
-            Dim footerPad As Single = 46.0F
-            Dim marginTop As Single = topTitlePad + headerLineH + 4.0F
-            Dim chartRect As New RectangleF(marginLeft, marginTop, w - marginLeft - 12.0F, h - marginTop - footerPad)
+        If chartLoadFailed Then
+            DrawChartMessage(g, bounds, "Database unavailable", "Reconnect to view sales analytics.", UiTheme.Danger)
+            Return
+        End If
 
-            Using outline As New Pen(Color.FromArgb(140, 148, 158))
-                g.DrawRectangle(outline, Rectangle.Round(chartRect))
-            End Using
+        If Not chartDataLoaded Then
+            DrawChartMessage(g, bounds, "Loading analytics…", Nothing, UiTheme.TextSecondary)
+            Return
+        End If
 
-            Using headerBrush As New SolidBrush(UiTheme.TextPrimary)
-                Using hf As New Font("Segoe UI", 9.5F, FontStyle.Bold)
-                    g.DrawString("Sales — last 7 days", hf, headerBrush, marginLeft, topTitlePad)
-                End Using
-            End Using
+        Dim pad As Single = 14.0F
+        Dim marginLeft As Single = 58.0F
+        Dim marginRight As Single = 16.0F
+        Dim headerH As Single = 44.0F
+        Dim footerH As Single = 52.0F
 
-            Dim slots As Single = 7.0F
-            Dim slotW As Single = chartRect.Width / slots
-            Dim barW As Single = slotW * 0.64F
-            Dim gap As Single = (slotW - barW) / 2.0F
+        Dim chartRect As New RectangleF(
+            marginLeft,
+            pad + headerH,
+            Math.Max(40.0F, bounds.Width - marginLeft - marginRight),
+            Math.Max(40.0F, bounds.Height - pad - headerH - footerH - pad))
 
-            Using dayFont As New Font("Segoe UI", 7.5F)
-                Using amtFont As New Font("Segoe UI", 7.0F)
-                    Using labelBrush As New SolidBrush(UiTheme.TextSecondary)
-                        For i As Integer = 0 To 6
-                            Dim day As DateTime = DateTime.Today.AddDays(-6 + i)
-                            Dim amt As Decimal = amounts(day)
-                            Dim frac As Single = CSng(amt / maxVal)
-                            If frac > 1.0F Then frac = 1.0F
+        Dim rangeStart As DateTime = chartDays(0)
+        Dim rangeEnd As DateTime = chartDays(6)
+        Dim subtitle As String =
+            rangeStart.ToString("MMM d", CultureInfo.CurrentCulture) & " – " &
+            rangeEnd.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) &
+            " · Total " & chartCurrencySymbol & chartSevenDayTotal.ToString("N2", CultureInfo.CurrentCulture)
 
-                            Dim barH As Single = frac * chartRect.Height
-                            Dim x As Single = chartRect.Left + i * slotW + gap
-                            Dim y As Single = chartRect.Bottom - barH
-
-                            Using barBrush As New SolidBrush(UiTheme.PrimaryAccent)
-                                If barH > 0.0F Then
-                                    g.FillRectangle(barBrush, x, y, barW, barH)
-                                End If
-                            End Using
-
-                            Dim dayLbl As String = day.ToString("ddd", CultureInfo.CurrentCulture)
-                            g.DrawString(dayLbl, dayFont, labelBrush, x - 4.0F, chartRect.Bottom + 6.0F)
-
-                            Dim moneyLbl As String = currencySym & amt.ToString("N0", CultureInfo.CurrentCulture)
-                            Dim labelYAbove As Single = y - 16.0F
-                            If barH > 18.0F AndAlso labelYAbove >= marginTop + 2.0F Then
-                                g.DrawString(moneyLbl, amtFont, labelBrush, x, labelYAbove)
-                            Else
-                                g.DrawString(moneyLbl, amtFont, labelBrush, x, Math.Min(chartRect.Bottom + 20.0F, h - 14.0F))
-                            End If
-                        Next
+        Using titleFont As New Font("Segoe UI", 11.0F, FontStyle.Bold)
+            Using subFont As New Font("Segoe UI", 9.0F, FontStyle.Regular)
+                Using titleBrush As New SolidBrush(UiTheme.TextPrimary)
+                    Using subBrush As New SolidBrush(UiTheme.TextSecondary)
+                        g.DrawString("Daily sales", titleFont, titleBrush, pad, pad)
+                        g.DrawString(subtitle, subFont, subBrush, pad, pad + 20.0F)
                     End Using
                 End Using
             End Using
         End Using
 
-        If picSalesChart.Image IsNot Nothing Then
-            picSalesChart.Image.Dispose()
+        If chartSevenDayTotal <= 0D Then
+            DrawChartMessage(
+                g,
+                Rectangle.Round(chartRect),
+                "No sales in the last 7 days",
+                "Totals will appear here after you finalize sales.",
+                UiTheme.TextSecondary)
+            Return
         End If
 
-        picSalesChart.Image = bmp
+        Dim maxVal As Decimal = 0D
+        For i As Integer = 0 To 6
+            If chartAmounts(i) > maxVal Then
+                maxVal = chartAmounts(i)
+            End If
+        Next
+        If maxVal <= 0D Then
+            maxVal = 1D
+        End If
+
+        Dim gridColor As Color = Color.FromArgb(40, UiTheme.CardBorder)
+        Using gridPen As New Pen(gridColor, 1.0F)
+            For tick As Integer = 0 To 4
+                Dim y As Single = chartRect.Top + chartRect.Height * (tick / 4.0F)
+                g.DrawLine(gridPen, chartRect.Left, y, chartRect.Right, y)
+            Next
+        End Using
+
+        Using axisFont As New Font("Segoe UI", 8.0F)
+            Using axisBrush As New SolidBrush(UiTheme.TextSecondary)
+                For tick As Integer = 0 To 4
+                    Dim frac As Decimal = 1D - (tick / 4D)
+                    Dim tickVal As Decimal = maxVal * frac
+                    Dim label As String = FormatCompactMoney(chartCurrencySymbol, tickVal)
+                    Dim y As Single = chartRect.Top + chartRect.Height * (tick / 4.0F)
+                    g.DrawString(label, axisFont, axisBrush, 4.0F, y - 7.0F)
+                Next
+            End Using
+        End Using
+
+        Dim slotCount As Integer = 7
+        Dim slotW As Single = chartRect.Width / slotCount
+        Dim barW As Single = Math.Max(8.0F, slotW * 0.55F)
+        Dim gap As Single = (slotW - barW) / 2.0F
+
+        Using dayFont As New Font("Segoe UI", 8.5F, FontStyle.Regular)
+            Using valueFont As New Font("Segoe UI", 8.0F, FontStyle.Regular)
+                Using labelBrush As New SolidBrush(UiTheme.TextSecondary)
+                    Using todayBrush As New SolidBrush(UiTheme.SecondaryAccent)
+                        Using defaultBrush As New SolidBrush(UiTheme.PrimaryAccent)
+                            For i As Integer = 0 To 6
+                                Dim day As DateTime = chartDays(i)
+                                Dim amt As Decimal = chartAmounts(i)
+                                Dim frac As Single = CSng(amt / maxVal)
+                                If frac < 0F Then frac = 0F
+                                If frac > 1.0F Then frac = 1.0F
+
+                                Dim barH As Single = frac * chartRect.Height
+                                Dim x As Single = chartRect.Left + i * slotW + gap
+                                Dim y As Single = chartRect.Bottom - barH
+                                Dim isToday As Boolean = day.Date = DateTime.Today
+
+                                Dim barBrush As Brush = If(isToday, todayBrush, defaultBrush)
+                                If barH >= 1.0F Then
+                                    g.FillRectangle(barBrush, x, y, barW, barH)
+                                ElseIf isToday Then
+                                    g.FillEllipse(barBrush, x + barW / 2.0F - 3.0F, chartRect.Bottom - 6.0F, 6.0F, 6.0F)
+                                End If
+
+                                Dim dayLbl As String = day.ToString("ddd", CultureInfo.CurrentCulture)
+                                Dim daySize As SizeF = g.MeasureString(dayLbl, dayFont)
+                                g.DrawString(
+                                    dayLbl,
+                                    dayFont,
+                                    If(isToday, todayBrush, labelBrush),
+                                    x + (barW - daySize.Width) / 2.0F,
+                                    chartRect.Bottom + 8.0F)
+
+                                Dim moneyLbl As String = chartCurrencySymbol & amt.ToString("N0", CultureInfo.CurrentCulture)
+                                Dim moneySize As SizeF = g.MeasureString(moneyLbl, valueFont)
+                                Dim labelX As Single = x + (barW - moneySize.Width) / 2.0F
+                                Dim labelYAbove As Single = y - moneySize.Height - 4.0F
+                                If barH > 22.0F AndAlso labelYAbove >= chartRect.Top + 2.0F Then
+                                    g.DrawString(moneyLbl, valueFont, labelBrush, labelX, labelYAbove)
+                                Else
+                                    g.DrawString(moneyLbl, valueFont, labelBrush, labelX, chartRect.Bottom + 26.0F)
+                                End If
+                            Next
+                        End Using
+                    End Using
+                End Using
+            End Using
+        End Using
     End Sub
+
+    Private Shared Sub DrawChartMessage(g As Graphics, bounds As Rectangle, title As String, detail As String, accent As Color)
+        Using titleFont As New Font("Segoe UI", 11.0F, FontStyle.Bold)
+            Using detailFont As New Font("Segoe UI", 9.5F, FontStyle.Regular)
+                Using titleBrush As New SolidBrush(accent)
+                    Using detailBrush As New SolidBrush(UiTheme.TextSecondary)
+                        Using format As New StringFormat() With {
+                            .Alignment = StringAlignment.Center,
+                            .LineAlignment = StringAlignment.Near,
+                            .Trimming = StringTrimming.EllipsisCharacter
+                        }
+                            Dim titleSize As SizeF = g.MeasureString(title, titleFont, bounds.Width)
+                            Dim detailSize As SizeF = SizeF.Empty
+                            If Not String.IsNullOrEmpty(detail) Then
+                                detailSize = g.MeasureString(detail, detailFont, bounds.Width)
+                            End If
+
+                            Dim blockH As Single = titleSize.Height + If(detailSize.IsEmpty, 0.0F, 6.0F + detailSize.Height)
+                            Dim y As Single = bounds.Top + (bounds.Height - blockH) / 2.0F
+                            Dim titleRect As New RectangleF(bounds.Left, y, bounds.Width, titleSize.Height + 2.0F)
+                            g.DrawString(title, titleFont, titleBrush, titleRect, format)
+                            If Not String.IsNullOrEmpty(detail) Then
+                                Dim detailRect As New RectangleF(bounds.Left, y + titleSize.Height + 6.0F, bounds.Width, detailSize.Height + 4.0F)
+                                g.DrawString(detail, detailFont, detailBrush, detailRect, format)
+                            End If
+                        End Using
+                    End Using
+                End Using
+            End Using
+        End Using
+    End Sub
+
+    Private Shared Function FormatCompactMoney(currencySym As String, amount As Decimal) As String
+        Dim abs As Decimal = Math.Abs(amount)
+        If abs >= 1000000D Then
+            Return currencySym & (amount / 1000000D).ToString("0.#", CultureInfo.CurrentCulture) & "M"
+        End If
+        If abs >= 1000D Then
+            Return currencySym & (amount / 1000D).ToString("0.#", CultureInfo.CurrentCulture) & "k"
+        End If
+        Return currencySym & amount.ToString("N0", CultureInfo.CurrentCulture)
+    End Function
 
     Private Sub tmrRefresh_Tick(sender As Object, e As EventArgs) Handles tmrRefresh.Tick
         RefreshHealthAndDashboard()
     End Sub
 
+    Private Sub tmrChartRedraw_Tick(sender As Object, e As EventArgs) Handles tmrChartRedraw.Tick
+        tmrChartRedraw.Stop()
+        InvalidateSalesChart()
+    End Sub
+
     Private Sub MainMenuForm_ClientSizeChanged(sender As Object, e As EventArgs) Handles MyBase.ClientSizeChanged
-        ' Prevent crash if the window resizes before the controls are built
-        If lblDbHealth Is Nothing OrElse picSalesChart Is Nothing Then
+        If pnlSalesChart Is Nothing OrElse tmrChartRedraw Is Nothing Then
             Return
         End If
 
-        RefreshHealthAndDashboard() ' Redraws the chart so it stretches to fill the window
+        tmrChartRedraw.Stop()
+        tmrChartRedraw.Start()
     End Sub
 
     ' -----------------------------------------------------------
