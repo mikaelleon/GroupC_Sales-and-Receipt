@@ -65,7 +65,7 @@ Public Class ReceiptForm
 
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
-        Me.Text = "Group C - Receipt Preview"
+        Me.Text = AppBranding.WindowTitle("Receipt Preview")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
 
         Try
@@ -116,7 +116,7 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub SetupForm()
-        Me.Text = "Group C - Receipt Viewer"
+        Me.Text = AppBranding.WindowTitle("Receipt Viewer")
         Me.MinimumSize = New Size(1024, 720)
         Me.FormBorderStyle = FormBorderStyle.Sizable
         Me.WindowState = FormWindowState.Maximized ' Start in Full Screen

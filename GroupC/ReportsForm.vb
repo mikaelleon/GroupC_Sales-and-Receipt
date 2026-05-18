@@ -30,7 +30,7 @@ Public Class ReportsForm
 
     Private Sub ReportsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP
-        Me.Text = "Group C - Reports"
+        Me.Text = AppBranding.WindowTitle("Reports")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
         Me.StartPosition = FormStartPosition.CenterParent
 

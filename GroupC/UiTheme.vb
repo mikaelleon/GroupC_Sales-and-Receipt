@@ -1,4 +1,5 @@
 Imports System.Drawing
+Imports System.Drawing.Drawing2D
 Imports System.Windows.Forms
 
 ''' <summary>
@@ -53,6 +54,9 @@ Public NotInheritable Class UiTheme
     ''' Default UI font applied with <see cref="ApplyStandardWindowChrome"/>.
     ''' </summary>
     Public Shared ReadOnly StandardUiFont As Font = New Font("Segoe UI", 10.0F)
+
+    ''' <summary>Default corner radius for <see cref="ApplyRoundedButton"/>.</summary>
+    Public Const DefaultButtonCornerRadius As Integer = 10
 
     Private Sub New()
     End Sub
@@ -193,13 +197,11 @@ Public NotInheritable Class UiTheme
     End Sub
 
     Public Shared Sub ApplySecondaryButton(button As Button)
-        button.BackColor = SecondaryBack
-        button.ForeColor = SecondaryFore
-        button.FlatStyle = FlatStyle.Flat
-        button.FlatAppearance.BorderSize = 1
-        button.FlatAppearance.BorderColor = SecondaryBorder
-        button.FlatAppearance.MouseOverBackColor = GridAltRow
-        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(230, 232, 236)
+        button.Cursor = Cursors.Hand
+        button.UseCompatibleTextRendering = False
+        button.Padding = New Padding(14, 6, 14, 6)
+        button.TextAlign = ContentAlignment.MiddleCenter
+        WireRoundedButtonPaint(button, SecondaryBack, GridAltRow, Color.FromArgb(230, 232, 236), SecondaryFore, SecondaryBorder)
     End Sub
 
     Public Shared Sub ApplySecondaryAccentButton(button As Button)
@@ -234,9 +236,196 @@ Public NotInheritable Class UiTheme
             button.FlatAppearance.BorderColor = border.Value
         End If
 
-        button.FlatAppearance.MouseOverBackColor = hover
-        button.FlatAppearance.MouseDownBackColor = pressed
+        button.Cursor = Cursors.Hand
+        button.UseCompatibleTextRendering = False
+        button.Padding = New Padding(16, 6, 16, 6)
+        button.TextAlign = ContentAlignment.MiddleCenter
+        WireRoundedButtonPaint(button, normal, hover, pressed, fore, border)
     End Sub
+
+    ''' <summary>
+    ''' Rounded corners via custom paint (does not clip label text like <see cref="Control.Region"/>).
+    ''' </summary>
+    Public Shared Sub ApplyRoundedButton(button As Button, Optional cornerRadius As Integer = DefaultButtonCornerRadius)
+        If button Is Nothing Then
+            Return
+        End If
+
+        WireRoundedButtonPaint(
+            button,
+            button.BackColor,
+            button.FlatAppearance.MouseOverBackColor,
+            button.FlatAppearance.MouseDownBackColor,
+            button.ForeColor,
+            Nothing,
+            cornerRadius)
+    End Sub
+
+    Private Shared Sub WireRoundedButtonPaint(
+        button As Button,
+        normal As Color,
+        hover As Color,
+        pressed As Color,
+        fore As Color,
+        border As Nullable(Of Color),
+        Optional cornerRadius As Integer = DefaultButtonCornerRadius)
+
+        If button Is Nothing Then
+            Return
+        End If
+
+        Dim state As RoundedButtonState = GetOrCreateButtonState(button)
+        state.CornerRadius = Math.Max(4, cornerRadius)
+        state.NormalBack = normal
+        state.HoverBack = hover
+        state.PressedBack = pressed
+        state.ForeColor = fore
+        state.BorderColor = border
+
+        button.FlatStyle = FlatStyle.Flat
+        button.FlatAppearance.BorderSize = 0
+        button.Region = Nothing
+        button.BackColor = normal
+        button.ForeColor = fore
+
+        If Not state.PaintWired Then
+            state.PaintWired = True
+            AddHandler button.Paint, AddressOf RoundedButton_Paint
+            AddHandler button.MouseEnter, AddressOf RoundedButton_Invalidate
+            AddHandler button.MouseLeave, AddressOf RoundedButton_Invalidate
+            AddHandler button.MouseDown, AddressOf RoundedButton_Invalidate
+            AddHandler button.MouseUp, AddressOf RoundedButton_Invalidate
+            AddHandler button.EnabledChanged, AddressOf RoundedButton_Invalidate
+            AddHandler button.Resize, AddressOf RoundedButton_Invalidate
+            AddHandler button.TextChanged, AddressOf RoundedButton_Invalidate
+        End If
+
+        EnsureButtonFitsText(button)
+        button.Invalidate()
+    End Sub
+
+    Private Shared Function GetOrCreateButtonState(button As Button) As RoundedButtonState
+        Dim state As RoundedButtonState = TryCast(button.Tag, RoundedButtonState)
+        If state Is Nothing Then
+            state = New RoundedButtonState()
+            button.Tag = state
+        End If
+
+        Return state
+    End Function
+
+    Private Shared Sub RoundedButton_Invalidate(sender As Object, e As EventArgs)
+        Dim button As Button = TryCast(sender, Button)
+        If button IsNot Nothing AndAlso Not button.IsDisposed Then
+            button.Invalidate()
+        End If
+    End Sub
+
+    Private Shared Sub RoundedButton_Paint(sender As Object, e As PaintEventArgs)
+        Dim button As Button = TryCast(sender, Button)
+        Dim state As RoundedButtonState = If(button Is Nothing, Nothing, TryCast(button.Tag, RoundedButtonState))
+        If button Is Nothing OrElse state Is Nothing Then
+            Return
+        End If
+
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
+        Dim clearColor As Color = FormBackground
+        If button.Parent IsNot Nothing Then
+            clearColor = button.Parent.BackColor
+        End If
+
+        e.Graphics.Clear(clearColor)
+
+        Dim back As Color = state.NormalBack
+        If button.Enabled Then
+            Dim pt As Point = button.PointToClient(Cursor.Position)
+            If button.ClientRectangle.Contains(pt) Then
+                If (Control.MouseButtons And MouseButtons.Left) = MouseButtons.Left Then
+                    back = state.PressedBack
+                Else
+                    back = state.HoverBack
+                End If
+            End If
+        Else
+            back = Color.FromArgb(200, state.NormalBack)
+        End If
+
+        Dim rect As New Rectangle(0, 0, button.Width - 1, button.Height - 1)
+        Using path As GraphicsPath = CreateRoundedRectPath(rect, state.CornerRadius)
+            Using fillBrush As New SolidBrush(back)
+                e.Graphics.FillPath(fillBrush, path)
+            End Using
+
+            If state.BorderColor.HasValue Then
+                Using borderPen As New Pen(state.BorderColor.Value, 1.0F)
+                    e.Graphics.DrawPath(borderPen, path)
+                End Using
+            End If
+        End Using
+
+        Dim textFlags As TextFormatFlags =
+            TextFormatFlags.HorizontalCenter Or
+            TextFormatFlags.VerticalCenter Or
+            TextFormatFlags.SingleLine Or
+            TextFormatFlags.EndEllipsis
+
+        Dim textColor As Color = If(button.Enabled, state.ForeColor, TextSecondary)
+        TextRenderer.DrawText(e.Graphics, button.Text, button.Font, rect, textColor, textFlags)
+    End Sub
+
+    Private Shared Function CreateRoundedRectPath(rect As Rectangle, cornerRadius As Integer) As GraphicsPath
+        Dim path As New GraphicsPath()
+        If rect.Width < 2 OrElse rect.Height < 2 Then
+            path.AddRectangle(rect)
+            Return path
+        End If
+
+        Dim radius As Integer = Math.Min(cornerRadius, Math.Min(rect.Width, rect.Height) \ 2)
+        Dim d As Integer = radius * 2
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90)
+        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90)
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90)
+        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90)
+        path.CloseFigure()
+        Return path
+    End Function
+
+    Private Shared Sub EnsureButtonFitsText(button As Button)
+        If button Is Nothing OrElse String.IsNullOrEmpty(button.Text) Then
+            Return
+        End If
+
+        Dim flags As TextFormatFlags =
+            TextFormatFlags.HorizontalCenter Or
+            TextFormatFlags.VerticalCenter Or
+            TextFormatFlags.SingleLine
+
+        Dim textSize As Size = TextRenderer.MeasureText(button.Text, button.Font, New Size(Integer.MaxValue, Integer.MaxValue), flags)
+        Dim minH As Integer = textSize.Height + button.Padding.Vertical + 8
+        Dim minW As Integer = textSize.Width + button.Padding.Horizontal + 12
+
+        If minH < 36 Then
+            minH = 36
+        End If
+
+        If button.Height < minH Then
+            button.Height = minH
+        End If
+
+        If button.MinimumSize.Height < minH OrElse button.MinimumSize.Width < minW Then
+            button.MinimumSize = New Size(Math.Max(button.MinimumSize.Width, minW), Math.Max(button.MinimumSize.Height, minH))
+        End If
+    End Sub
+
+    Private NotInheritable Class RoundedButtonState
+        Public Property CornerRadius As Integer = DefaultButtonCornerRadius
+        Public Property NormalBack As Color
+        Public Property HoverBack As Color
+        Public Property PressedBack As Color
+        Public Property ForeColor As Color
+        Public Property BorderColor As Nullable(Of Color)
+        Public Property PaintWired As Boolean
+    End Class
 
     Public Shared Sub ApplyProfessionalGraphics(targetForm As Form)
         ' 1. Apply smooth background color
@@ -345,6 +534,20 @@ Public NotInheritable Class UiTheme
 
         textBox.MinimumSize = New Size(0, h)
         textBox.MaximumSize = New Size(0, h)
+        ApplyFilledTextInputVisual(textBox)
+    End Sub
+
+    ''' <summary>
+    ''' Single-line field surface colors (does not change layout).
+    ''' </summary>
+    Public Shared Sub ApplyFilledTextInputVisual(textBox As TextBox)
+        If textBox Is Nothing Then
+            Return
+        End If
+
+        textBox.BorderStyle = BorderStyle.FixedSingle
+        textBox.BackColor = CardSurface
+        textBox.ForeColor = TextPrimary
     End Sub
 
 End Class

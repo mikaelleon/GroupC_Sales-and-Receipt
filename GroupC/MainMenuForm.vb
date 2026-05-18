@@ -8,6 +8,7 @@ Imports Microsoft.Data.SqlClient
 Public Class MainMenuForm
 
     Private WithEvents btnProducts As Button
+    Private WithEvents btnCategories As Button
     Private WithEvents btnSales As Button
     Private WithEvents btnReceipt As Button
     Private WithEvents btnSettings As Button
@@ -26,8 +27,8 @@ Public Class MainMenuForm
     Private WithEvents tmrRefresh As Timer
     Private WithEvents tmrChartRedraw As Timer
 
-    Private ReadOnly chartAmounts(6) As Decimal
-    Private ReadOnly chartDays(6) As DateTime
+    Private ReadOnly chartAmounts As Decimal() = New Decimal(6) {}
+    Private ReadOnly chartDays As DateTime() = New DateTime(6) {}
     Private chartCurrencySymbol As String = "₱"
     Private chartSevenDayTotal As Decimal
     Private chartDataLoaded As Boolean
@@ -42,7 +43,7 @@ Public Class MainMenuForm
     Private Sub MainMenuForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.SuspendLayout()
-        Me.Text = "Group C - Sales & Receipt System"
+        Me.Text = AppBranding.WindowTitle("Dashboard")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
 
         ' THE FIX: Hide the Main Menu completely before Login
@@ -138,8 +139,9 @@ Public Class MainMenuForm
         }
 
         ' Buttons
-        btnProducts = CreateNavButton("&Add / Manage Products")
-        btnSales = CreateNavButton("&Sales / Compute Total")
+        btnProducts = CreateNavButton("&Manage Products")
+        btnCategories = CreateNavButton("Manage &Categories")
+        btnSales = CreateNavButton("&Point of Sale")
         btnReceipt = CreateNavButton("&Receipt Preview")
         btnReports = CreateNavButton("&Reports")
         btnSettings = CreateNavButton("&Settings")
@@ -150,6 +152,7 @@ Public Class MainMenuForm
         Try
             UiTheme.ApplyPrimaryButton(btnSales)
             UiTheme.ApplyPrimaryButton(btnProducts)
+            UiTheme.ApplyPrimaryButton(btnCategories)
             UiTheme.ApplySecondaryAccentButton(btnReceipt)
             UiTheme.ApplySecondaryAccentButton(btnReports)
             UiTheme.ApplySecondaryButton(btnSettings)
@@ -201,7 +204,7 @@ Public Class MainMenuForm
         flowNav.Padding = New Padding(0)
 
         ' Expand buttons to fit the sidebar, leaving room for a vertical scrollbar
-        Dim navButtons = {btnProducts, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnLogout}
+        Dim navButtons = {btnProducts, btnCategories, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnLogout}
         For Each btn In navButtons
             If btn IsNot Nothing Then
                 btn.Width = 200 ' <--- Reduced from 220 to 200
@@ -233,7 +236,7 @@ Public Class MainMenuForm
             .Margin = New Padding(0, 0, 0, 25)
         }
         Dim lblTitle As New Label() With {
-            .Text = "Dashboard Overview",
+            .Text = AppBranding.ApplicationName,
             .Font = New Font("Segoe UI", 18.0F, FontStyle.Bold),
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
@@ -731,9 +734,25 @@ Public Class MainMenuForm
     Private Sub ApplyRoleBasedNavigation()
         Dim showAdminNav As Boolean = AppSession.IsAdmin()
         If btnProducts IsNot Nothing Then btnProducts.Visible = showAdminNav
+        If btnCategories IsNot Nothing Then btnCategories.Visible = showAdminNav
         If btnReports IsNot Nothing Then btnReports.Visible = showAdminNav
         If btnSettings IsNot Nothing Then btnSettings.Visible = showAdminNav
         If btnBackup IsNot Nothing Then btnBackup.Visible = showAdminNav
+    End Sub
+
+    Private Sub btnCategories_Click(sender As Object, e As EventArgs) Handles btnCategories.Click
+        If Not AppSession.RequireAdmin(Me) Then
+            Return
+        End If
+
+        Me.Hide()
+
+        Using form As New CategoriesForm()
+            form.ShowDialog()
+        End Using
+
+        Me.Show()
+        RefreshHealthAndDashboard()
     End Sub
 
     Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click

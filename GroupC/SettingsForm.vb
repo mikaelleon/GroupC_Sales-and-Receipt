@@ -21,7 +21,7 @@ Public Class SettingsForm
     Private WithEvents btnCancel As Button
 
     Private Sub SettingsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        Me.Text = "Group C - Settings"
+        Me.Text = AppBranding.WindowTitle("Settings")
         Me.FormBorderStyle = FormBorderStyle.FixedDialog
         Me.StartPosition = FormStartPosition.CenterParent
         Me.MinimizeBox = False

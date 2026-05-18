@@ -97,7 +97,7 @@ Public Class SalesForm
     End Sub
 
     Private Sub SetupForm()
-        Me.Text = "Group C - Point of Sale"
+        Me.Text = AppBranding.WindowTitle("Point of Sale")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
     End Sub
 
@@ -276,9 +276,9 @@ Public Class SalesForm
             .RowCount = 3,
             .Padding = New Padding(30, 30, 30, 20)
         }
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Header
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Grid
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Checkout Panel
+        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Header
+        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 58.0F))  ' Cart grid (bounded — do not star 100%)
+        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 42.0F))  ' Checkout always reserved
 
         Dim headerPanel As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top}
         Dim lblTitleRight As New Label() With {
@@ -305,17 +305,20 @@ Public Class SalesForm
         headerPanel.Controls.Add(lblSalesInputError)
         rightCard.Controls.Add(headerPanel, 0, 0)
 
-        Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill, .Margin = New Padding(0, 15, 0, 15)}
-        gridContainer.Controls.Add(dgvProducts)
+        Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill, .Margin = New Padding(0, 12, 0, 8), .MinimumSize = New Size(0, 120)}
+        lblEmptyHint.Dock = DockStyle.Top
         gridContainer.Controls.Add(lblEmptyHint)
+        gridContainer.Controls.Add(dgvProducts)
         rightCard.Controls.Add(gridContainer, 0, 1)
 
         ' --- CHECKOUT PANEL (Bottom Right Dashboard) ---
         Dim checkoutPanel As New TableLayoutPanel() With {
             .ColumnCount = 3,
             .RowCount = 1,
+            .Dock = DockStyle.Fill,
             .BackColor = UiTheme.CardSurface,
-            .Margin = New Padding(0)
+            .Margin = New Padding(0),
+            .MinimumSize = New Size(0, 200)
         }
         checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F)) ' Discount & Tax Settings
         checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F)) ' Subtotal, Tendered, Change Details
@@ -358,13 +361,16 @@ Public Class SalesForm
         checkoutPanel.Controls.Add(detailsLayout, 1, 0)
         checkoutPanel.Controls.Add(finalizeLayout, 2, 0)
 
-        checkoutPanel.Dock = DockStyle.Fill
         Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
         checkoutCard.Dock = DockStyle.Fill
-        checkoutCard.Margin = New Padding(0, 8, 0, 0)
+        checkoutCard.Margin = New Padding(0, 4, 0, 0)
+        checkoutCard.MinimumSize = New Size(0, 210)
         UiTheme.PopulateCardContent(checkoutCard, checkoutPanel)
 
-        rightCard.Controls.Add(checkoutCard, 0, 2)
+        Dim checkoutHost As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .Padding = Padding.Empty}
+        checkoutHost.Controls.Add(checkoutCard)
+
+        rightCard.Controls.Add(checkoutHost, 0, 2)
 
         ' 3. ASSEMBLE ALL
         rootTable.Controls.Add(leftSidebar, 0, 0)
