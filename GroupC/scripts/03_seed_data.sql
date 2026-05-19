@@ -1,10 +1,15 @@
--- Sample categories and products (reference). Applied programmatically when products table is empty.
--- See DatabaseInitializer.SeedSampleProducts in VB.
-
--- Categories (example):
---   Stationery, Supplies, Paper
+-- Sample categories and products (reference only).
+-- Applied automatically by DatabaseInitializer.SeedSampleProducts when dbo.products is empty.
+-- Do not rely on running this file unless you adapt it to your environment.
 --
--- Products (example):
---   Notebook, Ballpen -> Stationery
---   Pencil, Eraser    -> Stationery
---   Bond Paper        -> Paper
+-- Categories inserted when categories table is empty:
+--   Fiction, Textbooks, Children's Books, Stationery, Gifts
+--
+-- Products inserted when products table is empty (examples):
+--   The Great Gatsby          450.00  -> Fiction
+--   Introduction to Algorithms 1200.00 -> Textbooks
+--   Notebook                   45.00  -> Stationery
+--   Ballpen                    12.00  -> Stationery
+--   Bookmark Set               25.00  -> Stationery
+--
+-- Cashier accounts are NOT seeded. Create them in the app (Manage Cashiers) as Administrator.
