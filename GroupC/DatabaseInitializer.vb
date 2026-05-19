@@ -88,6 +88,7 @@ Public NotInheritable Class DatabaseInitializer
             EnsureSalesExtendedColumns(connection)
             EnsureCategoriesAndProductCategory(connection)
             EnsureAuditAndLogTables(connection)
+            EnsureCashierAccountsTable(connection)
         End Using
     End Sub
 
@@ -184,6 +185,27 @@ Public NotInheritable Class DatabaseInitializer
             "); END;"
 
         Using cmd As New SqlCommand(auditSql, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Private Shared Sub EnsureCashierAccountsTable(connection As SqlConnection)
+        Dim sql As String =
+            "IF OBJECT_ID('dbo.cashier_accounts','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.cashier_accounts (" &
+            " cashier_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " username NVARCHAR(50) NOT NULL, " &
+            " password_hash NVARCHAR(256) NOT NULL, " &
+            " password_salt NVARCHAR(64) NOT NULL, " &
+            " display_name NVARCHAR(100) NULL, " &
+            " is_active BIT NOT NULL CONSTRAINT DF_cashier_accounts_is_active DEFAULT (1), " &
+            " created_at DATETIME2 NOT NULL CONSTRAINT DF_cashier_accounts_created DEFAULT (SYSUTCDATETIME()), " &
+            " last_login_at DATETIME2 NULL, " &
+            " CONSTRAINT UQ_cashier_accounts_username UNIQUE (username) " &
+            "); END;"
+
+        Using cmd As New SqlCommand(sql, connection)
             cmd.ExecuteNonQuery()
         End Using
     End Sub

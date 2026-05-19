@@ -21,6 +21,11 @@ Public Class ReceiptSnapshot
     Public Property CurrencySymbol As String
 
     ''' <summary>
+    ''' Gets or sets the cashier or operator name printed on the receipt.
+    ''' </summary>
+    Public Property CashierName As String
+
+    ''' <summary>
     ''' Gets or sets the line items.
     ''' </summary>
     Public Property Lines As List(Of ReceiptLineRow)

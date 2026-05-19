@@ -14,6 +14,64 @@ Public Module AppSession
     Public CurrentRole As String = RoleCashier
 
     ''' <summary>
+    ''' Signed-in cashier username (empty for administrator sessions).
+    ''' </summary>
+    Public CurrentUsername As String = String.Empty
+
+    ''' <summary>
+    ''' Friendly cashier name for receipts (display name or username).
+    ''' </summary>
+    Public CurrentCashierDisplayName As String = String.Empty
+
+    ''' <summary>
+    ''' Database cashier account id when signed in as cashier; otherwise Nothing.
+    ''' </summary>
+    Public CurrentCashierId As Integer? = Nothing
+
+    ''' <summary>
+    ''' Clears cashier identity fields (role unchanged).
+    ''' </summary>
+    Public Sub ClearCashierIdentity()
+        CurrentUsername = String.Empty
+        CurrentCashierDisplayName = String.Empty
+        CurrentCashierId = Nothing
+    End Sub
+
+    ''' <summary>
+    ''' Name printed on sales receipts for the current operator.
+    ''' </summary>
+    Public Function GetReceiptOperatorName() As String
+        If IsAdmin() Then
+            Return "Administrator"
+        End If
+
+        If Not String.IsNullOrWhiteSpace(CurrentCashierDisplayName) Then
+            Return CurrentCashierDisplayName.Trim()
+        End If
+
+        If Not String.IsNullOrWhiteSpace(CurrentUsername) Then
+            Return CurrentUsername.Trim()
+        End If
+
+        Return "Cashier"
+    End Function
+
+    ''' <summary>
+    ''' Value stored in audit logs for the current operator.
+    ''' </summary>
+    Public Function GetAuditIdentity() As String
+        If IsAdmin() Then
+            Return RoleAdmin
+        End If
+
+        If Not String.IsNullOrEmpty(CurrentUsername) Then
+            Return RoleCashier & " (" & CurrentUsername & ")"
+        End If
+
+        Return RoleCashier
+    End Function
+
+    ''' <summary>
     ''' Returns true when the current session is an administrator.
     ''' </summary>
     ''' <returns>True if <see cref="CurrentRole"/> is admin.</returns>

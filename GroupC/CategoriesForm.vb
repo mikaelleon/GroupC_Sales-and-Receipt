@@ -67,7 +67,7 @@ Public Class CategoriesForm
         btnDeactivate = New Button() With {.Text = "&Deactivate", .Size = New Size(110, 38), .Cursor = Cursors.Hand}
         btnReactivate = New Button() With {.Text = "Reactivate", .Size = New Size(110, 38), .Enabled = False, .Cursor = Cursors.Hand}
         btnRefresh = New Button() With {.Text = "Refresh", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(150, 36), .Cursor = Cursors.Hand}
+        btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
 
         UiTheme.ApplyPrimaryButton(btnAdd)
         UiTheme.ApplyPrimaryButton(btnUpdate)
@@ -85,6 +85,7 @@ Public Class CategoriesForm
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
         }
         UiTheme.ApplyDataGridViewChrome(dgvCategories)
+        AddHandler dgvCategories.DataBindingComplete, AddressOf dgvCategories_DataBindingComplete
 
         lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False}
 
@@ -97,11 +98,12 @@ Public Class CategoriesForm
         root.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 360.0F))
         root.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.CardSurface, .Padding = New Padding(24, 28, 24, 24)}
-        Dim sideStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 6}
-        For i As Integer = 0 To 5
-            sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Next
+        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Color.White, .Padding = New Padding(25, 30, 25, 30)}
+        Dim sideStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4}
+        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sideStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         Dim hdr As New Label() With {
             .Text = "Book categories",
@@ -120,8 +122,8 @@ Public Class CategoriesForm
         }
 
         Dim lblName As Label = UiTheme.CreateSecondaryLabel("Category name")
-        txtCategoryName.Dock = DockStyle.Top
         txtCategoryName.Margin = New Padding(0, 0, 0, 12)
+        txtCategoryName.Dock = DockStyle.Fill
 
         Dim actionFlow As New FlowLayoutPanel() With {.AutoSize = True, .FlowDirection = FlowDirection.TopDown, .WrapContents = False}
         actionFlow.Controls.Add(btnAdd)
@@ -129,12 +131,32 @@ Public Class CategoriesForm
         actionFlow.Controls.Add(btnDeactivate)
         actionFlow.Controls.Add(btnReactivate)
 
-        sideStack.Controls.Add(hdr, 0, 0)
-        sideStack.Controls.Add(hint, 0, 1)
-        sideStack.Controls.Add(lblInputError, 0, 2)
-        sideStack.Controls.Add(lblName, 0, 3)
-        sideStack.Controls.Add(txtCategoryName, 0, 4)
-        sideStack.Controls.Add(actionFlow, 0, 5)
+        Dim headerPanel As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1, .RowCount = 3}
+        headerPanel.Controls.Add(hdr, 0, 0)
+        headerPanel.Controls.Add(hint, 0, 1)
+        headerPanel.Controls.Add(lblInputError, 0, 2)
+
+        Dim inputLayout As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = New Padding(0, 20, 0, 0)
+        }
+        inputLayout.Controls.Add(lblName, 0, 0)
+        inputLayout.Controls.Add(txtCategoryName, 0, 1)
+        inputLayout.Controls.Add(actionFlow, 0, 2)
+
+        Dim pnlFooter As New FlowLayoutPanel() With {
+            .Dock = DockStyle.Bottom,
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.TopDown
+        }
+        btnBack.Margin = New Padding(0, 30, 0, 0)
+        pnlFooter.Controls.Add(btnBack)
+
+        sideStack.Controls.Add(headerPanel, 0, 0)
+        sideStack.Controls.Add(inputLayout, 0, 1)
+        sideStack.Controls.Add(pnlFooter, 0, 3)
 
         sidebar.Controls.Add(sideStack)
 
@@ -147,7 +169,6 @@ Public Class CategoriesForm
         toolbar.Controls.Add(UiTheme.CreateSecondaryLabel("Show"))
         toolbar.Controls.Add(cmbFilter)
         toolbar.Controls.Add(btnRefresh)
-        toolbar.Controls.Add(btnBack)
 
         Dim gridCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
         gridCard.Dock = DockStyle.Fill
@@ -211,6 +232,10 @@ Public Class CategoriesForm
         End Select
 
         dgvCategories.DataSource = view
+        ConfigureCategoryGridColumns()
+    End Sub
+
+    Private Sub dgvCategories_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs)
         ConfigureCategoryGridColumns()
     End Sub
 

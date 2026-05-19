@@ -360,6 +360,8 @@ Public Class ReportsForm
     Private Shared Sub ApplyDailyGridColumns(dgv As DataGridView)
         If dgv.Columns.Count = 0 Then Return
 
+        GridDisplayHelper.HideInternalIdColumns(dgv)
+
         If dgv.Columns.Contains("sale_day") Then
             dgv.Columns("sale_day").HeaderText = "Date"
         End If
@@ -376,6 +378,8 @@ Public Class ReportsForm
 
     Private Shared Sub ApplyTopGridColumns(dgv As DataGridView)
         If dgv.Columns.Count = 0 Then Return
+
+        GridDisplayHelper.HideInternalIdColumns(dgv)
 
         If dgv.Columns.Contains("product_name") Then
             dgv.Columns("product_name").HeaderText = "Product"

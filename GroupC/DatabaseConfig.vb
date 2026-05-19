@@ -14,7 +14,7 @@ Public NotInheritable Class DatabaseConfig
     Public Const HardcodedAdminPassword As String = "admin123"
 
     ''' <summary>
-    ''' Optional cashier PIN. When empty, cashier login does not require a PIN.
+    ''' Unused. Cashiers sign in with database accounts created under Manage Cashiers.
     ''' </summary>
     Public Const HardcodedCashierPin As String = ""
 

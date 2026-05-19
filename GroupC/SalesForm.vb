@@ -971,6 +971,7 @@ Public Class SalesForm
             .StoreName = AppSettings.Current.StoreName,
             .FooterText = AppSettings.Current.ReceiptFooter,
             .CurrencySymbol = AppSettings.Current.CurrencySymbol,
+            .CashierName = AppSession.GetReceiptOperatorName(),
             .Lines = New List(Of ReceiptLineRow)(),
             .DiscountPercent = GetSelectedDiscountPercent(),
             .DiscountIsPercent = True,
@@ -1011,6 +1012,9 @@ Public Class SalesForm
         receipt.AppendLine("         " & snapshot.StoreName)
         receipt.AppendLine("========================================")
         receipt.AppendLine("Date: " & DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture))
+        If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
+            receipt.AppendLine("Cashier: " & snapshot.CashierName.Trim())
+        End If
         receipt.AppendLine("----------------------------------------")
         receipt.AppendLine("Item              Qty   Price    Subtotal")
         receipt.AppendLine("----------------------------------------")
