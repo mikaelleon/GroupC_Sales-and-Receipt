@@ -76,6 +76,7 @@ Public NotInheritable Class UiTheme
     Public Shared Sub ApplyStandardWindowChrome(form As Form)
         ApplyFormSurface(form)
         form.Font = StandardUiFont
+        AppIcons.ApplyToForm(form)
     End Sub
 
     ''' <summary>
