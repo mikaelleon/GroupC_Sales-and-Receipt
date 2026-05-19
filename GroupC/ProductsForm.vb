@@ -58,7 +58,6 @@ Public Class ProductsForm
     Private WithEvents btnUpdate As Button
     Private WithEvents btnDelete As Button
     Private WithEvents btnRefresh As Button
-    Private WithEvents btnTestDb As Button
     Private WithEvents btnImportCsv As Button
     Private WithEvents btnBack As Button
     Private WithEvents btnManageCategories As Button
@@ -132,7 +131,6 @@ Public Class ProductsForm
         btnDelete = New Button() With {.Text = "&Deactivate", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
         btnReactivate = New Button() With {.Text = "Reactivate", .Size = New Size(100, 38), .Enabled = False, .Cursor = Cursors.Hand}
         btnRefresh = New Button() With {.Text = "Refresh", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
-        btnTestDb = New Button() With {.Text = "Test DB", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
         btnImportCsv = New Button() With {.Text = "Import CSV", .Size = New Size(100, 34), .Cursor = Cursors.Hand}
         btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
         btnManageCategories = New Button() With {.Text = "Manage &categories…", .Size = New Size(160, 34), .Cursor = Cursors.Hand}
@@ -144,7 +142,6 @@ Public Class ProductsForm
             UiTheme.ApplyWarningButton(btnDelete)
             UiTheme.ApplySuccessButton(btnReactivate)
             UiTheme.ApplySecondaryButton(btnRefresh)
-            UiTheme.ApplySecondaryAccentButton(btnTestDb)
             UiTheme.ApplyPrimaryButton(btnImportCsv)
             UiTheme.ApplySecondaryButton(btnBack)
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
@@ -265,7 +262,6 @@ Public Class ProductsForm
         Dim pnlUtilBtns As New FlowLayoutPanel() With {.AutoSize = True}
         pnlUtilBtns.Controls.Add(btnManageCategories)
         pnlUtilBtns.Controls.Add(btnImportCsv)
-        pnlUtilBtns.Controls.Add(btnTestDb)
         pnlUtility.Controls.Add(pnlUtilBtns)
 
         btnBack.Margin = New Padding(0, 30, 0, 0)
@@ -560,18 +556,6 @@ Public Class ProductsForm
 
     Private Sub numPrice_TextChanged(sender As Object, e As EventArgs) Handles numPrice.TextChanged
         ClearProductsInputError()
-    End Sub
-
-    Private Sub btnTestDb_Click(sender As Object, e As EventArgs) Handles btnTestDb.Click
-        Try
-            DatabaseInitializer.EnsureDatabase()
-            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
-                connection.Open()
-                MessageBox.Show("LocalDB connection OK.", "SQL Server LocalDB", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            End Using
-        Catch ex As Exception
-            MessageBox.Show("Connection failed: " & ex.Message, "SQL Server LocalDB", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
     End Sub
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click

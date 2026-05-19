@@ -29,6 +29,7 @@ Public Class MainMenuForm
 
     Private WithEvents btnProducts As Button
     Private WithEvents btnCategories As Button
+    Private WithEvents btnCashierAccounts As Button
     Private WithEvents btnSales As Button
     Private WithEvents btnReceipt As Button
     Private WithEvents btnSettings As Button
@@ -66,7 +67,6 @@ Public Class MainMenuForm
 
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
-    Private WithEvents flowNav As FlowLayoutPanel
 
     Private closeDueToLoginFail As Boolean
 
@@ -143,7 +143,7 @@ Public Class MainMenuForm
         dbHealthTooltip = New ToolTip()
 
         ' Dashboard Labels
-        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold), .Text = "Database: checking…"}
+        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold), .Text = "System Status: Loading..."}
         lblDashProducts = CreateDashValueLabel("—")
         lblDashSalesToday = CreateDashValueLabel("—")
         lblDashLastSale = CreateDashValueLabel("—")
@@ -186,17 +186,10 @@ Public Class MainMenuForm
         cmbChartSort.SelectedIndex = 0
         suppressChartPresetEvents = False
 
-        ' Navigation Panel
-        flowNav = New FlowLayoutPanel() With {
-            .FlowDirection = FlowDirection.TopDown,
-            .WrapContents = False,
-            .AutoScroll = True,
-            .Padding = New Padding(10)
-        }
-
         ' Buttons
         btnProducts = CreateNavButton("&Manage Products")
         btnCategories = CreateNavButton("Manage &Categories")
+        btnCashierAccounts = CreateNavButton("Manage &Cashiers")
         btnSales = CreateNavButton("&Point of Sale")
         btnReceipt = CreateNavButton("&Receipt Preview")
         btnReports = CreateNavButton("&Reports")
@@ -209,6 +202,7 @@ Public Class MainMenuForm
             UiTheme.ApplyPrimaryButton(btnSales)
             UiTheme.ApplyPrimaryButton(btnProducts)
             UiTheme.ApplyPrimaryButton(btnCategories)
+            UiTheme.ApplyPrimaryButton(btnCashierAccounts)
             UiTheme.ApplySecondaryAccentButton(btnReceipt)
             UiTheme.ApplySecondaryAccentButton(btnReports)
             UiTheme.ApplySecondaryButton(btnSettings)
@@ -255,20 +249,63 @@ Public Class MainMenuForm
             .Padding = New Padding(10, 20, 10, 20)
         }
 
-        flowNav.Dock = DockStyle.Fill
-        flowNav.BackColor = Color.White
-        flowNav.Padding = New Padding(0)
+        Dim navLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = Color.White,
+            .Margin = Padding.Empty
+        }
+        navLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        navLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        navLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        ' Expand buttons to fit the sidebar, leaving room for a vertical scrollbar
-        Dim navButtons = {btnProducts, btnCategories, btnSales, btnReceipt, btnReports, btnSettings, btnBackup, btnLogout}
-        For Each btn In navButtons
+        Dim flowNavMain As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .WrapContents = False,
+            .AutoScroll = True,
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .BackColor = Color.White,
+            .Padding = New Padding(0)
+        }
+        flowNavMain.HorizontalScroll.Enabled = False
+        flowNavMain.HorizontalScroll.Visible = False
+
+        Dim flowNavBottom As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .WrapContents = False,
+            .AutoScroll = False,
+            .Dock = DockStyle.Bottom,
+            .AutoSize = True,
+            .BackColor = Color.White,
+            .Padding = New Padding(0, 8, 0, 0)
+        }
+        flowNavBottom.HorizontalScroll.Enabled = False
+        flowNavBottom.HorizontalScroll.Visible = False
+
+        Dim mainNavButtons = {btnProducts, btnCategories, btnCashierAccounts, btnSales, btnReceipt, btnReports}
+        For Each btn In mainNavButtons
             If btn IsNot Nothing Then
-                btn.Width = 200 ' <--- Reduced from 220 to 200
+                btn.Width = 200
                 btn.Margin = New Padding(10, 5, 10, 10)
-                flowNav.Controls.Add(btn)
+                flowNavMain.Controls.Add(btn)
             End If
         Next
-        navContainer.Controls.Add(flowNav)
+
+        Dim bottomNavButtons = {btnSettings, btnBackup, btnLogout}
+        For Each btn In bottomNavButtons
+            If btn IsNot Nothing Then
+                btn.Width = 200
+                btn.Margin = New Padding(10, 5, 10, 10)
+                flowNavBottom.Controls.Add(btn)
+            End If
+        Next
+
+        navLayout.Controls.Add(flowNavMain, 0, 0)
+        navLayout.Controls.Add(New Panel() With {.Dock = DockStyle.Fill}, 0, 1)
+        navLayout.Controls.Add(flowNavBottom, 0, 2)
+        navContainer.Controls.Add(navLayout)
 
         ' 3. Right Dashboard Container
         ' Generous 30px padding creates modern "breathing room" around the edges
@@ -437,7 +474,7 @@ Public Class MainMenuForm
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
-                lblDbHealth.Text = "Database: OK"
+                lblDbHealth.Text = "System Status: Online"
                 lblDbHealth.ForeColor = UiTheme.Success
                 dbHealthTooltip.SetToolTip(lblDbHealth, "Connected to " & DatabaseConfig.DatabaseName)
 
@@ -490,7 +527,7 @@ Public Class MainMenuForm
             InvalidateSalesChart()
         Catch ex As Exception
             lastErr = ex.Message
-            lblDbHealth.Text = "Database: offline"
+            lblDbHealth.Text = "System Status: Offline"
             lblDbHealth.ForeColor = UiTheme.Danger
             dbHealthTooltip.SetToolTip(lblDbHealth, lastErr)
             lblDashProducts.Text = "—"
@@ -1023,6 +1060,7 @@ Public Class MainMenuForm
         Dim showAdminNav As Boolean = AppSession.IsAdmin()
         If btnProducts IsNot Nothing Then btnProducts.Visible = showAdminNav
         If btnCategories IsNot Nothing Then btnCategories.Visible = showAdminNav
+        If btnCashierAccounts IsNot Nothing Then btnCashierAccounts.Visible = showAdminNav
         If btnReports IsNot Nothing Then btnReports.Visible = showAdminNav
         If btnSettings IsNot Nothing Then btnSettings.Visible = showAdminNav
         If btnBackup IsNot Nothing Then btnBackup.Visible = showAdminNav
@@ -1043,9 +1081,24 @@ Public Class MainMenuForm
         RefreshHealthAndDashboard()
     End Sub
 
+    Private Sub btnCashierAccounts_Click(sender As Object, e As EventArgs) Handles btnCashierAccounts.Click
+        If Not AppSession.RequireAdmin(Me) Then
+            Return
+        End If
+
+        Me.Hide()
+
+        Using form As New CashierAccountsForm()
+            form.ShowDialog()
+        End Using
+
+        Me.Show()
+        RefreshHealthAndDashboard()
+    End Sub
+
     Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
         Try
-            AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.CurrentRole)
+            AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.GetAuditIdentity())
         Catch
         End Try
 

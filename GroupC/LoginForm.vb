@@ -18,8 +18,12 @@ Public Class LoginForm
 
     Private WithEvents radAdmin As RadioButton
     Private WithEvents radCashier As RadioButton
+    Private txtUsername As TextBox
+    Private pnlUsername As FlowLayoutPanel
+    Private lblUsername As Label
     Private txtSecret As TextBox
     Private pnlSecret As Panel
+    Private lblSecretCaption As Label
     Private WithEvents pnlToggleSecret As PasswordTogglePanel
     Private lblHint As Label
     Private WithEvents btnOk As Button
@@ -64,8 +68,36 @@ Public Class LoginForm
         pnlRoles.Controls.Add(radAdmin)
         pnlRoles.Controls.Add(radCashier)
 
-        Dim lblSecret As New Label() With {
-            .Text = "Password / PIN:",
+        lblUsername = New Label() With {
+            .Text = "Username:",
+            .AutoSize = False,
+            .Width = SecretFieldWidth,
+            .Margin = New Padding(0, 5, 0, 6),
+            .ForeColor = UiTheme.TextPrimary,
+            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular),
+            .Visible = False
+        }
+
+        txtUsername = New TextBox() With {
+            .Font = New Font("Segoe UI", 11.0F),
+            .Width = SecretFieldWidth,
+            .Margin = New Padding(0, 0, 0, 8),
+            .PlaceholderText = "Cashier username"
+        }
+        UiTheme.ApplyFilledTextInputVisual(txtUsername)
+
+        pnlUsername = New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .WrapContents = False,
+            .Visible = False,
+            .Width = SecretFieldWidth
+        }
+        pnlUsername.Controls.Add(lblUsername)
+        pnlUsername.Controls.Add(txtUsername)
+
+        lblSecretCaption = New Label() With {
+            .Text = "Password:",
             .AutoSize = False,
             .Width = SecretFieldWidth,
             .Margin = New Padding(0, 5, 0, 6),
@@ -76,7 +108,7 @@ Public Class LoginForm
         pnlSecret = BuildPasswordField()
 
         lblHint = New Label() With {
-            .Text = "Enter the admin password or cashier PIN.",
+            .Text = "Administrators use the admin password. Cashiers sign in with a registered username and password.",
             .ForeColor = UiTheme.TextSecondary,
             .AutoSize = True,
             .Margin = New Padding(0, 4, 0, 28)
@@ -113,7 +145,8 @@ Public Class LoginForm
         loginCard.Controls.Add(lblSubtitle)
         loginCard.Controls.Add(lblRole)
         loginCard.Controls.Add(pnlRoles)
-        loginCard.Controls.Add(lblSecret)
+        loginCard.Controls.Add(pnlUsername)
+        loginCard.Controls.Add(lblSecretCaption)
         loginCard.Controls.Add(pnlSecret)
         loginCard.Controls.Add(lblHint)
         loginCard.Controls.Add(pnlButtons)
@@ -144,6 +177,45 @@ Public Class LoginForm
         Me.CancelButton = btnCancel
 
         Me.ResumeLayout(True)
+        UpdateRoleFields()
+    End Sub
+
+    Private Sub radAdmin_CheckedChanged(sender As Object, e As EventArgs) Handles radAdmin.CheckedChanged
+        UpdateRoleFields()
+    End Sub
+
+    Private Sub radCashier_CheckedChanged(sender As Object, e As EventArgs) Handles radCashier.CheckedChanged
+        UpdateRoleFields()
+    End Sub
+
+    Private Sub UpdateRoleFields()
+        If pnlUsername Is Nothing Then
+            Return
+        End If
+
+        Dim cashierMode As Boolean = radCashier IsNot Nothing AndAlso radCashier.Checked
+        pnlUsername.Visible = cashierMode
+        lblUsername.Visible = cashierMode
+        txtUsername.Visible = cashierMode
+
+
+        If txtSecret IsNot Nothing Then
+            txtSecret.PlaceholderText = If(cashierMode, "Account password", SecretPlaceholder)
+        End If
+
+        If lblHint IsNot Nothing Then
+            lblHint.Text = If(
+                cashierMode,
+                "Use the username and password created by an administrator in Manage Cashiers.",
+                "Enter the administrator password.")
+        End If
+
+        If cashierMode Then
+            txtUsername?.Focus()
+        Else
+            txtUsername?.Clear()
+            txtSecret?.Focus()
+        End If
     End Sub
 
     Private Sub LoginForm_Resize(sender As Object, e As EventArgs) Handles MyBase.Resize
@@ -179,20 +251,40 @@ Public Class LoginForm
                 Return
             End If
 
+            AppSession.ClearCashierIdentity()
             AppSession.CurrentRole = AppSession.RoleAdmin
         Else
-            Dim pinRequired As String = DatabaseConfig.HardcodedCashierPin
-            If pinRequired.Length > 0 AndAlso Not String.Equals(secret, pinRequired, StringComparison.Ordinal) Then
-                AuditLogger.LogAudit("LOGIN_FAILED", "Invalid cashier PIN.", "Cashier sign-in attempt")
-                MessageBox.Show("Invalid cashier PIN.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Dim username As String = txtUsername.Text.Trim()
+            If username.Length = 0 Then
+                MessageBox.Show("Enter your cashier username.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                txtUsername.Focus()
+                Return
+            End If
+
+            If secret.Length = 0 Then
+                MessageBox.Show("Enter your account password.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                txtSecret.Focus()
+                Return
+            End If
+
+            Dim auth As CashierAccountService.CashierLoginResult = CashierAccountService.TryAuthenticate(username, secret)
+            If Not auth.Success Then
+                AuditLogger.LogAudit("LOGIN_FAILED", auth.ErrorMessage, "Cashier: " & username)
+                MessageBox.Show(auth.ErrorMessage, "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 txtSecret.Focus()
                 Return
             End If
 
             AppSession.CurrentRole = AppSession.RoleCashier
+            AppSession.CurrentCashierId = auth.CashierId
+            AppSession.CurrentUsername = auth.Username
+            AppSession.CurrentCashierDisplayName = If(
+                String.IsNullOrWhiteSpace(auth.DisplayName),
+                auth.Username,
+                auth.DisplayName.Trim())
         End If
 
-        AuditLogger.LogAudit("LOGIN_SUCCESS", "Signed in to " & AppBranding.ApplicationName & ".", AppSession.CurrentRole)
+        AuditLogger.LogAudit("LOGIN_SUCCESS", "Signed in to " & AppBranding.ApplicationName & ".", AppSession.GetAuditIdentity())
 
         Me.DialogResult = DialogResult.OK
         Me.Close()
