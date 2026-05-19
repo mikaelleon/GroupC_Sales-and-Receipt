@@ -12,7 +12,7 @@ Anyone running a small retail counter—school supplies, a booth, a classroom de
 
 - **Sign in** as either a **cashier** (sell and receipts) or an **administrator** (full access).
 - **Keep a product list** with names, prices, and **categories** (for example “Paper”, “Stationery”).
-- **Ring up a sale**: pick products, set quantities, apply **discounts** (percent or fixed amount), add **tax** if needed, enter cash received, and **finalize** the sale.
+- **Ring up a sale**: pick products, set quantities, apply **one customer discount** at a time (**PWD**, **Senior**, or **Membership**), optionally add **VAT/tax**, enter cash received, and **finalize** the sale.
 - **See and print a receipt** after a sale.
 - **Glance at the main screen** for today’s totals and a simple **last-seven-days sales chart**.
 - **Administrators** can also change store settings (store name on receipts, currency symbol), **run reports**, review an **audit trail** of important actions, get **backup/restore** guidance, and **manage products** (including CSV import).
@@ -60,6 +60,8 @@ GroupC/
    ├─ SalesForm.vb
    ├─ ReceiptForm.vb
    ├─ ReportsForm.vb
+   ├─ GridDisplayHelper.vb
+   ├─ UiTheme.vb
    ├─ DatabaseConfig.vb
    └─ DatabaseInitializer.vb
 ```
@@ -114,10 +116,42 @@ dotnet run --project .\GroupC\GroupC.vbproj
 - `MainMenuForm` — entry, login, dashboard, navigation
 - `LoginForm` — role + password/PIN
 - `ProductsForm` — products and categories (admin)
-- `SalesForm` — cart, discounts, tax, finalize sale
+- `SalesForm` — cart, customer discounts, tax, finalize sale
 - `ReceiptForm` — receipt preview / history
 - `ReportsForm` — sales summaries; audit log tab (admin)
 - `SettingsForm` — store name, footer, currency symbol (admin)
+- `CategoriesForm` — category CRUD (admin)
+- `GridDisplayHelper` — shared DataGridView rules (see below)
+
+## Point of Sale — discounts and tax
+
+On **SalesForm**, checkout uses **toggle buttons** (not manual percent/fixed entry):
+
+| Toggle | Default rate | Notes |
+|--------|----------------|-------|
+| ♿ **PWD** | 20% | Person with disability discount |
+| 👴 **Senior** | 20% | Senior citizen discount |
+| 🎫 **Member** | 10% | Store membership discount |
+
+**Rules:**
+
+- Only **one** customer discount can be active at a time. When one is on, the other discount toggles are **disabled**.
+- Click the active toggle again to turn the discount **off**.
+- The applied rate is stored on the sale as `discount_percent` / `discount_amount` (percent-based).
+- Receipt text includes a label such as `Discount (PWD 20%)` when a discount is applied.
+
+**Tax:** use the **🧾 VAT / Tax %** toggle to enable the tax rate field; tax is calculated on the amount **after** discount.
+
+Rates are defined as constants in `SalesForm.vb` (`DiscountPwdPercent`, `DiscountSeniorPercent`, `DiscountMembershipPercent`). Change those values if your store policy differs.
+
+## Tables and grids
+
+`GridDisplayHelper` standardizes how bound grids look:
+
+- **Hidden columns:** `id`, `LogID`, and any column whose name ends with `_id` (for example `category_id`). IDs remain in the data source for code-behind but are not shown to users.
+- **Active status:** boolean `is_active` columns render as **✅** (active) or **❌** (inactive) instead of checkbox cells.
+
+Used on **Products**, **Categories**, and **Reports** (audit log). The POS cart grid uses friendly column names only (no product database IDs in the cart).
 
 ## Troubleshooting
 
