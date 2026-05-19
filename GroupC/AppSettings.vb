@@ -69,7 +69,7 @@ Public NotInheritable Class AppSettings
 
     Private Shared Function Normalize(data As AppSettingsData) As AppSettingsData
         If String.IsNullOrWhiteSpace(data.StoreName) Then
-            data.StoreName = "GROUP C SALES RECEIPT"
+            data.StoreName = AppBranding.ApplicationName.ToUpperInvariant()
         End If
 
         If String.IsNullOrWhiteSpace(data.ReceiptFooter) Then

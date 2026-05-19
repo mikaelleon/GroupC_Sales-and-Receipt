@@ -30,7 +30,7 @@ Public Class LoginForm
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP: Full Screen & Responsive
         Me.SuspendLayout()
-        Me.Text = "Group C — Sign in"
+        Me.Text = AppBranding.WindowTitle("Sign in")
 
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 500, 450)
         Me.MinimizeBox = True
@@ -40,11 +40,19 @@ Public Class LoginForm
 
         ' 2. INITIALIZE CONTROLS
         Dim lblTitle As New Label() With {
-            .Text = "Welcome Back",
-            .Font = New Font("Segoe UI", 22, FontStyle.Bold),
+            .Text = AppBranding.ApplicationName,
+            .Font = New Font("Segoe UI", 20, FontStyle.Bold),
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 8)
+            .Margin = New Padding(0, 0, 0, 4)
+        }
+
+        Dim lblSubtitle As New Label() With {
+            .Text = "Sign in to continue",
+            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular),
+            .ForeColor = UiTheme.TextSecondary,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, 12)
         }
 
         Dim lblRole As New Label() With {.Text = "Select Role:", .AutoSize = True, .Margin = New Padding(0, 10, 0, 5)}
@@ -74,8 +82,8 @@ Public Class LoginForm
             .Margin = New Padding(0, 4, 0, 28)
         }
 
-        btnOk = New Button() With {.Text = "Sign In", .Size = New Size(130, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}
-        btnCancel = New Button() With {.Text = "Cancel", .Size = New Size(100, 36), .Cursor = Cursors.Hand, .DialogResult = DialogResult.Cancel}
+        btnOk = New Button() With {.Text = "Sign In", .AutoSize = True, .MinimumSize = New Size(120, 40), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}
+        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(100, 40), .Cursor = Cursors.Hand, .DialogResult = DialogResult.Cancel}
 
         Try
             UiTheme.ApplyPrimaryButton(btnOk)
@@ -102,6 +110,7 @@ Public Class LoginForm
         }
 
         loginCard.Controls.Add(lblTitle)
+        loginCard.Controls.Add(lblSubtitle)
         loginCard.Controls.Add(lblRole)
         loginCard.Controls.Add(pnlRoles)
         loginCard.Controls.Add(lblSecret)
@@ -183,7 +192,7 @@ Public Class LoginForm
             AppSession.CurrentRole = AppSession.RoleCashier
         End If
 
-        AuditLogger.LogAudit("LOGIN_SUCCESS", "Signed in to Group C POS.", AppSession.CurrentRole)
+        AuditLogger.LogAudit("LOGIN_SUCCESS", "Signed in to " & AppBranding.ApplicationName & ".", AppSession.CurrentRole)
 
         Me.DialogResult = DialogResult.OK
         Me.Close()

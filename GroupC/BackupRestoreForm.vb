@@ -13,7 +13,7 @@ Public Class BackupRestoreForm
     Private WithEvents btnClose As Button
 
     Private Sub BackupRestoreForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        Me.Text = "Group C - Backup / Restore"
+        Me.Text = AppBranding.WindowTitle("Backup / Restore")
         Me.MinimumSize = New Size(600, 480)
         Me.Size = New Size(720, 560)
         Me.StartPosition = FormStartPosition.CenterParent

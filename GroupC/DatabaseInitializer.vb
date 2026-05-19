@@ -195,7 +195,7 @@ Public NotInheritable Class DatabaseInitializer
             Dim seedCat As String =
                 "IF NOT EXISTS (SELECT 1 FROM dbo.categories) " &
                 "BEGIN " &
-                " INSERT INTO dbo.categories (category_name) VALUES (N'Stationery'), (N'Supplies'), (N'Paper'); " &
+                " INSERT INTO dbo.categories (category_name) VALUES (N'Fiction'), (N'Textbooks'), (N'Children''s Books'), (N'Stationery'), (N'Gifts'); " &
                 "END;"
 
             Using cmd As New SqlCommand(seedCat, connection)
@@ -205,16 +205,18 @@ Public NotInheritable Class DatabaseInitializer
             Dim seedProducts As String =
                 "IF NOT EXISTS (SELECT 1 FROM dbo.products) " &
                 "BEGIN " &
-                " DECLARE @st INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Stationery'); " &
-                " DECLARE @paper INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Paper'); " &
-                " IF @st IS NULL SET @st = (SELECT TOP 1 category_id FROM dbo.categories ORDER BY category_id); " &
-                " IF @paper IS NULL SET @paper = @st; " &
+                " DECLARE @fiction INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Fiction'); " &
+                " DECLARE @textbooks INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Textbooks'); " &
+                " DECLARE @stationery INT = (SELECT TOP 1 category_id FROM dbo.categories WHERE category_name = N'Stationery'); " &
+                " IF @fiction IS NULL SET @fiction = (SELECT TOP 1 category_id FROM dbo.categories ORDER BY category_id); " &
+                " IF @textbooks IS NULL SET @textbooks = @fiction; " &
+                " IF @stationery IS NULL SET @stationery = @fiction; " &
                 " INSERT INTO dbo.products (product_name, price, category_id) VALUES " &
-                "  (N'Notebook', 45.00, @st), " &
-                "  (N'Ballpen', 12.00, @st), " &
-                "  (N'Pencil', 8.00, @st), " &
-                "  (N'Eraser', 10.00, @st), " &
-                "  (N'Bond Paper', 150.00, @paper); " &
+                "  (N'The Great Gatsby', 450.00, @fiction), " &
+                "  (N'Introduction to Algorithms', 1200.00, @textbooks), " &
+                "  (N'Notebook', 45.00, @stationery), " &
+                "  (N'Ballpen', 12.00, @stationery), " &
+                "  (N'Bookmark Set', 25.00, @stationery); " &
                 "END;"
 
             Using command As New SqlCommand(seedProducts, connection)

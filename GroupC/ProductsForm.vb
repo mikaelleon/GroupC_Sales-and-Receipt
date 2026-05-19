@@ -61,6 +61,7 @@ Public Class ProductsForm
     Private WithEvents btnTestDb As Button
     Private WithEvents btnImportCsv As Button
     Private WithEvents btnBack As Button
+    Private WithEvents btnManageCategories As Button
 
     Private WithEvents cmbGridCategoryFilter As ComboBox
 
@@ -82,7 +83,7 @@ Public Class ProductsForm
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
-        Me.Text = "Group C - Manage Products"
+        Me.Text = AppBranding.WindowTitle("Manage Products")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
 
         Try
@@ -134,6 +135,7 @@ Public Class ProductsForm
         btnTestDb = New Button() With {.Text = "Test DB", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
         btnImportCsv = New Button() With {.Text = "Import CSV", .Size = New Size(100, 34), .Cursor = Cursors.Hand}
         btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
+        btnManageCategories = New Button() With {.Text = "Manage &categories…", .Size = New Size(160, 34), .Cursor = Cursors.Hand}
 
         ' Apply Themes
         Try
@@ -145,6 +147,7 @@ Public Class ProductsForm
             UiTheme.ApplySecondaryAccentButton(btnTestDb)
             UiTheme.ApplyPrimaryButton(btnImportCsv)
             UiTheme.ApplySecondaryButton(btnBack)
+            UiTheme.ApplySecondaryAccentButton(btnManageCategories)
         Catch
         End Try
 
@@ -260,6 +263,7 @@ Public Class ProductsForm
         pnlUtility.Controls.Add(New Label() With {.Text = "Database Utilities", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Margin = New Padding(0, 0, 0, 10)})
 
         Dim pnlUtilBtns As New FlowLayoutPanel() With {.AutoSize = True}
+        pnlUtilBtns.Controls.Add(btnManageCategories)
         pnlUtilBtns.Controls.Add(btnImportCsv)
         pnlUtilBtns.Controls.Add(btnTestDb)
         pnlUtility.Controls.Add(pnlUtilBtns)
@@ -449,9 +453,7 @@ Public Class ProductsForm
             Return
         End If
 
-        If dgvProducts.Columns.Contains("id") Then
-            dgvProducts.Columns("id").Visible = False
-        End If
+        GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
         If dgvProducts.Columns.Contains("product_name") Then
             dgvProducts.Columns("product_name").HeaderText = "Product"
@@ -466,11 +468,7 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("is_active") Then
             dgvProducts.Columns("is_active").HeaderText = "Active"
-            dgvProducts.Columns("is_active").Width = 70
-        End If
-
-        If dgvProducts.Columns.Contains("category_id") Then
-            dgvProducts.Columns("category_id").Visible = False
+            dgvProducts.Columns("is_active").Width = 64
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then
@@ -1092,9 +1090,19 @@ Public Class ProductsForm
     End Sub
 
     Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
-        ' This automatically closes the Products form, 
-        ' which triggers the Main Menu to Show() itself again!
         Me.Close()
+    End Sub
+
+    Private Sub btnManageCategories_Click(sender As Object, e As EventArgs) Handles btnManageCategories.Click
+        If Not AppSession.RequireAdmin(Me) Then
+            Return
+        End If
+
+        Using form As New CategoriesForm()
+            form.ShowDialog(Me)
+        End Using
+
+        LoadProducts()
     End Sub
 
 End Class
