@@ -22,7 +22,11 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\AppIcon.ico" />
+    <EmbeddedResource Include="Assets\ReceiptLogo.png" />
     <Content Include="Assets\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\ReceiptLogo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

@@ -1008,9 +1008,7 @@ Public Class SalesForm
         Dim receipt As New StringBuilder()
         Dim sym As String = snapshot.CurrencySymbol
 
-        receipt.AppendLine("========================================")
-        receipt.AppendLine("         " & snapshot.StoreName)
-        receipt.AppendLine("========================================")
+        receipt.AppendLine(ReceiptBranding.FormatReceiptHeader(snapshot.StoreName))
         receipt.AppendLine("Date: " & DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture))
         If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
             receipt.AppendLine("Cashier: " & snapshot.CashierName.Trim())
@@ -1061,7 +1059,7 @@ Public Class SalesForm
         receipt.AppendLine("TENDERED:".PadRight(22) & (sym & snapshot.AmountTendered.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
         receipt.AppendLine("CHANGE:".PadRight(22) & (sym & snapshot.ChangeGiven.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
         receipt.AppendLine("========================================")
-        receipt.AppendLine("       " & snapshot.FooterText)
+        receipt.AppendLine(ReceiptBranding.CenterText(snapshot.FooterText))
         receipt.AppendLine("========================================")
 
         Return receipt.ToString()
