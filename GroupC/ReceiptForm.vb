@@ -21,6 +21,7 @@ Public Class ReceiptForm
 
     Private dgvLines As DataGridView
     Private rtbReceipt As RichTextBox
+    Private picReceiptLogo As PictureBox
     Private lblSaleMeta As Label
     Private WithEvents cmbHistory As ComboBox
     Private WithEvents btnPrint As Button
@@ -145,13 +146,23 @@ Public Class ReceiptForm
 
         lblSaleMeta = New Label() With {.Text = "Sale Details will appear here...", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Font = New Font("Segoe UI", 10)}
 
-        ' The Receipt Paper
+        picReceiptLogo = New PictureBox() With {
+            .Size = New Size(ReceiptBranding.ReceiptContentWidth, ReceiptBranding.ReceiptLogoHeight),
+            .SizeMode = PictureBoxSizeMode.Zoom,
+            .BackColor = Color.White,
+            .Margin = New Padding(0, 0, 0, 6)
+        }
+
         rtbReceipt = New RichTextBox() With {
-            .Dock = DockStyle.Fill,
-            .Font = New Font("Courier New", 11),
+            .Width = ReceiptBranding.ReceiptContentWidth,
+            .Height = 480,
+            .Font = New Font("Courier New", 10.0F),
             .ReadOnly = True,
             .BackColor = Color.White,
-            .BorderStyle = BorderStyle.None
+            .BorderStyle = BorderStyle.None,
+            .ScrollBars = RichTextBoxScrollBars.Vertical,
+            .WordWrap = False,
+            .Margin = Padding.Empty
         }
 
         dgvLines = New DataGridView() With {
@@ -279,45 +290,92 @@ Public Class ReceiptForm
         leftLayout.Controls.Add(pnlUtility, 0, 3)
         leftSidebar.Controls.Add(leftLayout)
 
-        ' --- RIGHT CARD (Receipt Preview) ---
-        Dim rightCard As New TableLayoutPanel() With {
+        ' --- RIGHT: Receipt preview (matches other workspace screens) ---
+        Dim previewHost As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(30, 30, 30, 20),
+            .BackColor = UiTheme.FormBackground
+        }
+
+        Dim previewLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 2,
-            .Padding = New Padding(30, 30, 30, 30)
+            .BackColor = UiTheme.FormBackground
         }
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Header
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Preview Area
+        previewLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        previewLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
+        Dim headerPanel As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1, .RowCount = 2}
         Dim lblTitleRight As New Label() With {
             .Text = "Receipt Preview",
-            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .Font = New Font("Segoe UI", 16.0F, FontStyle.Bold),
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 15)
+            .Margin = New Padding(0, 0, 0, 4)
         }
-        rightCard.Controls.Add(lblTitleRight, 0, 0)
+        Dim lblPreviewHint As New Label() With {
+            .Text = "Preview, print, or export the receipt for the selected sale.",
+            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
+            .ForeColor = UiTheme.TextSecondary,
+            .AutoSize = True,
+            .MaximumSize = New Size(720, 0),
+            .Margin = New Padding(0, 0, 0, 16)
+        }
+        headerPanel.Controls.Add(lblTitleRight, 0, 0)
+        headerPanel.Controls.Add(lblPreviewHint, 0, 1)
+        previewLayout.Controls.Add(headerPanel, 0, 0)
 
-        ' Mocking a "piece of paper" for the receipt
-        Dim paperPanel As New Panel() With {
+        Dim previewCard As Panel = UiTheme.CreateCardPanel(New Padding(20))
+        previewCard.Dock = DockStyle.Fill
+
+        Dim cardHost As Panel = UiTheme.GetCardContentHost(previewCard)
+        Dim centerLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
+            .ColumnCount = 3,
+            .RowCount = 3,
+            .BackColor = UiTheme.CardSurface
+        }
+        centerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        centerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        centerLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+
+        Dim receiptPaper As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .BackColor = Color.White,
-            .Padding = New Padding(30),
-            .BorderStyle = BorderStyle.FixedSingle ' Gives it a crisp paper edge!
+            .Padding = New Padding(12, 16, 12, 20),
+            .BorderStyle = BorderStyle.FixedSingle,
+            .MaximumSize = New Size(ReceiptBranding.ReceiptContentWidth + 24, 0)
         }
 
-        paperPanel.Controls.Add(rtbReceipt)
-        paperPanel.Controls.Add(dgvLines)
+        Dim receiptStack As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .BackColor = Color.White,
+            .Width = ReceiptBranding.ReceiptContentWidth
+        }
+        receiptStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        receiptStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        receiptStack.Controls.Add(picReceiptLogo, 0, 0)
+        receiptStack.Controls.Add(rtbReceipt, 0, 1)
 
-        ' THE FIX 1: Guarantee the text box is physically stacked on top of the grid
-        rtbReceipt.BringToFront()
+        receiptPaper.Controls.Add(receiptStack)
+        centerLayout.Controls.Add(receiptPaper, 1, 1)
+        cardHost.Controls.Add(centerLayout)
 
-        ' THE FIX 2: Add the paper directly to the right card to avoid the custom Card Theme hiding it completely!
-        rightCard.Controls.Add(paperPanel, 0, 1)
+        previewLayout.Controls.Add(previewCard, 0, 1)
+        previewHost.Controls.Add(previewLayout)
+
+        dgvLines.Visible = False
 
         ' 3. ASSEMBLE ALL
         rootTable.Controls.Add(leftSidebar, 0, 0)
-        rootTable.Controls.Add(rightCard, 1, 0)
+        rootTable.Controls.Add(previewHost, 1, 0)
 
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
@@ -351,13 +409,58 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub ApplyReceiptContent(text As String, isPlaceholder As Boolean)
-        rtbReceipt.Text = text
         If isPlaceholder Then
+            picReceiptLogo.Visible = False
+            rtbReceipt.Text = text
             rtbReceipt.ForeColor = UiTheme.TextSecondary
-        Else
-            rtbReceipt.ForeColor = UiTheme.TextPrimary
+            ResizeReceiptTextBox()
+            Return
         End If
+
+        picReceiptLogo.Visible = True
+
+        Dim previousLogo As Image = picReceiptLogo.Image
+        Dim logo As Image = ReceiptBranding.TryGetReceiptLogo()
+        If logo IsNot Nothing Then
+            picReceiptLogo.Image = logo
+            previousLogo?.Dispose()
+        Else
+            picReceiptLogo.Visible = False
+            previousLogo?.Dispose()
+            picReceiptLogo.Image = Nothing
+        End If
+
+        rtbReceipt.Text = ReceiptBranding.GetReceiptText(text)
+        rtbReceipt.ForeColor = UiTheme.TextPrimary
+        ResizeReceiptTextBox()
     End Sub
+
+    Private Sub ResizeReceiptTextBox()
+        Const MinHeight As Integer = 200
+        Const MaxHeight As Integer = 560
+        Const MaxVisibleLines As Integer = 32
+
+        Dim normalized As String = rtbReceipt.Text.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf)
+        Dim lines As String() = normalized.Split(ChrW(10))
+        Dim lineCount As Integer = Math.Max(1, lines.Length)
+        Dim visibleLines As Integer = Math.Min(lineCount, MaxVisibleLines)
+
+        Using g As Graphics = rtbReceipt.CreateGraphics()
+            Dim lineHeight As Single = g.MeasureString("Ag", rtbReceipt.Font, Integer.MaxValue, StringFormat.GenericTypographic).Height
+            Dim desired As Integer = CInt(Math.Ceiling(visibleLines * lineHeight)) + 16
+            rtbReceipt.Height = Math.Min(MaxHeight, Math.Max(MinHeight, desired))
+        End Using
+
+        rtbReceipt.ScrollBars = If(lineCount > MaxVisibleLines, RichTextBoxScrollBars.Vertical, RichTextBoxScrollBars.None)
+    End Sub
+
+    Private Function GetFullReceiptSource() As String
+        If Not String.IsNullOrWhiteSpace(receiptText) Then
+            Return receiptText
+        End If
+
+        Return rtbReceipt.Text
+    End Function
 
     Private Sub LoadHistoryCombo()
         cmbHistory.Items.Clear()
@@ -437,7 +540,8 @@ Public Class ReceiptForm
                             Dim sid As Integer = Convert.ToInt32(reader("sale_id"))
                             Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
                             lblSaleMeta.Text = String.Format("Loaded sale #{0} — {1:yyyy-MM-dd HH:mm}", sid, sdt)
-                            ApplyReceiptContent(reader("receipt_text").ToString(), False)
+                            receiptText = reader("receipt_text").ToString()
+                            ApplyReceiptContent(receiptText, False)
                             LoadSaleLinesIntoGrid(connection, sid)
                         Else
                             lblSaleMeta.Text = "No saved receipt in database."
@@ -469,7 +573,8 @@ Public Class ReceiptForm
                         If reader.Read() Then
                             Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
                             lblSaleMeta.Text = String.Format("Loaded sale #{0} — {1:yyyy-MM-dd HH:mm}", saleId, sdt)
-                            ApplyReceiptContent(reader("receipt_text").ToString(), False)
+                            receiptText = reader("receipt_text").ToString()
+                            ApplyReceiptContent(receiptText, False)
                         Else
                             lblSaleMeta.Text = "Sale not found."
                             dgvLines.Rows.Clear()
@@ -537,7 +642,7 @@ Public Class ReceiptForm
             saveDialog.FileName = defaultName
 
             If saveDialog.ShowDialog() = DialogResult.OK Then
-                File.WriteAllText(saveDialog.FileName, rtbReceipt.Text)
+                File.WriteAllText(saveDialog.FileName, ReceiptBranding.GetReceiptText(GetFullReceiptSource()))
                 ShowStatus("Receipt saved as text file.", False)
             End If
         End Using
@@ -558,7 +663,7 @@ Public Class ReceiptForm
             End If
 
             Try
-                PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, rtbReceipt.Text)
+                PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, If(receiptText, rtbReceipt.Text))
                 ShowStatus("PDF exported.", False)
             Catch ex As Exception
                 ShowStatus("PDF export failed.", True)
@@ -573,12 +678,12 @@ Public Class ReceiptForm
             Return
         End If
 
-        Clipboard.SetText(rtbReceipt.Text)
+        Clipboard.SetText(ReceiptBranding.GetReceiptText(GetFullReceiptSource()))
         ShowStatus("Copied to clipboard.", False)
     End Sub
 
     Private Sub printDocument_BeginPrint(sender As Object, e As PrintEventArgs) Handles printDocument.BeginPrint
-        printHelper = New ReceiptPrintHelper(rtbReceipt.Text)
+        printHelper = New ReceiptPrintHelper(If(receiptText, rtbReceipt.Text))
         printHelper.BeginPrint()
     End Sub
 
