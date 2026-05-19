@@ -41,6 +41,11 @@ Public Class ReceiptSnapshot
     Public Property DiscountIsPercent As Boolean
 
     ''' <summary>
+    ''' Gets or sets a receipt label for the applied discount (for example PWD 20%).
+    ''' </summary>
+    Public Property DiscountLabel As String
+
+    ''' <summary>
     ''' Gets or sets the discount amount.
     ''' </summary>
     Public Property DiscountAmount As Decimal

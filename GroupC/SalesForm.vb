@@ -33,6 +33,16 @@ Public Class SalesForm
     Private Const MinLineQty As Integer = 1
     Private Const MaxLineQty As Integer = 99999
     Private Const MaxCashTendered As Decimal = 999999999.99D
+    Private Const DiscountPwdPercent As Decimal = 20D
+    Private Const DiscountSeniorPercent As Decimal = 20D
+    Private Const DiscountMembershipPercent As Decimal = 10D
+
+    Private Enum PosDiscountType
+        None = 0
+        Pwd = 1
+        Senior = 2
+        Membership = 3
+    End Enum
 
     Private WithEvents cmbSalesCategory As ComboBox
     Private WithEvents cmbProductName As ComboBox
@@ -49,11 +59,14 @@ Public Class SalesForm
     Private WithEvents btnFinalize As Button
 
     Private lblDiscountHeading As Label
-    Private WithEvents radDiscountPercent As RadioButton
-    Private WithEvents radDiscountFixed As RadioButton
-    Private WithEvents numDiscountPercent As NumericUpDown
-    Private WithEvents chkApplyTax As CheckBox
+    Private lblCustomerDiscount As Label
+    Private WithEvents btnDiscPwd As Button
+    Private WithEvents btnDiscSenior As Button
+    Private WithEvents btnDiscMembership As Button
+    Private WithEvents btnTaxToggle As Button
     Private WithEvents numTaxPercent As NumericUpDown
+    Private selectedPosDiscount As PosDiscountType = PosDiscountType.None
+    Private taxToggleOn As Boolean
     Private WithEvents txtAmountTendered As TextBox
 
     Private lblSalesInputError As Label
@@ -92,7 +105,6 @@ Public Class SalesForm
         End Try
 
         LoadProducts()
-        ConfigureDiscountNumeric()
         UpdateSummaryLabels()
     End Sub
 
@@ -131,12 +143,23 @@ Public Class SalesForm
         Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
         AddHandler btnBack.Click, Sub(s, ev) Me.Close()
 
-        lblDiscountHeading = New Label() With {.Text = "Discount (%)", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Anchor = AnchorStyles.Right Or AnchorStyles.Top, .Margin = New Padding(0, 5, 5, 0)}
-        radDiscountPercent = New RadioButton() With {.Text = "Percent (%)", .AutoSize = True, .Checked = True, .Font = New Font("Segoe UI", 10)}
-        radDiscountFixed = New RadioButton() With {.Text = "Fixed (" & AppSettings.Current.CurrencySymbol & ")", .AutoSize = True, .Font = New Font("Segoe UI", 10)}
-        numDiscountPercent = New NumericUpDown() With {.DecimalPlaces = 2, .Minimum = 0D, .Maximum = 100D, .Increment = 0.5D, .Font = New Font("Segoe UI", 11), .Width = 100}
+        lblDiscountHeading = New Label() With {.Text = "Discount", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Anchor = AnchorStyles.Right Or AnchorStyles.Top, .Margin = New Padding(0, 5, 5, 0)}
+        lblCustomerDiscount = New Label() With {.Text = "Customer discount", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Font = New Font("Segoe UI", 9, FontStyle.Bold), .Margin = New Padding(0, 0, 0, 4)}
 
-        chkApplyTax = New CheckBox() With {.Text = "VAT / Tax %", .AutoSize = True, .Font = New Font("Segoe UI", 10)}
+        btnDiscPwd = CreatePosDiscountToggle("♿ PWD (20%)", PosDiscountType.Pwd)
+        btnDiscSenior = CreatePosDiscountToggle("👴 Senior (20%)", PosDiscountType.Senior)
+        btnDiscMembership = CreatePosDiscountToggle("🎫 Member (10%)", PosDiscountType.Membership)
+
+        btnTaxToggle = New Button() With {
+            .Text = "🧾 VAT / Tax %",
+            .AutoSize = True,
+            .MinimumSize = New Size(130, 32),
+            .Font = New Font("Segoe UI", 10),
+            .Cursor = Cursors.Hand,
+            .FlatStyle = FlatStyle.Flat,
+            .Margin = New Padding(0, 8, 0, 4)
+        }
+        btnTaxToggle.FlatAppearance.BorderColor = UiTheme.CardBorder
         numTaxPercent = New NumericUpDown() With {.DecimalPlaces = 2, .Minimum = 0D, .Maximum = 100D, .Increment = 0.5D, .Enabled = False, .Font = New Font("Segoe UI", 11), .Width = 100}
 
         txtAmountTendered = New TextBox() With {.TextAlign = HorizontalAlignment.Right, .Font = New Font("Segoe UI", 12, FontStyle.Bold), .Dock = DockStyle.Fill}
@@ -325,15 +348,25 @@ Public Class SalesForm
         checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 30.0F)) ' Finalize Button
 
         ' 1. Settings Panel
-        Dim settingsLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 2, .RowCount = 4, .Padding = New Padding(15)}
-        settingsLayout.Controls.Add(radDiscountPercent, 0, 0)
-        settingsLayout.Controls.Add(radDiscountFixed, 1, 0)
-        settingsLayout.Controls.Add(numDiscountPercent, 0, 1)
-        settingsLayout.SetColumnSpan(numDiscountPercent, 2)
-        settingsLayout.Controls.Add(chkApplyTax, 0, 2)
-        settingsLayout.SetColumnSpan(chkApplyTax, 2)
+        Dim settingsLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4, .Padding = New Padding(15)}
+        settingsLayout.Controls.Add(lblCustomerDiscount, 0, 0)
+
+        Dim discountToggleRow As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
+            .WrapContents = True,
+            .Margin = New Padding(0, 0, 0, 6)
+        }
+        discountToggleRow.Controls.Add(btnDiscPwd)
+        discountToggleRow.Controls.Add(btnDiscSenior)
+        discountToggleRow.Controls.Add(btnDiscMembership)
+        settingsLayout.Controls.Add(discountToggleRow, 0, 1)
+
+        settingsLayout.Controls.Add(btnTaxToggle, 0, 2)
         settingsLayout.Controls.Add(numTaxPercent, 0, 3)
-        settingsLayout.SetColumnSpan(numTaxPercent, 2)
+
+        RefreshPosDiscountToggleUi()
+        RefreshTaxToggleUi()
 
         ' 2. Details Panel
         Dim detailsLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 2, .RowCount = 5, .Padding = New Padding(15)}
@@ -434,45 +467,123 @@ Public Class SalesForm
         Return value >= minInclusive AndAlso value <= maxInclusive
     End Function
 
-    Private Sub chkApplyTax_CheckedChanged(sender As Object, e As EventArgs) Handles chkApplyTax.CheckedChanged
-        If suppressSalesSummary OrElse chkApplyTax Is Nothing OrElse numTaxPercent Is Nothing Then
+    Private Function CreatePosDiscountToggle(caption As String, discountType As PosDiscountType) As Button
+        Dim btn As New Button() With {
+            .Text = caption,
+            .Tag = discountType,
+            .AutoSize = True,
+            .MinimumSize = New Size(118, 32),
+            .Font = New Font("Segoe UI", 9.5F),
+            .Cursor = Cursors.Hand,
+            .FlatStyle = FlatStyle.Flat,
+            .Margin = New Padding(0, 0, 6, 6)
+        }
+        btn.FlatAppearance.BorderColor = UiTheme.CardBorder
+        Return btn
+    End Function
+
+    Private Sub btnTaxToggle_Click(sender As Object, e As EventArgs) Handles btnTaxToggle.Click
+        If suppressSalesSummary Then
             Return
         End If
 
-        numTaxPercent.Enabled = chkApplyTax.Checked
+        taxToggleOn = Not taxToggleOn
+        RefreshTaxToggleUi()
         UpdateSummaryLabels()
     End Sub
 
-    Private Sub DiscountOrTax_Changed(sender As Object, e As EventArgs) Handles numDiscountPercent.ValueChanged, numTaxPercent.ValueChanged
+    Private Sub numTaxPercent_ValueChanged(sender As Object, e As EventArgs) Handles numTaxPercent.ValueChanged
         UpdateSummaryLabels()
     End Sub
 
-    Private Sub radDiscountType_CheckedChanged(sender As Object, e As EventArgs) Handles radDiscountPercent.CheckedChanged, radDiscountFixed.CheckedChanged
-        ConfigureDiscountNumeric()
-        UpdateSummaryLabels()
-    End Sub
-
-    Private Sub ConfigureDiscountNumeric()
-        If numDiscountPercent Is Nothing OrElse radDiscountPercent Is Nothing Then
+    Private Sub PosDiscountToggle_Click(sender As Object, e As EventArgs) Handles btnDiscPwd.Click, btnDiscSenior.Click, btnDiscMembership.Click
+        If suppressSalesSummary Then
             Return
         End If
 
-        Dim cur As Decimal = numDiscountPercent.Value
-        If radDiscountPercent.Checked Then
-            numDiscountPercent.DecimalPlaces = 2
-            numDiscountPercent.Minimum = 0D
-            numDiscountPercent.Maximum = 100D
-            numDiscountPercent.Increment = 0.5D
-            If cur > 100D Then
-                numDiscountPercent.Value = 100D
-            End If
+        Dim clicked As Button = TryCast(sender, Button)
+        If clicked Is Nothing OrElse clicked.Tag Is Nothing Then
+            Return
+        End If
+
+        Dim clickedType As PosDiscountType = CType(clicked.Tag, PosDiscountType)
+        If selectedPosDiscount = clickedType Then
+            selectedPosDiscount = PosDiscountType.None
         Else
-            numDiscountPercent.DecimalPlaces = 2
-            numDiscountPercent.Minimum = 0D
-            numDiscountPercent.Maximum = MaxCashTendered
-            numDiscountPercent.Increment = 1D
+            selectedPosDiscount = clickedType
         End If
+
+        RefreshPosDiscountToggleUi()
+        UpdateSummaryLabels()
     End Sub
+
+    Private Sub RefreshPosDiscountToggleUi()
+        ApplyPosDiscountToggleState(btnDiscPwd, PosDiscountType.Pwd)
+        ApplyPosDiscountToggleState(btnDiscSenior, PosDiscountType.Senior)
+        ApplyPosDiscountToggleState(btnDiscMembership, PosDiscountType.Membership)
+    End Sub
+
+    Private Sub ApplyPosDiscountToggleState(btn As Button, discountType As PosDiscountType)
+        If btn Is Nothing Then
+            Return
+        End If
+
+        Dim isSelected As Boolean = selectedPosDiscount = discountType
+        Dim othersLocked As Boolean = selectedPosDiscount <> PosDiscountType.None AndAlso Not isSelected
+
+        btn.Enabled = Not othersLocked
+        btn.BackColor = If(isSelected, UiTheme.PrimaryAccent, UiTheme.CardSurface)
+        btn.ForeColor = If(isSelected, UiTheme.TextOnAccent, UiTheme.TextPrimary)
+        btn.FlatAppearance.BorderColor = If(isSelected, UiTheme.PrimaryAccent, UiTheme.CardBorder)
+    End Sub
+
+    Private Sub RefreshTaxToggleUi()
+        If btnTaxToggle Is Nothing OrElse numTaxPercent Is Nothing Then
+            Return
+        End If
+
+        numTaxPercent.Enabled = taxToggleOn
+        btnTaxToggle.BackColor = If(taxToggleOn, UiTheme.PrimaryAccent, UiTheme.CardSurface)
+        btnTaxToggle.ForeColor = If(taxToggleOn, UiTheme.TextOnAccent, UiTheme.TextPrimary)
+        btnTaxToggle.FlatAppearance.BorderColor = If(taxToggleOn, UiTheme.PrimaryAccent, UiTheme.CardBorder)
+    End Sub
+
+    Private Sub ResetPosCheckoutOptions()
+        selectedPosDiscount = PosDiscountType.None
+        taxToggleOn = False
+        If numTaxPercent IsNot Nothing Then
+            numTaxPercent.Value = 0D
+        End If
+
+        RefreshPosDiscountToggleUi()
+        RefreshTaxToggleUi()
+    End Sub
+
+    Private Function GetSelectedDiscountPercent() As Decimal
+        Select Case selectedPosDiscount
+            Case PosDiscountType.Pwd
+                Return DiscountPwdPercent
+            Case PosDiscountType.Senior
+                Return DiscountSeniorPercent
+            Case PosDiscountType.Membership
+                Return DiscountMembershipPercent
+            Case Else
+                Return 0D
+        End Select
+    End Function
+
+    Private Function GetSelectedDiscountLabel() As String
+        Select Case selectedPosDiscount
+            Case PosDiscountType.Pwd
+                Return "PWD " & DiscountPwdPercent.ToString("N0", CultureInfo.CurrentCulture) & "%"
+            Case PosDiscountType.Senior
+                Return "Senior " & DiscountSeniorPercent.ToString("N0", CultureInfo.CurrentCulture) & "%"
+            Case PosDiscountType.Membership
+                Return "Member " & DiscountMembershipPercent.ToString("N0", CultureInfo.CurrentCulture) & "%"
+            Case Else
+                Return String.Empty
+        End Select
+    End Function
 
     Private Sub cmbSalesCategory_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbSalesCategory.SelectedIndexChanged
         If suppressSalesCategoryEvent Then
@@ -642,8 +753,8 @@ Public Class SalesForm
         Dim hasLines As Boolean = dgvProducts.Rows.Count > 0
         Dim hasTenderOrDiscount As Boolean =
             txtAmountTendered.Text.Trim().Length > 0 OrElse
-            numDiscountPercent.Value <> 0D OrElse
-            chkApplyTax.Checked OrElse
+            selectedPosDiscount <> PosDiscountType.None OrElse
+            taxToggleOn OrElse
             numTaxPercent.Value <> 0D
 
         If Not hasLines AndAlso Not hasTenderOrDiscount Then
@@ -661,11 +772,7 @@ Public Class SalesForm
 
         dgvProducts.Rows.Clear()
         txtAmountTendered.Clear()
-        radDiscountPercent.Checked = True
-        numDiscountPercent.Value = 0D
-        ConfigureDiscountNumeric()
-        chkApplyTax.Checked = False
-        numTaxPercent.Value = 0D
+        ResetPosCheckoutOptions()
         cmbProductName.SelectedIndex = -1
         txtPrice.Clear()
         numQuantity.Value = MinLineQty
@@ -865,9 +972,10 @@ Public Class SalesForm
             .FooterText = AppSettings.Current.ReceiptFooter,
             .CurrencySymbol = AppSettings.Current.CurrencySymbol,
             .Lines = New List(Of ReceiptLineRow)(),
-            .DiscountPercent = numDiscountPercent.Value,
-            .DiscountIsPercent = radDiscountPercent.Checked,
-            .TaxApplied = chkApplyTax.Checked,
+            .DiscountPercent = GetSelectedDiscountPercent(),
+            .DiscountIsPercent = True,
+            .DiscountLabel = GetSelectedDiscountLabel(),
+            .TaxApplied = taxToggleOn,
             .TaxPercent = numTaxPercent.Value,
             .SubtotalBeforeDiscount = GetCartSubtotalSum(),
             .DiscountAmount = GetDiscountAmount(),
@@ -928,7 +1036,9 @@ Public Class SalesForm
 
         If snapshot.DiscountAmount > 0D Then
             Dim discLabel As String
-            If snapshot.DiscountIsPercent Then
+            If Not String.IsNullOrWhiteSpace(snapshot.DiscountLabel) Then
+                discLabel = "Discount (" & snapshot.DiscountLabel & "):"
+            ElseIf snapshot.DiscountIsPercent Then
                 discLabel = "Discount (" & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & "%):"
             Else
                 discLabel = "Discount (" & sym & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & " fixed):"
@@ -1024,11 +1134,7 @@ Public Class SalesForm
             ShowStatus("Sale saved. Receipt preview opened.", False)
             dgvProducts.Rows.Clear()
             txtAmountTendered.Clear()
-            radDiscountPercent.Checked = True
-            numDiscountPercent.Value = 0D
-            ConfigureDiscountNumeric()
-            chkApplyTax.Checked = False
-            numTaxPercent.Value = 0D
+            ResetPosCheckoutOptions()
             numQuantity.Value = MinLineQty
             ClearSalesInputError()
             UpdateSummaryLabels()
@@ -1228,18 +1334,12 @@ Public Class SalesForm
             Return 0D
         End If
 
-        If radDiscountPercent Is Nothing OrElse numDiscountPercent Is Nothing Then
+        Dim pct As Decimal = GetSelectedDiscountPercent()
+        If pct <= 0D Then
             Return 0D
         End If
 
-        If radDiscountPercent.Checked Then
-            Dim pct As Decimal = numDiscountPercent.Value
-            Return Math.Round(cartSum * (pct / 100D), 2, MidpointRounding.AwayFromZero)
-        End If
-
-        Dim fixedPart As Decimal = numDiscountPercent.Value
-        fixedPart = Math.Round(fixedPart, 2, MidpointRounding.AwayFromZero)
-        Return Math.Min(fixedPart, cartSum)
+        Return Math.Round(cartSum * (pct / 100D), 2, MidpointRounding.AwayFromZero)
     End Function
 
     Private Function GetAmountBeforeTax() As Decimal
@@ -1247,11 +1347,11 @@ Public Class SalesForm
     End Function
 
     Private Function GetTaxAmount() As Decimal
-        If chkApplyTax Is Nothing OrElse numTaxPercent Is Nothing Then
+        If numTaxPercent Is Nothing Then
             Return 0D
         End If
 
-        If Not chkApplyTax.Checked Then
+        If Not taxToggleOn Then
             Return 0D
         End If
 
@@ -1290,12 +1390,9 @@ Public Class SalesForm
         Dim cartSum As Decimal = GetCartSubtotalSum()
         lblSubtotalValue.Text = FormatMoney(cartSum)
 
-        If lblDiscountHeading IsNot Nothing AndAlso radDiscountPercent IsNot Nothing Then
-            If radDiscountPercent.Checked Then
-                lblDiscountHeading.Text = "Discount rate (%)"
-            Else
-                lblDiscountHeading.Text = "Discount (" & AppSettings.Current.CurrencySymbol & ")"
-            End If
+        If lblDiscountHeading IsNot Nothing Then
+            Dim label As String = GetSelectedDiscountLabel()
+            lblDiscountHeading.Text = If(label.Length > 0, "Discount (" & label & "):", "Discount:")
         End If
 
         lblDiscountValue.Text = FormatMoney(GetDiscountAmount())

@@ -453,9 +453,7 @@ Public Class ProductsForm
             Return
         End If
 
-        If dgvProducts.Columns.Contains("id") Then
-            dgvProducts.Columns("id").Visible = False
-        End If
+        GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
         If dgvProducts.Columns.Contains("product_name") Then
             dgvProducts.Columns("product_name").HeaderText = "Product"
@@ -470,11 +468,7 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("is_active") Then
             dgvProducts.Columns("is_active").HeaderText = "Active"
-            dgvProducts.Columns("is_active").Width = 70
-        End If
-
-        If dgvProducts.Columns.Contains("category_id") Then
-            dgvProducts.Columns("category_id").Visible = False
+            dgvProducts.Columns("is_active").Width = 64
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then

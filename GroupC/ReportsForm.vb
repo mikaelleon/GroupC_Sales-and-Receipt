@@ -233,9 +233,23 @@ Public Class ReportsForm
                 End Using
 
                 dgvAudit.DataSource = dt
+                GridDisplayHelper.HideInternalIdColumns(dgvAudit)
                 If dgvAudit.Columns.Count > 0 Then
                     If dgvAudit.Columns.Contains("LoggedAt") Then
+                        dgvAudit.Columns("LoggedAt").HeaderText = "Logged at"
                         dgvAudit.Columns("LoggedAt").DefaultCellStyle.Format = "yyyy-MM-dd HH:mm"
+                    End If
+
+                    If dgvAudit.Columns.Contains("Action") Then
+                        dgvAudit.Columns("Action").HeaderText = "Action"
+                    End If
+
+                    If dgvAudit.Columns.Contains("Detail") Then
+                        dgvAudit.Columns("Detail").HeaderText = "Detail"
+                    End If
+
+                    If dgvAudit.Columns.Contains("PerformedBy") Then
+                        dgvAudit.Columns("PerformedBy").HeaderText = "Performed by"
                     End If
                 End If
             End Using

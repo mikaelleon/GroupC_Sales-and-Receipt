@@ -219,10 +219,7 @@ Public Class CategoriesForm
             Return
         End If
 
-        If dgvCategories.Columns.Contains("category_id") Then
-            dgvCategories.Columns("category_id").HeaderText = "ID"
-            dgvCategories.Columns("category_id").Width = 50
-        End If
+        GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvCategories)
 
         If dgvCategories.Columns.Contains("category_name") Then
             dgvCategories.Columns("category_name").HeaderText = "Category"
@@ -230,7 +227,7 @@ Public Class CategoriesForm
 
         If dgvCategories.Columns.Contains("is_active") Then
             dgvCategories.Columns("is_active").HeaderText = "Active"
-            dgvCategories.Columns("is_active").Width = 60
+            dgvCategories.Columns("is_active").Width = 64
         End If
 
         If dgvCategories.Columns.Contains("active_products") Then
