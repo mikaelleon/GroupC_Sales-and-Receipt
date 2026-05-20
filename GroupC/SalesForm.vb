@@ -949,11 +949,19 @@ Public Class SalesForm
         End If
 
         Dim snapshot As ReceiptSnapshot = BuildReceiptSnapshot()
-        snapshot.ReceiptText = BuildReceiptText(snapshot)
+        snapshot.SaleDateTime = DateTime.Now
+        snapshot.PaymentMethod = "Cash"
+        snapshot.ReceiptText = String.Empty
         Dim newSaleId As Integer = -1
         If Not SaveSale(snapshot, newSaleId) Then
             Return
         End If
+
+        snapshot.SaleId = newSaleId
+        snapshot.ReceiptNumber = ReceiptBranding.FormatReceiptNumber(newSaleId)
+        snapshot.TransactionReference = ReceiptBranding.FormatTransactionReference(newSaleId, snapshot.SaleDateTime)
+        snapshot.ReceiptText = ReceiptBranding.BuildReceiptText(snapshot)
+        UpdateSaleReceiptText(newSaleId, snapshot.ReceiptText)
 
         Using receiptForm As New ReceiptForm(snapshot, newSaleId)
             receiptForm.ShowDialog()
@@ -1004,66 +1012,20 @@ Public Class SalesForm
         Return snap
     End Function
 
-    Private Function BuildReceiptText(snapshot As ReceiptSnapshot) As String
-        Dim receipt As New StringBuilder()
-        Dim sym As String = snapshot.CurrencySymbol
-
-        receipt.AppendLine(ReceiptBranding.FormatReceiptHeader(snapshot.StoreName))
-        receipt.AppendLine("Date: " & DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture))
-        If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
-            receipt.AppendLine("Cashier: " & snapshot.CashierName.Trim())
-        End If
-        receipt.AppendLine("----------------------------------------")
-        receipt.AppendLine("Item              Qty   Price    Subtotal")
-        receipt.AppendLine("----------------------------------------")
-
-        For Each lineRow As ReceiptLineRow In snapshot.Lines
-            Dim itemName As String = lineRow.ProductName
-            If itemName.Length > 15 Then
-                itemName = itemName.Substring(0, 15)
-            End If
-
-            Dim qtyStr As String = lineRow.Quantity.ToString(CultureInfo.CurrentCulture)
-            Dim priceStr As String = sym & lineRow.UnitPrice.ToString("N2", CultureInfo.CurrentCulture)
-            Dim subStr As String = sym & lineRow.LineTotal.ToString("N2", CultureInfo.CurrentCulture)
-
-            receipt.AppendLine(itemName.PadRight(18) &
-                               qtyStr.PadLeft(3) & " " &
-                               priceStr.PadLeft(8) & " " &
-                               subStr.PadLeft(9))
-        Next
-
-        receipt.AppendLine("----------------------------------------")
-        receipt.AppendLine("Subtotal:".PadRight(22) & (sym & snapshot.SubtotalBeforeDiscount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-
-        If snapshot.DiscountAmount > 0D Then
-            Dim discLabel As String
-            If Not String.IsNullOrWhiteSpace(snapshot.DiscountLabel) Then
-                discLabel = "Discount (" & snapshot.DiscountLabel & "):"
-            ElseIf snapshot.DiscountIsPercent Then
-                discLabel = "Discount (" & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & "%):"
-            Else
-                discLabel = "Discount (" & sym & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & " fixed):"
-            End If
-
-            receipt.AppendLine(discLabel.PadRight(22) &
-                               ("-" & sym & snapshot.DiscountAmount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(17))
-        End If
-
-        If snapshot.TaxApplied AndAlso snapshot.TaxAmount > 0D Then
-            receipt.AppendLine(("Tax (" & snapshot.TaxPercent.ToString("N2", CultureInfo.CurrentCulture) & "%):").PadRight(22) &
-                               (sym & snapshot.TaxAmount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        End If
-
-        receipt.AppendLine("TOTAL DUE:".PadRight(22) & (sym & snapshot.GrandTotal.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("TENDERED:".PadRight(22) & (sym & snapshot.AmountTendered.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("CHANGE:".PadRight(22) & (sym & snapshot.ChangeGiven.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("========================================")
-        receipt.AppendLine(ReceiptBranding.CenterText(snapshot.FooterText))
-        receipt.AppendLine("========================================")
-
-        Return receipt.ToString()
-    End Function
+    Private Sub UpdateSaleReceiptText(saleId As Integer, receiptText As String)
+        Try
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                Using command As New SqlCommand("UPDATE sales SET receipt_text = @receipt_text WHERE sale_id = @sale_id;", connection)
+                    command.Parameters.AddWithValue("@receipt_text", If(receiptText, String.Empty))
+                    command.Parameters.AddWithValue("@sale_id", saleId)
+                    command.ExecuteNonQuery()
+                End Using
+            End Using
+        Catch ex As Exception
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(UpdateSaleReceiptText))
+        End Try
+    End Sub
 
     Private Function SaveSale(snapshot As ReceiptSnapshot, ByRef newSaleId As Integer) As Boolean
         newSaleId = -1
@@ -1411,6 +1373,52 @@ Public Class SalesForm
         For i As Integer = 0 To dgvProducts.Rows.Count - 1
             dgvProducts.Rows(i).Cells("Index").Value = i + 1
         Next
+    End Sub
+
+    ''' <summary>
+    ''' Loads sale line items into the cart (duplicate sale workflow).
+    ''' </summary>
+    Public Sub LoadCartFromSaleId(saleId As Integer)
+        If saleId <= 0 OrElse Not IsSalesCartGridReady() Then
+            Return
+        End If
+
+        Try
+            dgvProducts.Rows.Clear()
+            txtAmountTendered.Clear()
+            ResetPosCheckoutOptions()
+
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                Dim sql As String =
+                    "SELECT product_name, price, quantity FROM sale_items WHERE sale_id = @sid ORDER BY sale_item_id;"
+                Using cmd As New SqlCommand(sql, connection)
+                    cmd.Parameters.AddWithValue("@sid", saleId)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            Dim productName As String = reader("product_name").ToString()
+                            Dim price As Decimal = Convert.ToDecimal(reader("price"))
+                            Dim quantity As Integer = Convert.ToInt32(reader("quantity"))
+                            Dim line As New CartLineItem(productName, price, quantity)
+                            Dim idx As Integer = dgvProducts.Rows.Add(
+                                dgvProducts.Rows.Count + 1,
+                                productName,
+                                line.UnitPrice.ToString("N2", CultureInfo.CurrentCulture),
+                                quantity,
+                                line.LineSubtotal.ToString("N2", CultureInfo.CurrentCulture))
+                            dgvProducts.Rows(idx).Tag = line
+                        End While
+                    End Using
+                End Using
+            End Using
+
+            ReindexRows()
+            UpdateSummaryLabels()
+            ShowStatus("Cart loaded from sale #" & saleId.ToString(CultureInfo.InvariantCulture) & ".", False)
+        Catch ex As Exception
+            MessageBox.Show("Could not duplicate sale: " & ex.Message, "Sales", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(LoadCartFromSaleId))
+        End Try
     End Sub
 
 End Class

@@ -80,6 +80,26 @@ Public NotInheritable Class AppSettings
             data.CurrencySymbol = "₱"
         End If
 
+        If String.IsNullOrWhiteSpace(data.StoreBranch) Then
+            data.StoreBranch = "Main Branch"
+        End If
+
+        If String.IsNullOrWhiteSpace(data.StoreLocation) Then
+            data.StoreLocation = "Metro Manila, Philippines"
+        End If
+
+        If String.IsNullOrWhiteSpace(data.CustomerServiceInfo) Then
+            data.CustomerServiceInfo = "help@internationalbookstore.local | (02) 8123-4567"
+        End If
+
+        If String.IsNullOrWhiteSpace(data.ReturnPolicyText) Then
+            data.ReturnPolicyText = "Returns within 7 days with receipt and original packaging."
+        End If
+
+        If String.IsNullOrWhiteSpace(data.TermsText) Then
+            data.TermsText = "Prices include applicable taxes unless stated otherwise."
+        End If
+
         Return data
     End Function
 
@@ -104,5 +124,30 @@ Public Class AppSettingsData
     ''' Gets or sets the currency symbol displayed with amounts.
     ''' </summary>
     Public Property CurrencySymbol As String
+
+    ''' <summary>
+    ''' Gets or sets the branch name printed on receipts.
+    ''' </summary>
+    Public Property StoreBranch As String
+
+    ''' <summary>
+    ''' Gets or sets the location line printed on receipts.
+    ''' </summary>
+    Public Property StoreLocation As String
+
+    ''' <summary>
+    ''' Gets or sets customer service contact text for receipts.
+    ''' </summary>
+    Public Property CustomerServiceInfo As String
+
+    ''' <summary>
+    ''' Gets or sets the return/exchange policy line for receipts.
+    ''' </summary>
+    Public Property ReturnPolicyText As String
+
+    ''' <summary>
+    ''' Gets or sets terms and conditions text for receipts.
+    ''' </summary>
+    Public Property TermsText As String
 
 End Class
