@@ -28,8 +28,10 @@ Public Class LoginForm
     Private lblHint As Label
     Private WithEvents btnOk As Button
     Private WithEvents btnCancel As Button
+    Private picLoginLogo As PictureBox
 
     Private passwordVisible As Boolean
+    Private Const LoginLogoHeight As Integer = 88
 
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP: Full Screen & Responsive
@@ -43,12 +45,29 @@ Public Class LoginForm
         UiTheme.ApplyStandardWindowChrome(Me)
 
         ' 2. INITIALIZE CONTROLS
+        picLoginLogo = New PictureBox() With {
+            .Width = SecretFieldWidth,
+            .Height = LoginLogoHeight,
+            .SizeMode = PictureBoxSizeMode.Zoom,
+            .BackColor = Color.Transparent,
+            .Margin = New Padding(0, 0, 0, 12)
+        }
+
+        Dim loginLogo As Image = ReceiptBranding.TryGetReceiptLogo()
+        Dim hasLogo As Boolean = loginLogo IsNot Nothing
+        If hasLogo Then
+            picLoginLogo.Image = loginLogo
+        Else
+            picLoginLogo.Visible = False
+        End If
+
         Dim lblTitle As New Label() With {
             .Text = AppBranding.ApplicationName,
             .Font = New Font("Segoe UI", 20, FontStyle.Bold),
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 4)
+            .Margin = New Padding(0, 0, 0, 4),
+            .Visible = Not hasLogo
         }
 
         Dim lblSubtitle As New Label() With {
@@ -141,6 +160,7 @@ Public Class LoginForm
             .Width = SecretFieldWidth
         }
 
+        loginCard.Controls.Add(picLoginLogo)
         loginCard.Controls.Add(lblTitle)
         loginCard.Controls.Add(lblSubtitle)
         loginCard.Controls.Add(lblRole)
@@ -216,6 +236,15 @@ Public Class LoginForm
             txtUsername?.Clear()
             txtSecret?.Focus()
         End If
+    End Sub
+
+    Protected Overrides Sub OnFormClosed(e As FormClosedEventArgs)
+        If picLoginLogo?.Image IsNot Nothing Then
+            picLoginLogo.Image.Dispose()
+            picLoginLogo.Image = Nothing
+        End If
+
+        MyBase.OnFormClosed(e)
     End Sub
 
     Private Sub LoginForm_Resize(sender As Object, e As EventArgs) Handles MyBase.Resize
