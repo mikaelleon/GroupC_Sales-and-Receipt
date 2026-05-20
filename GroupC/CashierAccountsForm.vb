@@ -20,8 +20,10 @@ Public Class CashierAccountsForm
     Private Shared ReadOnly MutedBg As Color = Color.FromArgb(&HF1, &HF5, &HF9)
     Private Shared ReadOnly DangerBg As Color = Color.FromArgb(&HFE, &HE2, &HE2)
     Private Const StatusClearMs As Integer = 4000
-    Private Const FieldWidth As Integer = 252
-    Private Const FieldHeight As Integer = 34
+    Private Const LeftPanelWidth As Integer = 340
+    Private Const FieldWidth As Integer = 292
+    Private Const FieldHeight As Integer = 40
+    Private Const FieldShellHeight As Integer = 42
 
     Private WithEvents txtUsername As TextBox
     Private WithEvents txtDisplayName As TextBox
@@ -48,6 +50,8 @@ Public Class CashierAccountsForm
     Private pnlSelectedChip As Panel
     Private pnlEmptyState As Panel
     Private pnlLeft As Panel
+    Private pnlLeftBody As Panel
+    Private leftStack As TableLayoutPanel
     Private pnlRight As Panel
     Private pnlToolbar As Panel
     Private pnlBottomBar As Panel
@@ -159,9 +163,9 @@ Public Class CashierAccountsForm
         btnBack.FlatAppearance.BorderColor = BorderLight
         btnShowPass = New Button() With {
             .Text = "👁",
-            .Size = New Size(26, FieldHeight),
+            .Size = New Size(36, FieldHeight),
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .ForeColor = UiTheme.TextSecondary,
             .Cursor = Cursors.Hand,
             .TabStop = False
@@ -270,12 +274,12 @@ Public Class CashierAccountsForm
 
         pnlLeft = New Panel() With {
             .Dock = DockStyle.Left,
-            .Width = 300,
-            .MinimumSize = New Size(300, 0),
-            .MaximumSize = New Size(300, 9999),
+            .Width = LeftPanelWidth,
+            .MinimumSize = New Size(LeftPanelWidth, 0),
+            .MaximumSize = New Size(LeftPanelWidth, 9999),
             .BackColor = Color.White,
-            .AutoScroll = True,
-            .Padding = New Padding(24, 20, 24, 0)
+            .AutoScroll = False,
+            .Padding = New Padding(20, 20, 20, 0)
         }
         AddHandler pnlLeft.Paint, Sub(s, e)
                                       Using pen As New Pen(BorderLight, 1.0F)
@@ -283,13 +287,17 @@ Public Class CashierAccountsForm
                                       End Using
                                   End Sub
 
-        Dim leftStack As New TableLayoutPanel() With {
+        leftStack = New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .ColumnCount = 1,
             .Width = FieldWidth,
-            .MaximumSize = New Size(FieldWidth, 0)
+            .MaximumSize = New Size(FieldWidth, 0),
+            .Margin = Padding.Empty,
+            .Padding = Padding.Empty
         }
+        leftStack.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
 
         leftStack.Controls.Add(CreateTitleLabel("Cashier Accounts"), 0, 0)
         leftStack.Controls.Add(CreateSubtitleLabel(
@@ -300,13 +308,37 @@ Public Class CashierAccountsForm
         leftStack.Controls.Add(CreateFieldGroup("Username", txtUsername), 0, 4)
         leftStack.Controls.Add(CreateFieldGroup("Display name (optional)", txtDisplayName), 0, 5)
 
-        Dim passGroup As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1}
+        Dim passGroup As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .Width = FieldWidth,
+            .MaximumSize = New Size(FieldWidth, 0),
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, 0)
+        }
+        passGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        passGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        passGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        passGroup.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
         passGroup.Controls.Add(CreateFieldCaption("Password"), 0, 0)
         passGroup.Controls.Add(CreatePasswordRow(txtPassword, btnShowPass), 0, 1)
         passGroup.Controls.Add(lblPassHint, 0, 2)
         leftStack.Controls.Add(passGroup, 0, 6)
 
-        Dim confirmGroup As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1}
+        Dim confirmGroup As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .Width = FieldWidth,
+            .MaximumSize = New Size(FieldWidth, 0),
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, 0)
+        }
+        confirmGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        confirmGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        confirmGroup.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        confirmGroup.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
         confirmGroup.Controls.Add(CreateFieldCaption("Confirm password"), 0, 0)
         confirmGroup.Controls.Add(CreatePasswordRow(txtConfirmPassword, Nothing), 0, 1)
         confirmGroup.Controls.Add(lblPassMatch, 0, 2)
@@ -322,7 +354,9 @@ Public Class CashierAccountsForm
             .FlowDirection = FlowDirection.TopDown,
             .AutoSize = True,
             .WrapContents = False,
-            .Margin = Padding.Empty
+            .Margin = Padding.Empty,
+            .Width = FieldWidth,
+            .MaximumSize = New Size(FieldWidth, 0)
         }
         btnUpdateDisplay.Margin = New Padding(0, 8, 0, 0)
         btnResetPassword.Margin = New Padding(0, 8, 0, 0)
@@ -345,7 +379,7 @@ Public Class CashierAccountsForm
         btnBack.Margin = New Padding(0, 30, 0, 0)
         pnlLeftFooter.Controls.Add(btnBack)
 
-        Dim pnlLeftBody As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True}
+        pnlLeftBody = New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .Padding = Padding.Empty}
         pnlLeftBody.Controls.Add(leftStack)
 
         pnlLeft.Controls.Add(pnlLeftBody)
@@ -417,6 +451,18 @@ Public Class CashierAccountsForm
         UpdateSelectionUi()
         Me.ResumeLayout(True)
         pnlBottomBar.PerformLayout()
+        SyncLeftPanelLayout()
+        AddHandler pnlLeftBody.Resize, AddressOf SyncLeftPanelLayout
+    End Sub
+
+    Private Sub SyncLeftPanelLayout()
+        If leftStack Is Nothing OrElse pnlLeftBody Is Nothing Then
+            Return
+        End If
+
+        Dim contentWidth As Integer = Math.Max(FieldWidth, pnlLeftBody.ClientSize.Width)
+        leftStack.Width = contentWidth
+        leftStack.MaximumSize = New Size(contentWidth, 0)
     End Sub
 
     Private Sub SetupDataGridView()
@@ -467,14 +513,17 @@ Public Class CashierAccountsForm
             .Name = "colLastSignIn",
             .HeaderText = "Last sign-in",
             .DataPropertyName = "last_login_at",
-            .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            .Width = 168,
+            .MinimumWidth = 140
         }
 
         Dim colReg As New DataGridViewTextBoxColumn() With {
             .Name = "colRegistered",
             .HeaderText = "Registered",
             .DataPropertyName = "created_at",
-            .Width = 140
+            .AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+            .MinimumWidth = 120,
+            .FillWeight = 100
         }
 
         dgvCashiers.Columns.AddRange(colId, colStatus, colNum, colUser, colDisplay, colLastSign, colReg)
@@ -502,9 +551,12 @@ Public Class CashierAccountsForm
             .Font = New Font("Segoe UI", 10.0F)
             .RowTemplate.Height = 52
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
-            .ScrollBars = ScrollBars.Vertical
+            .ScrollBars = ScrollBars.Both
             .EnableHeadersVisualStyles = False
         End With
+
+        UiTheme.ApplyDataGridViewChrome(dgvCashiers)
+        GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvCashiers)
 
         dgvCashiers.ColumnHeadersDefaultCellStyle.BackColor = SurfaceGray
         dgvCashiers.ColumnHeadersDefaultCellStyle.ForeColor = ColorTranslator.FromHtml("#5A6A7A")
@@ -523,19 +575,16 @@ Public Class CashierAccountsForm
     End Sub
 
     Private Sub AnchorLeftPanelTextBoxes()
-        For Each field As TextBox In New TextBox() {txtUsername, txtDisplayName, txtPassword, txtConfirmPassword}
-            field.Width = FieldWidth
-            field.Anchor = AnchorStyles.Left Or AnchorStyles.Right
-        Next
+        ' Field hosts use fixed width; inner text boxes dock inside shells.
     End Sub
 
     Private Function CreateStyledTextBox(maxLength As Integer, placeholder As String) As TextBox
         Dim tb As New TextBox() With {
-            .Width = FieldWidth,
-            .Height = FieldHeight,
-            .Font = UiTheme.StandardUiFont,
-            .BorderStyle = BorderStyle.FixedSingle,
-            .Anchor = AnchorStyles.Left Or AnchorStyles.Right
+            .Font = New Font("Segoe UI", 10.5F),
+            .BorderStyle = BorderStyle.None,
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty,
+            .Multiline = False
         }
         If maxLength > 0 Then
             tb.MaxLength = maxLength
@@ -545,6 +594,49 @@ Public Class CashierAccountsForm
         End If
         UiTheme.ApplyFilledTextInputVisual(tb)
         Return tb
+    End Function
+
+    Private Function CreateTextFieldShell(textBox As TextBox, Optional toggleBtn As Button = Nothing) As Panel
+        textBox.Dock = DockStyle.Fill
+        textBox.Margin = Padding.Empty
+        textBox.BorderStyle = BorderStyle.None
+
+        Dim inner As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = If(toggleBtn Is Nothing, 1, 2),
+            .RowCount = 1,
+            .BackColor = UiTheme.CardSurface,
+            .Margin = Padding.Empty,
+            .Padding = New Padding(10, 6, If(toggleBtn Is Nothing, 10, 4), 6)
+        }
+        inner.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        inner.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+        If toggleBtn IsNot Nothing Then
+            inner.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 40.0F))
+            toggleBtn.Dock = DockStyle.None
+            toggleBtn.Anchor = AnchorStyles.None
+            toggleBtn.Size = New Size(36, 28)
+            toggleBtn.Margin = Padding.Empty
+            toggleBtn.TextAlign = ContentAlignment.MiddleCenter
+            inner.Controls.Add(textBox, 0, 0)
+            inner.Controls.Add(toggleBtn, 1, 0)
+        Else
+            inner.Controls.Add(textBox, 0, 0)
+        End If
+
+        Dim outer As New Panel() With {
+            .Dock = DockStyle.Top,
+            .Width = FieldWidth,
+            .Height = FieldShellHeight,
+            .MinimumSize = New Size(FieldWidth, FieldShellHeight),
+            .MaximumSize = New Size(FieldWidth, FieldShellHeight),
+            .BackColor = BorderLight,
+            .Padding = New Padding(1),
+            .Margin = Padding.Empty
+        }
+        outer.Controls.Add(inner)
+        Return outer
     End Function
 
     Private Shared Function CreateTitleLabel(text As String) As Label
@@ -590,25 +682,23 @@ Public Class CashierAccountsForm
     Private Function CreateFieldGroup(caption As String, textBox As TextBox) As Control
         Dim panel As New TableLayoutPanel() With {
             .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .ColumnCount = 1,
-            .Margin = New Padding(0, 0, 0, 12)
+            .Margin = New Padding(0, 0, 0, 12),
+            .Width = FieldWidth,
+            .MaximumSize = New Size(FieldWidth, 0),
+            .Dock = DockStyle.Top
         }
+        panel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        panel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        panel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
         panel.Controls.Add(CreateFieldCaption(caption), 0, 0)
-        panel.Controls.Add(textBox, 0, 1)
+        panel.Controls.Add(CreateTextFieldShell(textBox), 0, 1)
         Return panel
     End Function
 
-    Private Shared Function CreatePasswordRow(passwordBox As TextBox, toggleBtn As Button) As Panel
-        Dim row As New Panel() With {.Size = New Size(FieldWidth, FieldHeight)}
-        passwordBox.Location = New Point(0, 0)
-        passwordBox.Width = If(toggleBtn Is Nothing, FieldWidth, 222)
-        passwordBox.Height = FieldHeight
-        row.Controls.Add(passwordBox)
-        If toggleBtn IsNot Nothing Then
-            toggleBtn.Location = New Point(226, 0)
-            row.Controls.Add(toggleBtn)
-        End If
-        Return row
+    Private Function CreatePasswordRow(passwordBox As TextBox, toggleBtn As Button) As Panel
+        Return CreateTextFieldShell(passwordBox, toggleBtn)
     End Function
 
     Private Shared Function CreateDivider() As Panel

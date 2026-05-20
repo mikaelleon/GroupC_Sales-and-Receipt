@@ -129,7 +129,9 @@ Public Class LoginForm
         lblHint = New Label() With {
             .Text = "Administrators use the admin password. Cashiers sign in with a registered username and password.",
             .ForeColor = UiTheme.TextSecondary,
+            .Font = New Font("Segoe UI", 9.0F),
             .AutoSize = True,
+            .MaximumSize = New Size(SecretFieldWidth, 0),
             .Margin = New Padding(0, 4, 0, 28)
         }
 
@@ -157,7 +159,8 @@ Public Class LoginForm
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
             .Padding = New Padding(0),
-            .Width = SecretFieldWidth
+            .Width = SecretFieldWidth,
+            .MaximumSize = New Size(SecretFieldWidth, 0)
         }
 
         loginCard.Controls.Add(picLoginLogo)
@@ -198,6 +201,7 @@ Public Class LoginForm
 
         Me.ResumeLayout(True)
         UpdateRoleFields()
+        UpdateHintWrapWidth()
     End Sub
 
     Private Sub radAdmin_CheckedChanged(sender As Object, e As EventArgs) Handles radAdmin.CheckedChanged
@@ -228,6 +232,7 @@ Public Class LoginForm
                 cashierMode,
                 "Use the username and password created by an administrator in Manage Cashiers.",
                 "Enter the administrator password.")
+            UpdateHintWrapWidth()
         End If
 
         If cashierMode Then
@@ -256,12 +261,7 @@ Public Class LoginForm
             Return
         End If
 
-        Dim w As Integer = Me.ClientSize.Width - 64
-        If w < 200 Then
-            w = 200
-        End If
-
-        lblHint.MaximumSize = New Size(w, 0)
+        lblHint.MaximumSize = New Size(SecretFieldWidth, 0)
     End Sub
 
     Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click
