@@ -471,6 +471,8 @@ Public Class ProductsForm
             dgvProducts.Columns("category_name").HeaderText = "Category"
             dgvProducts.Columns("category_name").MinimumWidth = 90
         End If
+
+        GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
     End Sub
 
     Private Function GetFilterMode() As ProductFilterMode

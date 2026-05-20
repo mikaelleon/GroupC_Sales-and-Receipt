@@ -259,6 +259,8 @@ Public Class CategoriesForm
             dgvCategories.Columns("active_products").HeaderText = "Active products"
             dgvCategories.Columns("active_products").Width = 110
         End If
+
+        GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvCategories)
     End Sub
 
     Private Function GetSelectedCategoryId() As Integer?
