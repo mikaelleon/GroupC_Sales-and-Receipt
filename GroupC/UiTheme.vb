@@ -7,6 +7,30 @@ Imports System.Windows.Forms
 ''' </summary>
 Public NotInheritable Class UiTheme
 
+    ' ========== SPACING SCALE (8px base grid) ==========
+    Public Const SpaceXs As Integer = 4
+    Public Const SpaceSm As Integer = 8
+    Public Const SpaceMd As Integer = 12
+    Public Const SpaceLg As Integer = 16
+    Public Const SpaceXl As Integer = 24
+    Public Const Space2xl As Integer = 32
+    Public Const Space3xl As Integer = 48
+
+    ' ========== BORDER RADIUS SCALE ==========
+    Public Const RadiusSm As Integer = 4
+    Public Const RadiusMd As Integer = 8
+    Public Const RadiusLg As Integer = 12
+    Public Const RadiusXl As Integer = 16
+
+    ' ========== COMPONENT HEIGHTS ==========
+    Public Const InputHeight As Integer = 32
+    Public Const ButtonHeightSm As Integer = 32
+    Public Const ButtonHeightMd As Integer = 40
+    Public Const ButtonHeightLg As Integer = 48
+    Public Const GridRowHeight As Integer = 40
+    Public Const GridHeaderHeight As Integer = 44
+
+    ' ========== COLOR PALETTE ==========
     Public Shared ReadOnly FormBackground As Color = ColorFromHex(&HF0F2F5)
     Public Shared ReadOnly PrimaryAccent As Color = ColorFromHex(&H1A237E)
     Public Shared ReadOnly PrimaryAccentHover As Color = ColorFromHex(&H283593)
@@ -33,6 +57,20 @@ Public NotInheritable Class UiTheme
     Public Shared ReadOnly InactiveRowBack As Color = ColorFromHex(&HF5F5F5)
     Public Shared ReadOnly InactiveRowFore As Color = TextSecondary
 
+    ' Extended palette for modern UI
+    Public Shared ReadOnly FocusRing As Color = ColorFromHex(&H1976D2)
+    Public Shared ReadOnly DisabledBackground As Color = ColorFromHex(&HE0E0E0)
+    Public Shared ReadOnly DisabledText As Color = ColorFromHex(&H9E9E9E)
+    Public Shared ReadOnly InputBorder As Color = ColorFromHex(&HBDBDBD)
+    Public Shared ReadOnly InputBorderFocus As Color = FocusRing
+    Public Shared ReadOnly DividerColor As Color = ColorFromHex(&HEEEEEE)
+    Public Shared ReadOnly SurfaceVariant As Color = ColorFromHex(&HF5F5F5)
+    Public Shared ReadOnly SuccessLight As Color = ColorFromHex(&HE8F5E9)
+    Public Shared ReadOnly WarningLight As Color = ColorFromHex(&HFFF8E1)
+    Public Shared ReadOnly DangerLight As Color = ColorFromHex(&HFFEBEE)
+    Public Shared ReadOnly InfoBackground As Color = ColorFromHex(&HE3F2FD)
+    Public Shared ReadOnly InfoText As Color = ColorFromHex(&H1565C0)
+
     ''' <summary>
     ''' Same as <see cref="PrimaryAccent"/>; kept for existing call sites.
     ''' </summary>
@@ -50,10 +88,18 @@ Public NotInheritable Class UiTheme
     Public Shared ReadOnly SecondaryFore As Color = TextPrimary
     Public Shared ReadOnly SecondaryBorder As Color = CardBorder
 
+    ' ========== TYPOGRAPHY SCALE ==========
     ''' <summary>
     ''' Default UI font applied with <see cref="ApplyStandardWindowChrome"/>.
     ''' </summary>
     Public Shared ReadOnly StandardUiFont As Font = New Font("Segoe UI", 10.0F)
+    Public Shared ReadOnly FontHeading1 As Font = New Font("Segoe UI", 20.0F, FontStyle.Bold)
+    Public Shared ReadOnly FontHeading2 As Font = New Font("Segoe UI", 16.0F, FontStyle.Bold)
+    Public Shared ReadOnly FontHeading3 As Font = New Font("Segoe UI", 13.0F, FontStyle.Bold)
+    Public Shared ReadOnly FontBody As Font = New Font("Segoe UI", 10.0F)
+    Public Shared ReadOnly FontBodySmall As Font = New Font("Segoe UI", 9.0F)
+    Public Shared ReadOnly FontCaption As Font = New Font("Segoe UI", 8.5F)
+    Public Shared ReadOnly FontButton As Font = New Font("Segoe UI", 10.0F, FontStyle.Regular)
 
     ''' <summary>Default corner radius for <see cref="ApplyRoundedButton"/>.</summary>
     Public Const DefaultButtonCornerRadius As Integer = 10
@@ -97,11 +143,146 @@ Public NotInheritable Class UiTheme
     End Sub
 
     ''' <summary>
+    ''' Creates a heading label with appropriate size and weight.
+    ''' </summary>
+    ''' <param name="text">Heading text.</param>
+    ''' <param name="level">1 = largest (H1), 2 = H2, 3 = H3.</param>
+    Public Shared Function CreateHeadingLabel(text As String, Optional level As Integer = 2) As Label
+        Dim lbl As New Label()
+        lbl.Text = text
+        lbl.AutoSize = True
+        lbl.ForeColor = TextPrimary
+        lbl.Margin = New Padding(0, 0, 0, SpaceMd)
+
+        Select Case level
+            Case 1
+                lbl.Font = FontHeading1
+            Case 2
+                lbl.Font = FontHeading2
+            Case 3
+                lbl.Font = FontHeading3
+            Case Else
+                lbl.Font = FontHeading2
+        End Select
+
+        Return lbl
+    End Function
+
+    ''' <summary>
+    ''' Creates a horizontal divider line for section separation.
+    ''' </summary>
+    Public Shared Function CreateDivider() As Panel
+        Dim divider As New Panel()
+        divider.Height = 1
+        divider.Dock = DockStyle.Top
+        divider.BackColor = DividerColor
+        divider.Margin = New Padding(0, SpaceLg, 0, SpaceLg)
+        Return divider
+    End Function
+
+    ''' <summary>
+    ''' Creates a centered empty state label for grids with no data.
+    ''' </summary>
+    Public Shared Function CreateEmptyStateLabel(text As String) As Label
+        Dim lbl As New Label()
+        lbl.Text = text
+        lbl.AutoSize = False
+        lbl.Dock = DockStyle.Fill
+        lbl.TextAlign = ContentAlignment.MiddleCenter
+        lbl.ForeColor = TextSecondary
+        lbl.Font = FontBody
+        lbl.BackColor = CardSurface
+        Return lbl
+    End Function
+
+    ''' <summary>
+    ''' Creates a FlowLayoutPanel for action buttons with consistent spacing.
+    ''' </summary>
+    ''' <param name="alignment">Left, Right, or Center alignment.</param>
+    Public Shared Function CreateButtonRow(Optional alignment As FlowDirection = FlowDirection.RightToLeft) As FlowLayoutPanel
+        Dim flow As New FlowLayoutPanel()
+        flow.FlowDirection = alignment
+        flow.AutoSize = True
+        flow.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        flow.Dock = DockStyle.Bottom
+        flow.Padding = New Padding(0)
+        flow.Margin = New Padding(0, SpaceLg, 0, 0)
+        flow.WrapContents = False
+        Return flow
+    End Function
+
+    ''' <summary>
+    ''' Creates a titled section with card styling.
+    ''' </summary>
+    ''' <param name="title">Section title.</param>
+    Public Shared Function CreateFormSection(title As String) As Panel
+        Dim card As Panel = CreateCardPanel(New Padding(SpaceLg))
+        Dim content As Panel = GetCardContentHost(card)
+
+        If content IsNot Nothing AndAlso Not String.IsNullOrEmpty(title) Then
+            Dim heading As Label = CreateHeadingLabel(title, 3)
+            heading.Dock = DockStyle.Top
+            content.Controls.Add(heading)
+        End If
+
+        Return card
+    End Function
+
+    ''' <summary>
+    ''' Applies modern input field styling with focus indicator support.
+    ''' </summary>
+    Public Shared Sub ApplyInputFieldStyle(textBox As TextBox)
+        If textBox Is Nothing Then
+            Return
+        End If
+
+        textBox.BorderStyle = BorderStyle.FixedSingle
+        textBox.BackColor = CardSurface
+        textBox.ForeColor = TextPrimary
+        textBox.Font = FontBody
+
+        ' Focus ring handlers
+        AddHandler textBox.Enter, Sub(s, e)
+                                       textBox.BackColor = CardSurface
+                                   End Sub
+        AddHandler textBox.Leave, Sub(s, e)
+                                      textBox.BackColor = CardSurface
+                                  End Sub
+    End Sub
+
+    ''' <summary>
+    ''' Applies consistent styling to ComboBox controls.
+    ''' </summary>
+    Public Shared Sub ApplyComboBoxStyle(combo As ComboBox)
+        If combo Is Nothing Then
+            Return
+        End If
+
+        combo.FlatStyle = FlatStyle.Flat
+        combo.BackColor = CardSurface
+        combo.ForeColor = TextPrimary
+        combo.Font = FontBody
+    End Sub
+
+    ''' <summary>
+    ''' Applies modern GroupBox styling with proper spacing.
+    ''' </summary>
+    Public Shared Sub ApplyGroupBoxStyle(groupBox As GroupBox)
+        If groupBox Is Nothing Then
+            Return
+        End If
+
+        groupBox.ForeColor = TextPrimary
+        groupBox.Font = FontHeading3
+        groupBox.Padding = New Padding(SpaceLg)
+    End Sub
+
+    ''' <summary>
     ''' Bordered white card: outer 1 px border color, inner content surface.
     ''' </summary>
     Public Shared Function CreateCardPanel(Optional innerPadding As Padding = Nothing) As Panel
         If innerPadding = Padding.Empty Then
-            innerPadding = New Padding(12)
+            innerPadding = New Padding(SpaceLg)
         End If
 
         Dim outer As New Panel()
@@ -169,8 +350,8 @@ Public NotInheritable Class UiTheme
             .Text = text,
             .AutoSize = True,
             .ForeColor = TextSecondary,
-            .Margin = New Padding(0, 8, 8, 8),
-            .Font = StandardUiFont
+            .Margin = New Padding(0, SpaceSm, SpaceSm, SpaceSm),
+            .Font = FontBody
         }
     End Function
 
@@ -181,16 +362,28 @@ Public NotInheritable Class UiTheme
         dgv.GridColor = CardBorder
         dgv.DefaultCellStyle.BackColor = CardSurface
         dgv.DefaultCellStyle.ForeColor = TextPrimary
+        dgv.DefaultCellStyle.Font = FontBody
+        dgv.DefaultCellStyle.Padding = New Padding(SpaceSm)
         dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(230, 235, 245)
         dgv.DefaultCellStyle.SelectionForeColor = TextPrimary
         dgv.ColumnHeadersDefaultCellStyle.BackColor = GridHeaderBack
         dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextPrimary
+        dgv.ColumnHeadersDefaultCellStyle.Font = FontHeading3
+        dgv.ColumnHeadersDefaultCellStyle.Padding = New Padding(SpaceSm)
         dgv.ColumnHeadersDefaultCellStyle.SelectionBackColor = GridHeaderBack
         dgv.ColumnHeadersDefaultCellStyle.SelectionForeColor = TextPrimary
+        dgv.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
         dgv.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single
+        dgv.ColumnHeadersHeight = GridHeaderHeight
         dgv.RowHeadersVisible = False
+        dgv.RowTemplate.Height = GridRowHeight
         dgv.AlternatingRowsDefaultCellStyle.BackColor = GridAltRow
         dgv.AlternatingRowsDefaultCellStyle.ForeColor = TextPrimary
+        dgv.AllowUserToAddRows = False
+        dgv.AllowUserToDeleteRows = False
+        dgv.ReadOnly = True
+        dgv.SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        dgv.MultiSelect = False
     End Sub
 
     Public Shared Sub ApplyPrimaryButton(button As Button)
@@ -200,8 +393,10 @@ Public NotInheritable Class UiTheme
     Public Shared Sub ApplySecondaryButton(button As Button)
         button.Cursor = Cursors.Hand
         button.UseCompatibleTextRendering = False
-        button.Padding = New Padding(14, 6, 14, 6)
+        button.Padding = New Padding(SpaceLg, SpaceSm, SpaceLg, SpaceSm)
         button.TextAlign = ContentAlignment.MiddleCenter
+        button.Font = FontButton
+        button.MinimumSize = New Size(0, ButtonHeightMd)
         WireRoundedButtonPaint(button, SecondaryBack, GridAltRow, Color.FromArgb(230, 232, 236), SecondaryFore, SecondaryBorder)
     End Sub
 
@@ -239,8 +434,10 @@ Public NotInheritable Class UiTheme
 
         button.Cursor = Cursors.Hand
         button.UseCompatibleTextRendering = False
-        button.Padding = New Padding(16, 6, 16, 6)
+        button.Padding = New Padding(SpaceLg, SpaceSm, SpaceLg, SpaceSm)
         button.TextAlign = ContentAlignment.MiddleCenter
+        button.Font = FontButton
+        button.MinimumSize = New Size(0, ButtonHeightMd)
         WireRoundedButtonPaint(button, normal, hover, pressed, fore, border)
     End Sub
 

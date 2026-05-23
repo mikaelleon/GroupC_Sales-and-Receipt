@@ -11,7 +11,7 @@ Public Class LoginForm
 
     Private Const SecretMaskChar As Char = "*"c
     Private Const SecretPlaceholder As String = "Please enter your password"
-    Private Const SecretFieldWidth As Integer = 320
+    Private Const LoginCardWidth As Integer = 400
     Private Const SecretFieldHeight As Integer = 44
     Private Const SecretToggleWidth As Integer = 44
     Private Const SecretTextPaddingLeft As Integer = 14
@@ -46,11 +46,11 @@ Public Class LoginForm
 
         ' 2. INITIALIZE CONTROLS
         picLoginLogo = New PictureBox() With {
-            .Width = SecretFieldWidth,
+            .Width = LoginCardWidth,
             .Height = LoginLogoHeight,
             .SizeMode = PictureBoxSizeMode.Zoom,
             .BackColor = Color.Transparent,
-            .Margin = New Padding(0, 0, 0, 12)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
         }
 
         Dim loginLogo As Image = ReceiptBranding.TryGetReceiptLogo()
@@ -63,54 +63,78 @@ Public Class LoginForm
 
         Dim lblTitle As New Label() With {
             .Text = AppBranding.ApplicationName,
-            .Font = New Font("Segoe UI", 20, FontStyle.Bold),
+            .Font = UiTheme.FontHeading1,
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 4),
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs),
             .Visible = Not hasLogo
         }
 
         Dim lblSubtitle As New Label() With {
             .Text = "Sign in to continue",
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular),
+            .Font = UiTheme.FontBody,
             .ForeColor = UiTheme.TextSecondary,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 12)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
         }
 
-        Dim lblRole As New Label() With {.Text = "Select Role:", .AutoSize = True, .Margin = New Padding(0, 10, 0, 5)}
+        Dim lblRole As New Label() With {
+            .Text = "Select Role:",
+            .AutoSize = True,
+            .Font = UiTheme.FontHeading3,
+            .ForeColor = UiTheme.TextPrimary,
+            .Margin = New Padding(0, UiTheme.SpaceLg, 0, UiTheme.SpaceSm)
+        }
 
-        radAdmin = New RadioButton() With {.Text = "Administrator", .AutoSize = True, .Checked = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
-        radCashier = New RadioButton() With {.Text = "Cashier", .AutoSize = True, .ForeColor = UiTheme.TextPrimary, .Font = New Font("Segoe UI", 10.5F)}
+        radAdmin = New RadioButton() With {
+            .Text = "Administrator",
+            .AutoSize = True,
+            .Checked = True,
+            .ForeColor = UiTheme.TextPrimary,
+            .Font = UiTheme.FontBody,
+            .Margin = New Padding(0, 0, UiTheme.SpaceLg, 0)
+        }
+        radCashier = New RadioButton() With {
+            .Text = "Cashier",
+            .AutoSize = True,
+            .ForeColor = UiTheme.TextPrimary,
+            .Font = UiTheme.FontBody,
+            .Margin = New Padding(0)
+        }
 
-        Dim pnlRoles As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 15)}
+        Dim pnlRoles As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
+        }
         pnlRoles.Controls.Add(radAdmin)
         pnlRoles.Controls.Add(radCashier)
 
         lblUsername = New Label() With {
             .Text = "Username:",
             .AutoSize = False,
-            .Width = SecretFieldWidth,
-            .Margin = New Padding(0, 5, 0, 6),
+            .Width = LoginCardWidth,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
             .ForeColor = UiTheme.TextPrimary,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular),
+            .Font = UiTheme.FontBody,
             .Visible = False
         }
 
         txtUsername = New TextBox() With {
-            .Font = New Font("Segoe UI", 11.0F),
-            .Width = SecretFieldWidth,
-            .Margin = New Padding(0, 0, 0, 8),
+            .Font = UiTheme.FontBody,
+            .Width = LoginCardWidth,
+            .Height = UiTheme.InputHeight,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
             .PlaceholderText = "Cashier username"
         }
-        UiTheme.ApplyFilledTextInputVisual(txtUsername)
+        UiTheme.ApplyInputFieldStyle(txtUsername)
 
         pnlUsername = New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
             .AutoSize = True,
             .WrapContents = False,
             .Visible = False,
-            .Width = SecretFieldWidth
+            .Width = LoginCardWidth
         }
         pnlUsername.Controls.Add(lblUsername)
         pnlUsername.Controls.Add(txtUsername)
@@ -118,10 +142,10 @@ Public Class LoginForm
         lblSecretCaption = New Label() With {
             .Text = "Password:",
             .AutoSize = False,
-            .Width = SecretFieldWidth,
-            .Margin = New Padding(0, 5, 0, 6),
+            .Width = LoginCardWidth,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
             .ForeColor = UiTheme.TextPrimary,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular)
+            .Font = UiTheme.FontBody
         }
 
         pnlSecret = BuildPasswordField()
@@ -129,14 +153,28 @@ Public Class LoginForm
         lblHint = New Label() With {
             .Text = "Administrators use the admin password. Cashiers sign in with a registered username and password.",
             .ForeColor = UiTheme.TextSecondary,
-            .Font = New Font("Segoe UI", 9.0F),
+            .Font = UiTheme.FontBodySmall,
             .AutoSize = True,
-            .MaximumSize = New Size(SecretFieldWidth, 0),
-            .Margin = New Padding(0, 4, 0, 28)
+            .MaximumSize = New Size(LoginCardWidth, 0),
+            .Margin = New Padding(0, UiTheme.SpaceSm, 0, UiTheme.Space2xl)
         }
 
-        btnOk = New Button() With {.Text = "Sign In", .AutoSize = True, .MinimumSize = New Size(120, 40), .Cursor = Cursors.Hand, .DialogResult = DialogResult.None}
-        btnCancel = New Button() With {.Text = "Cancel", .AutoSize = True, .MinimumSize = New Size(100, 40), .Cursor = Cursors.Hand, .DialogResult = DialogResult.Cancel}
+        btnOk = New Button() With {
+            .Text = "Sign In",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand,
+            .DialogResult = DialogResult.None,
+            .Margin = New Padding(0, 0, UiTheme.SpaceMd, 0)
+        }
+        btnCancel = New Button() With {
+            .Text = "Cancel",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand,
+            .DialogResult = DialogResult.Cancel,
+            .Margin = New Padding(0)
+        }
 
         Try
             UiTheme.ApplyPrimaryButton(btnOk)
@@ -147,7 +185,8 @@ Public Class LoginForm
         Dim pnlButtons As New FlowLayoutPanel() With {
             .AutoSize = True,
             .FlowDirection = FlowDirection.LeftToRight,
-            .Margin = New Padding(0)
+            .Margin = New Padding(0),
+            .Padding = New Padding(0)
         }
         pnlButtons.Controls.Add(btnOk)
         pnlButtons.Controls.Add(btnCancel)
@@ -158,9 +197,10 @@ Public Class LoginForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .Padding = New Padding(0),
-            .Width = SecretFieldWidth,
-            .MaximumSize = New Size(SecretFieldWidth, 0)
+            .Padding = New Padding(UiTheme.Space2xl),
+            .Width = LoginCardWidth + (UiTheme.Space2xl * 2),
+            .MaximumSize = New Size(LoginCardWidth + (UiTheme.Space2xl * 2), 0),
+            .BackColor = UiTheme.CardSurface
         }
 
         loginCard.Controls.Add(picLoginLogo)
@@ -261,7 +301,7 @@ Public Class LoginForm
             Return
         End If
 
-        lblHint.MaximumSize = New Size(SecretFieldWidth, 0)
+        lblHint.MaximumSize = New Size(LoginCardWidth, 0)
     End Sub
 
     Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click
@@ -329,11 +369,12 @@ Public Class LoginForm
         txtSecret = New TextBox() With {
             .PasswordChar = SecretMaskChar,
             .PlaceholderText = SecretPlaceholder,
-            .Font = New Font("Segoe UI", 11.0F),
+            .Font = UiTheme.FontBody,
             .BorderStyle = BorderStyle.None,
             .Dock = DockStyle.Fill,
-            .Margin = New Padding(SecretTextPaddingLeft, 10, 4, 10),
-            .BackColor = UiTheme.CardSurface
+            .Margin = New Padding(SecretTextPaddingLeft, UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm),
+            .BackColor = UiTheme.CardSurface,
+            .ForeColor = UiTheme.TextPrimary
         }
 
         pnlToggleSecret = New PasswordTogglePanel() With {
@@ -365,10 +406,10 @@ Public Class LoginForm
         inner.Controls.Add(secretLayout)
 
         Dim outer As New Panel() With {
-            .Width = SecretFieldWidth,
+            .Width = LoginCardWidth,
             .Height = SecretFieldHeight,
-            .Margin = New Padding(0, 0, 0, 8),
-            .BackColor = UiTheme.CardBorder,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
+            .BackColor = UiTheme.InputBorder,
             .Padding = New Padding(1)
         }
         outer.Controls.Add(inner)
