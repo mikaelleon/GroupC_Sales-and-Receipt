@@ -8,8 +8,10 @@ Imports Microsoft.Data.SqlClient
 Public Class SalesForm
 
     Private Class ProductCatalogEntry
+        Public Property ProductId As Integer
         Public Property UnitPrice As Decimal
         Public Property CategoryId As Integer?
+        Public Property StockQuantity As Integer
     End Class
 
     Private Class SalesCategoryFilterItem
@@ -74,6 +76,7 @@ Public Class SalesForm
     Private WithEvents txtAmountTendered As TextBox
 
     Private lblSalesInputError As Label
+    Private lblStockOnHand As Label
 
     Private lblSubtotalValue As Label
     Private lblDiscountValue As Label
@@ -259,6 +262,13 @@ Public Class SalesForm
         }
 
         lblSalesInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Padding = New Padding(0, 5, 0, 10)}
+        lblStockOnHand = New Label() With {
+            .AutoSize = True,
+            .ForeColor = UiTheme.TextSecondary,
+            .Font = UiTheme.FontBodySmall,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
+            .Text = "Available: —"
+        }
         lblEmptyHint = New Label() With {.Text = "No products in catalog. Open Manage Products.", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Visible = False}
 
         dgvProducts = New DataGridView() With {
@@ -349,7 +359,7 @@ Public Class SalesForm
             .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 10,
+            .RowCount = 11,
             .Margin = New Padding(0)
         }
         Dim CreateLabel = Function(text As String) New Label() With {
@@ -366,15 +376,16 @@ Public Class SalesForm
         inputLayout.Controls.Add(cmbProductName, 0, 3)
         inputLayout.Controls.Add(CreateLabel("Unit Price (" & AppSettings.Current.CurrencySymbol & ")"), 0, 4)
         inputLayout.Controls.Add(CreateSalesInputShell(txtPrice), 0, 5)
-        inputLayout.Controls.Add(CreateLabel("Quantity"), 0, 6)
-        inputLayout.Controls.Add(numQuantity, 0, 7)
+        inputLayout.Controls.Add(lblStockOnHand, 0, 6)
+        inputLayout.Controls.Add(CreateLabel("Quantity"), 0, 7)
+        inputLayout.Controls.Add(numQuantity, 0, 8)
 
         Dim pnlAdd As New FlowLayoutPanel() With {
             .AutoSize = True,
             .Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
         }
         pnlAdd.Controls.Add(btnAdd)
-        inputLayout.Controls.Add(pnlAdd, 0, 8)
+        inputLayout.Controls.Add(pnlAdd, 0, 9)
 
         leftLayout.Controls.Add(inputLayout, 0, 1)
 
@@ -917,10 +928,151 @@ Public Class SalesForm
         Dim entry As ProductCatalogEntry = Nothing
         If productCatalog.TryGetValue(selectedProduct, entry) Then
             txtPrice.Text = entry.UnitPrice.ToString("N2", CultureInfo.CurrentCulture)
+            UpdateStockHintForProduct(entry.ProductId, selectedProduct)
         Else
             txtPrice.Clear()
+            If lblStockOnHand IsNot Nothing Then
+                lblStockOnHand.Text = "Available: —"
+            End If
+            numQuantity.Maximum = MaxLineQty
         End If
     End Sub
+
+    Private Sub UpdateStockHintForProduct(productId As Integer, productName As String)
+        If lblStockOnHand Is Nothing Then
+            Return
+        End If
+
+        Dim available As Integer = GetAvailableStock(productId, productName)
+        lblStockOnHand.Text = String.Format(CultureInfo.CurrentCulture, "Available: {0}", available)
+        lblStockOnHand.ForeColor = If(available > 0, UiTheme.TextSecondary, UiTheme.Danger)
+
+        Dim maxQty As Decimal = Math.Max(MinLineQty, Math.Min(MaxLineQty, available))
+        If maxQty < numQuantity.Minimum Then
+            maxQty = numQuantity.Minimum
+        End If
+        numQuantity.Maximum = maxQty
+        If numQuantity.Value > numQuantity.Maximum Then
+            numQuantity.Value = numQuantity.Maximum
+        End If
+    End Sub
+
+    Private Function GetCartQuantityForProduct(productId As Integer, productName As String, Optional excludeRowIndex As Integer = -1) As Integer
+        If Not IsSalesCartGridReady() Then
+            Return 0
+        End If
+
+        Dim total As Integer = 0
+        For i As Integer = 0 To dgvProducts.Rows.Count - 1
+            If i = excludeRowIndex Then
+                Continue For
+            End If
+
+            Dim line As CartLineItem = TryCast(dgvProducts.Rows(i).Tag, CartLineItem)
+            If line Is Nothing Then
+                Continue For
+            End If
+
+            If ProductLinesMatch(line, productId, productName) Then
+                total += line.Quantity
+            End If
+        Next
+
+        Return total
+    End Function
+
+    Private Shared Function ProductLinesMatch(line As CartLineItem, productId As Integer, productName As String) As Boolean
+        If line Is Nothing Then
+            Return False
+        End If
+
+        If productId > 0 AndAlso line.ProductId > 0 Then
+            Return line.ProductId = productId
+        End If
+
+        Return String.Equals(line.ProductName, productName, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Function GetOnHandStock(productId As Integer, productName As String) As Integer
+        Dim entry As ProductCatalogEntry = Nothing
+        If productCatalog.TryGetValue(productName, entry) Then
+            Return entry.StockQuantity
+        End If
+
+        If productId > 0 Then
+            For Each kvp As KeyValuePair(Of String, ProductCatalogEntry) In productCatalog
+                If kvp.Value.ProductId = productId Then
+                    Return kvp.Value.StockQuantity
+                End If
+            Next
+        End If
+
+        Return 0
+    End Function
+
+    Private Function GetAvailableStock(productId As Integer, productName As String, Optional excludeRowIndex As Integer = -1) As Integer
+        Dim onHand As Integer = GetOnHandStock(productId, productName)
+        Return Math.Max(0, onHand - GetCartQuantityForProduct(productId, productName, excludeRowIndex))
+    End Function
+
+    Private Function TryValidateLineStock(productId As Integer, productName As String, lineQuantity As Integer, excludeRowIndex As Integer, ByRef message As String) As Boolean
+        message = String.Empty
+        Dim onHand As Integer = GetOnHandStock(productId, productName)
+        Dim totalNeeded As Integer = GetCartQuantityForProduct(productId, productName, excludeRowIndex) + lineQuantity
+        If totalNeeded <= onHand Then
+            Return True
+        End If
+
+        Dim available As Integer = Math.Max(0, onHand - GetCartQuantityForProduct(productId, productName, excludeRowIndex))
+        message = String.Format(
+            CultureInfo.CurrentCulture,
+            "Not enough stock for ""{0}"". Available: {1}, requested: {2}.",
+            productName,
+            available,
+            lineQuantity)
+        Return False
+    End Function
+
+    Private Function ValidateAllCartStock() As Boolean
+        If Not IsSalesCartGridReady() Then
+            Return True
+        End If
+
+        Dim totals As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+        Dim ids As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+        For Each row As DataGridViewRow In dgvProducts.Rows
+            Dim line As CartLineItem = TryCast(row.Tag, CartLineItem)
+            If line Is Nothing Then
+                Continue For
+            End If
+
+            Dim key As String = line.ProductName
+            If totals.ContainsKey(key) Then
+                totals(key) += line.Quantity
+            Else
+                totals(key) = line.Quantity
+                ids(key) = line.ProductId
+            End If
+        Next
+
+        For Each kvp As KeyValuePair(Of String, Integer) In totals
+            Dim onHand As Integer = GetOnHandStock(ids(kvp.Key), kvp.Key)
+            If kvp.Value > onHand Then
+                Dim msg As String = String.Format(
+                    CultureInfo.CurrentCulture,
+                    "Not enough stock for ""{0}"". On hand: {1}, in cart: {2}.",
+                    kvp.Key,
+                    onHand,
+                    kvp.Value)
+                ShowSalesInputError(msg)
+                MessageBox.Show(msg, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return False
+            End If
+        Next
+
+        Return True
+    End Function
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
         Try
@@ -994,7 +1146,55 @@ Public Class SalesForm
                 Return
             End If
 
-            Dim line As New CartLineItem(productName, price, quantity)
+            Dim catalogEntry As ProductCatalogEntry = Nothing
+            If Not productCatalog.TryGetValue(productName, catalogEntry) Then
+                ShowSalesInputError("Product is not in the active catalog.")
+                MessageBox.Show("Product is not in the active catalog.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                cmbProductName.Focus()
+                Return
+            End If
+
+            For i As Integer = 0 To dgvProducts.Rows.Count - 1
+                Dim existingLine As CartLineItem = TryCast(dgvProducts.Rows(i).Tag, CartLineItem)
+                If existingLine Is Nothing Then
+                    Continue For
+                End If
+
+                If ProductLinesMatch(existingLine, catalogEntry.ProductId, productName) Then
+                    Dim mergedQty As Integer = existingLine.Quantity + quantity
+                    Dim stockMsg As String = String.Empty
+                    If Not TryValidateLineStock(catalogEntry.ProductId, productName, mergedQty, i, stockMsg) Then
+                        ShowSalesInputError(stockMsg)
+                        MessageBox.Show(stockMsg, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        numQuantity.Focus()
+                        Return
+                    End If
+
+                    existingLine.Quantity = mergedQty
+                    dgvProducts.Rows(i).Cells("Quantity").Value = mergedQty
+                    dgvProducts.Rows(i).Cells("Subtotal").Value = FormatMoney(existingLine.LineSubtotal)
+                    cmbProductName.SelectedIndex = -1
+                    txtPrice.Clear()
+                    lblStockOnHand.Text = "Available: —"
+                    numQuantity.Value = MinLineQty
+                    numQuantity.Maximum = MaxLineQty
+                    cmbProductName.Focus()
+                    ClearSalesInputError()
+                    UpdateSummaryLabels()
+                    ShowStatus("Cart quantity updated.", False)
+                    Return
+                End If
+            Next
+
+            Dim stockMessage As String = String.Empty
+            If Not TryValidateLineStock(catalogEntry.ProductId, productName, quantity, -1, stockMessage) Then
+                ShowSalesInputError(stockMessage)
+                MessageBox.Show(stockMessage, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                numQuantity.Focus()
+                Return
+            End If
+
+            Dim line As New CartLineItem(productName, price, quantity, catalogEntry.ProductId)
             Dim rowNumber As Integer = dgvProducts.Rows.Count + 1
 
             Dim idx As Integer = dgvProducts.Rows.Add(
@@ -1008,7 +1208,9 @@ Public Class SalesForm
 
             cmbProductName.SelectedIndex = -1
             txtPrice.Clear()
+            lblStockOnHand.Text = "Available: —"
             numQuantity.Value = MinLineQty
+            numQuantity.Maximum = MaxLineQty
             cmbProductName.Focus()
             ClearSalesInputError()
 
@@ -1143,6 +1345,14 @@ Public Class SalesForm
         End If
 
         Dim qty As Integer = Convert.ToInt32(row.Cells("Quantity").Value)
+        Dim stockMessage As String = String.Empty
+        If Not TryValidateLineStock(line.ProductId, line.ProductName, qty, e.RowIndex, stockMessage) Then
+            ShowSalesInputError(stockMessage)
+            MessageBox.Show(stockMessage, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            row.Cells("Quantity").Value = line.Quantity
+            Return
+        End If
+
         line.Quantity = qty
         row.Cells("Price").Value = FormatMoney(line.UnitPrice)
         row.Cells("Subtotal").Value = FormatMoney(line.LineSubtotal)
@@ -1190,6 +1400,10 @@ Public Class SalesForm
                 Return
             End If
         Next
+
+        If Not ValidateAllCartStock() Then
+            Return
+        End If
 
         Dim grandTotal As Decimal = GetGrandTotal()
         Dim tenderedText As String = txtAmountTendered.Text.Trim()
@@ -1381,6 +1595,60 @@ Public Class SalesForm
                         End Using
                     Next
 
+                    Dim deductionsById As New Dictionary(Of Integer, Integer)()
+                    Dim deductionsByName As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+                    For Each row As DataGridViewRow In dgvProducts.Rows
+                        Dim line As CartLineItem = TryCast(row.Tag, CartLineItem)
+                        If line Is Nothing Then
+                            Continue For
+                        End If
+
+                        If line.ProductId > 0 Then
+                            If deductionsById.ContainsKey(line.ProductId) Then
+                                deductionsById(line.ProductId) += line.Quantity
+                            Else
+                                deductionsById(line.ProductId) = line.Quantity
+                            End If
+                        Else
+                            If deductionsByName.ContainsKey(line.ProductName) Then
+                                deductionsByName(line.ProductName) += line.Quantity
+                            Else
+                                deductionsByName(line.ProductName) = line.Quantity
+                            End If
+                        End If
+                    Next
+
+                    For Each kvp As KeyValuePair(Of Integer, Integer) In deductionsById
+                        Dim deductSql As String =
+                            "UPDATE products SET stock_quantity = stock_quantity - @qty, updated_at = SYSUTCDATETIME() " &
+                            "WHERE id = @id AND is_active = 1 AND stock_quantity >= @qty;"
+                        Using deductCmd As New SqlCommand(deductSql, connection, transaction)
+                            deductCmd.Parameters.AddWithValue("@id", kvp.Key)
+                            deductCmd.Parameters.AddWithValue("@qty", kvp.Value)
+                            Dim affected As Integer = deductCmd.ExecuteNonQuery()
+                            If affected <> 1 Then
+                                Throw New InvalidOperationException(
+                                    String.Format(CultureInfo.CurrentCulture, "Insufficient stock for product id {0}.", kvp.Key))
+                            End If
+                        End Using
+                    Next
+
+                    For Each kvp As KeyValuePair(Of String, Integer) In deductionsByName
+                        Dim deductSql As String =
+                            "UPDATE products SET stock_quantity = stock_quantity - @qty, updated_at = SYSUTCDATETIME() " &
+                            "WHERE product_name = @name AND is_active = 1 AND stock_quantity >= @qty;"
+                        Using deductCmd As New SqlCommand(deductSql, connection, transaction)
+                            deductCmd.Parameters.AddWithValue("@name", kvp.Key)
+                            deductCmd.Parameters.AddWithValue("@qty", kvp.Value)
+                            Dim affected As Integer = deductCmd.ExecuteNonQuery()
+                            If affected <> 1 Then
+                                Throw New InvalidOperationException(
+                                    String.Format(CultureInfo.CurrentCulture, "Insufficient stock for ""{0}"".", kvp.Key))
+                            End If
+                        End Using
+                    Next
+
                     transaction.Commit()
                     AuditLogger.LogSale(connection, "FINALIZE", saleId, "Sale saved from SalesForm")
                     AuditLogger.LogAudit(
@@ -1398,7 +1666,13 @@ Public Class SalesForm
             numQuantity.Value = MinLineQty
             ClearSalesInputError()
             UpdateSummaryLabels()
+            LoadProducts()
             Return True
+        Catch ex As InvalidOperationException
+            ShowStatus("Sale not saved — insufficient stock.", True)
+            MessageBox.Show(ex.Message, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(SaveSale))
+            Return False
         Catch ex As Exception
             ShowDatabaseError("Error saving sale", ex)
             ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(SaveSale))
@@ -1467,7 +1741,7 @@ Public Class SalesForm
                 suppressSalesCategoryEvent = False
 
                 Dim query As String =
-                    "SELECT product_name, price, category_id " &
+                    "SELECT id, product_name, price, category_id, stock_quantity " &
                     "FROM products " &
                     "WHERE is_active = 1 " &
                     "ORDER BY product_name;"
@@ -1484,8 +1758,10 @@ Public Class SalesForm
                             End If
 
                             productCatalog(productName) = New ProductCatalogEntry With {
+                                .ProductId = Convert.ToInt32(reader("id")),
                                 .UnitPrice = price,
-                                .CategoryId = catId}
+                                .CategoryId = catId,
+                                .StockQuantity = Convert.ToInt32(reader("stock_quantity"))}
                         End While
                     End Using
                 End Using
@@ -1530,6 +1806,10 @@ Public Class SalesForm
 
         For Each productName As String In names
             Dim entry As ProductCatalogEntry = productCatalog(productName)
+            If entry.StockQuantity <= 0 Then
+                Continue For
+            End If
+
             If CategoryFilterMatches(sel, entry.CategoryId) Then
                 cmbProductName.Items.Add(productName)
             End If
@@ -1695,7 +1975,13 @@ Public Class SalesForm
                             Dim productName As String = reader("product_name").ToString()
                             Dim price As Decimal = Convert.ToDecimal(reader("price"))
                             Dim quantity As Integer = Convert.ToInt32(reader("quantity"))
-                            Dim line As New CartLineItem(productName, price, quantity)
+                            Dim productId As Integer = 0
+                            Dim entry As ProductCatalogEntry = Nothing
+                            If productCatalog.TryGetValue(productName, entry) Then
+                                productId = entry.ProductId
+                            End If
+
+                            Dim line As New CartLineItem(productName, price, quantity, productId)
                             Dim idx As Integer = dgvProducts.Rows.Add(
                                 dgvProducts.Rows.Count + 1,
                                 productName,

@@ -527,8 +527,8 @@ Public NotInheritable Class UiTheme
         End If
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
-        Dim clearColor As Color = FormBackground
-        If button.Parent IsNot Nothing Then
+        Dim clearColor As Color = CardSurface
+        If button.Parent IsNot Nothing AndAlso button.Parent.BackColor <> Color.Transparent Then
             clearColor = button.Parent.BackColor
         End If
 

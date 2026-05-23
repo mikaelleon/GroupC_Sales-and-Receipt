@@ -9,11 +9,17 @@ Public Class CartLineItem
     ''' <param name="productName">Product display name.</param>
     ''' <param name="unitPrice">Unit price.</param>
     ''' <param name="quantity">Line quantity.</param>
-    Public Sub New(productName As String, unitPrice As Decimal, quantity As Integer)
+    Public Sub New(productName As String, unitPrice As Decimal, quantity As Integer, Optional productId As Integer = 0)
         Me.ProductName = productName
         Me.UnitPrice = unitPrice
         Me.Quantity = quantity
+        Me.ProductId = productId
     End Sub
+
+    ''' <summary>
+    ''' Gets or sets the catalog product id (0 when unknown).
+    ''' </summary>
+    Public Property ProductId As Integer
 
     ''' <summary>
     ''' Gets or sets the product name.
