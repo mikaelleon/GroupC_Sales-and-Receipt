@@ -231,16 +231,16 @@ Public Class ReceiptForm
         cmbHistory = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Visible = False, .Size = New Size(0, 0)}
         lstHistory = New ListBox() With {
             .IntegralHeight = False,
-            .Height = 180,
+            .Height = 200,
             .Width = HistoryListWidth,
             .BorderStyle = BorderStyle.FixedSingle,
-            .Font = New Font("Segoe UI", 10.0F),
-            .BackColor = Color.White,
+            .Font = UiTheme.FontBody,
+            .BackColor = UiTheme.CardSurface,
             .HorizontalScrollbar = True
         }
         txtHistorySearch = New TextBox() With {
             .Width = HistoryListWidth,
-            .Font = New Font("Segoe UI", 10.0F),
+            .Font = UiTheme.FontBody,
             .ForeColor = UiTheme.TextSecondary,
             .Text = "Search receipt #, amount, date…"
         }
@@ -260,7 +260,7 @@ Public Class ReceiptForm
         cmbDateFilter = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Width = HistoryListWidth,
-            .Font = New Font("Segoe UI", 9.5F)
+            .Font = UiTheme.FontBody
         }
         cmbDateFilter.Items.AddRange(New Object() {"All dates", "Today", "This week", "This month", "Custom range"})
         cmbDateFilter.SelectedIndex = 0
@@ -268,7 +268,7 @@ Public Class ReceiptForm
         cmbSort = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Width = HistoryListWidth,
-            .Font = New Font("Segoe UI", 9.5F)
+            .Font = UiTheme.FontBody
         }
         cmbSort.Items.AddRange(New Object() {"Newest first", "Oldest first", "Amount: high to low", "Amount: low to high"})
         cmbSort.SelectedIndex = 0
@@ -276,15 +276,39 @@ Public Class ReceiptForm
         dtpFilterFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 148, .Value = DateTime.Today.AddDays(-7)}
         dtpFilterTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 148, .Value = DateTime.Today}
 
-        pnlCustomRange = New Panel() With {.Width = HistoryListWidth, .Height = 32, .Visible = False}
-        Dim lblFrom As New Label() With {.Text = "From", .AutoSize = True, .Location = New Point(0, 8), .Font = New Font("Segoe UI", 8.5F)}
-        dtpFilterFrom.Location = New Point(36, 4)
-        Dim lblTo As New Label() With {.Text = "To", .AutoSize = True, .Location = New Point(0, 8), .Font = New Font("Segoe UI", 8.5F)}
-        dtpFilterTo.Location = New Point(168, 4)
+        pnlCustomRange = New Panel() With {
+            .Width = HistoryListWidth,
+            .Height = UiTheme.InputHeight + UiTheme.SpaceSm,
+            .Visible = False
+        }
+        Dim lblFrom As New Label() With {
+            .Text = "From",
+            .AutoSize = True,
+            .Location = New Point(0, UiTheme.SpaceSm),
+            .Font = UiTheme.FontBodySmall
+        }
+        dtpFilterFrom.Location = New Point(36, UiTheme.SpaceXs)
+        Dim lblTo As New Label() With {
+            .Text = "To",
+            .AutoSize = True,
+            .Location = New Point(168, UiTheme.SpaceSm),
+            .Font = UiTheme.FontBodySmall
+        }
+        dtpFilterTo.Location = New Point(204, UiTheme.SpaceXs)
         pnlCustomRange.Controls.AddRange(New Control() {lblFrom, dtpFilterFrom, lblTo, dtpFilterTo})
 
-        btnLoadList = New Button() With {.Text = "↻ Refresh", .Size = New Size(100, 32), .Cursor = Cursors.Hand}
-        btnExportBatch = New Button() With {.Text = "📦 Export batch", .Size = New Size(140, 32), .Cursor = Cursors.Hand}
+        btnLoadList = New Button() With {
+            .Text = "↻ Refresh",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnExportBatch = New Button() With {
+            .Text = "📦 Export batch",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
 
         btnPrint = CreateToolbarButton("🖨 Print", True)
         btnPrintPreview = CreateToolbarButton("👁 Print preview", False)
@@ -298,12 +322,13 @@ Public Class ReceiptForm
 
         Dim btnBack As New Button() With {
             .Text = "← Back to Menu",
-            .Size = New Size(150, 36),
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
             .Cursor = Cursors.Hand,
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .ForeColor = UiTheme.SecondaryAccent,
-            .Font = New Font("Segoe UI", 10.0F)
+            .Font = UiTheme.FontBody
         }
         btnBack.FlatAppearance.BorderSize = 1
         btnBack.FlatAppearance.BorderColor = BorderLight
@@ -324,7 +349,7 @@ Public Class ReceiptForm
             .Width = PreviewReceiptWidth,
             .Font = New Font("Courier New", 10.0F),
             .ReadOnly = True,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .BorderStyle = BorderStyle.None,
             .ScrollBars = RichTextBoxScrollBars.Both,
             .WordWrap = False,
@@ -346,14 +371,14 @@ Public Class ReceiptForm
         btnExportBatch.FlatStyle = FlatStyle.Flat
         btnExportBatch.FlatAppearance.BorderSize = 1
         btnExportBatch.FlatAppearance.BorderColor = BorderLight
-        btnExportBatch.BackColor = Color.White
+        btnExportBatch.BackColor = UiTheme.CardSurface
         btnExportBatch.ForeColor = UiTheme.SecondaryAccent
-        btnExportBatch.Font = New Font("Segoe UI", 9.5F)
+        btnExportBatch.Font = UiTheme.FontBody
         btnLoadList.FlatAppearance.BorderSize = 1
         btnLoadList.FlatAppearance.BorderColor = BorderLight
-        btnLoadList.BackColor = Color.White
+        btnLoadList.BackColor = UiTheme.CardSurface
         btnLoadList.ForeColor = UiTheme.SecondaryAccent
-        btnLoadList.Font = New Font("Segoe UI", 10.0F)
+        btnLoadList.Font = UiTheme.FontBody
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
         statusStrip = New StatusStrip()
@@ -363,11 +388,14 @@ Public Class ReceiptForm
         lblStatus = New Label() With {
             .AutoSize = True,
             .Anchor = AnchorStyles.Right Or AnchorStyles.Top,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.TextSecondary
         }
 
-        pnlBottomBar = New Panel() With {.Height = 56, .BackColor = Color.White}
+        pnlBottomBar = New Panel() With {
+            .Height = 60,
+            .BackColor = UiTheme.CardSurface
+        }
         AddHandler pnlBottomBar.Paint, Sub(s, e)
                                            Using pen As New Pen(BorderLight, 1.0F)
                                                e.Graphics.DrawLine(pen, 0, 0, pnlBottomBar.Width, 0)
@@ -384,8 +412,8 @@ Public Class ReceiptForm
             .Width = LeftPanelWidth,
             .MinimumSize = New Size(LeftPanelWidth, 0),
             .MaximumSize = New Size(LeftPanelWidth, 9999),
-            .BackColor = Color.White,
-            .Padding = New Padding(24, 20, 24, 0)
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.SpaceLg, UiTheme.SpaceXl, 0)
         }
         AddHandler pnlLeft.Paint, Sub(s, e)
                                       Using pen As New Pen(BorderLight, 1.0F)
@@ -393,52 +421,65 @@ Public Class ReceiptForm
                                       End Using
                                   End Sub
 
-        Dim leftStack As New TableLayoutPanel() With {.Dock = DockStyle.Top, .AutoSize = True, .ColumnCount = 1, .Width = HistoryListWidth}
+        Dim leftStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .ColumnCount = 1,
+            .Width = HistoryListWidth
+        }
         leftStack.Controls.Add(New Label() With {
             .Text = "Receipts",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
+            .Font = UiTheme.FontHeading2,
             .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(0, 0, 0, 4)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         }, 0, 0)
         leftStack.Controls.Add(New Label() With {
             .Text = "Select a past sale to preview, print, or export.",
             .AutoSize = True,
             .MaximumSize = New Size(HistoryListWidth, 0),
-            .Font = New Font("Segoe UI", 9.0F),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 0, 0, 12)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
         }, 0, 1)
         leftStack.Controls.Add(New Label() With {
             .Text = "Search & filters",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Bold),
+            .Font = UiTheme.FontBody,
             .ForeColor = UiTheme.SecondaryAccent,
-            .Margin = New Padding(0, 0, 0, 4)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         }, 0, 2)
-        txtHistorySearch.Margin = New Padding(0, 0, 0, 6)
+        txtHistorySearch.Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
         leftStack.Controls.Add(txtHistorySearch, 0, 3)
-        cmbDateFilter.Margin = New Padding(0, 0, 0, 4)
+        cmbDateFilter.Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         leftStack.Controls.Add(cmbDateFilter, 0, 4)
         leftStack.Controls.Add(pnlCustomRange, 0, 5)
-        cmbSort.Margin = New Padding(0, 0, 0, 8)
+        cmbSort.Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
         leftStack.Controls.Add(cmbSort, 0, 6)
         leftStack.Controls.Add(New Label() With {
             .Text = "Receipt history",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Bold),
+            .Font = UiTheme.FontBody,
             .ForeColor = UiTheme.SecondaryAccent,
-            .Margin = New Padding(0, 0, 0, 6)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
         }, 0, 7)
         leftStack.Controls.Add(lstHistory, 0, 8)
-        Dim pnlListActions As New FlowLayoutPanel() With {.AutoSize = True, .WrapContents = False, .Margin = New Padding(0, 6, 0, 0)}
+        Dim pnlListActions As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = False,
+            .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
+        }
         pnlListActions.Controls.AddRange(New Control() {btnLoadList, btnExportBatch})
         leftStack.Controls.Add(pnlListActions, 0, 9)
-        pnlSaleChip.Margin = New Padding(0, 12, 0, 8)
+        pnlSaleChip.Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm)
         leftStack.Controls.Add(pnlSaleChip, 0, 10)
 
-        Dim pnlLeftFooter As New FlowLayoutPanel() With {.Dock = DockStyle.Bottom, .AutoSize = True, .Padding = New Padding(0, 0, 0, 20)}
-        btnBack.Margin = New Padding(0, 24, 0, 0)
+        Dim pnlLeftFooter As New FlowLayoutPanel() With {
+            .Dock = DockStyle.Bottom,
+            .AutoSize = True,
+            .Padding = New Padding(0, 0, 0, UiTheme.SpaceLg)
+        }
+        btnBack.Margin = New Padding(0, UiTheme.SpaceXl, 0, 0)
         pnlLeftFooter.Controls.Add(btnBack)
 
         Dim pnlLeftBody As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True}

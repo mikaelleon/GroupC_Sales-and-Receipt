@@ -55,19 +55,19 @@ Public Class CategoriesForm
         Me.Controls.Clear()
         Me.BackColor = UiTheme.FormBackground
 
-        txtCategoryName = New TextBox() With {.MaxLength = MaxCategoryNameLength, .Font = New Font("Segoe UI", 11)}
+        txtCategoryName = New TextBox() With {.MaxLength = MaxCategoryNameLength, .Font = UiTheme.FontBody}
         UiTheme.ApplyFilledTextInputVisual(txtCategoryName)
 
         cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 180}
         cmbFilter.Items.AddRange(New Object() {"Active categories", "All categories", "Inactive only"})
         UiTheme.ApplyTableLayoutDropDown(cmbFilter)
 
-        btnAdd = New Button() With {.Text = "&Add category", .Size = New Size(130, 38), .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update name", .Size = New Size(120, 38), .Cursor = Cursors.Hand}
-        btnDeactivate = New Button() With {.Text = "&Deactivate", .Size = New Size(110, 38), .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .Size = New Size(110, 38), .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {.Text = "&Add category", .AutoSize = True, .MinimumSize = New Size(120, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
+        btnUpdate = New Button() With {.Text = "&Update name", .AutoSize = True, .MinimumSize = New Size(110, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
+        btnDeactivate = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
+        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Enabled = False, .Cursor = Cursors.Hand}
+        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeightSm), .Cursor = Cursors.Hand}
+        btnBack = New Button() With {.Text = "← Back to Menu", .AutoSize = True, .MinimumSize = New Size(140, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
 
         UiTheme.ApplyPrimaryButton(btnAdd)
         UiTheme.ApplyPrimaryButton(btnUpdate)
@@ -98,7 +98,7 @@ Public Class CategoriesForm
         root.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 360.0F))
         root.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Color.White, .Padding = New Padding(25, 30, 25, 30)}
+        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.CardSurface, .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)}
         Dim sideStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4}
         sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
@@ -107,14 +107,14 @@ Public Class CategoriesForm
 
         Dim hdr As New Label() With {
             .Text = "Book categories",
-            .Font = New Font("Segoe UI", 16.0F, FontStyle.Bold),
+            .Font = UiTheme.FontHeading2,
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 6)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
         }
         Dim hint As New Label() With {
             .Text = "Assign categories to products on the Products screen.",
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.TextSecondary,
             .AutoSize = True,
             .MaximumSize = New Size(300, 0),

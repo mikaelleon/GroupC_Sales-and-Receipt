@@ -109,9 +109,25 @@ Public Class ProductsForm
         ' -----------------------------------------------------------
         ' 1. INITIALIZE CONTROLS
         ' -----------------------------------------------------------
-        txtProductName = New TextBox() With {.Dock = DockStyle.Fill, .MaxLength = 100, .Font = New Font("Segoe UI", 11)}
-        numPrice = New NumericUpDown() With {.Dock = DockStyle.Fill, .DecimalPlaces = 2, .Minimum = 0.01D, .Maximum = 999999.99D, .TextAlign = HorizontalAlignment.Right, .ThousandsSeparator = True, .Font = New Font("Segoe UI", 11)}
-        cmbCategory = New ComboBox() With {.Dock = DockStyle.Fill, .DropDownStyle = ComboBoxStyle.DropDownList, .Font = New Font("Segoe UI", 11)}
+        txtProductName = New TextBox() With {
+            .Dock = DockStyle.Fill,
+            .MaxLength = 100,
+            .Font = UiTheme.FontBody
+        }
+        numPrice = New NumericUpDown() With {
+            .Dock = DockStyle.Fill,
+            .DecimalPlaces = 2,
+            .Minimum = 0.01D,
+            .Maximum = 999999.99D,
+            .TextAlign = HorizontalAlignment.Right,
+            .ThousandsSeparator = True,
+            .Font = UiTheme.FontBody
+        }
+        cmbCategory = New ComboBox() With {
+            .Dock = DockStyle.Fill,
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Font = UiTheme.FontBody
+        }
 
         ' Apply UI Theme fixes to prevent TextBoxes from awkwardly stretching vertically in grids
         Try
@@ -120,20 +136,73 @@ Public Class ProductsForm
         Catch
         End Try
 
-        txtSearch = New TextBox() With {.Width = 260, .PlaceholderText = "Search products...", .Font = New Font("Segoe UI", 10)}
-        cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 160, .Font = New Font("Segoe UI", 10)}
+        txtSearch = New TextBox() With {
+            .Width = 260,
+            .PlaceholderText = "Search products...",
+            .Font = UiTheme.FontBody
+        }
+        cmbFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 160,
+            .Font = UiTheme.FontBody
+        }
         cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
-        cmbGridCategoryFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 180, .Font = New Font("Segoe UI", 10)}
+        cmbGridCategoryFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 180,
+            .Font = UiTheme.FontBody
+        }
         suppressProductFilterEvents = True
 
-        btnAdd = New Button() With {.Text = "&Add Product", .Size = New Size(120, 38), .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
-        btnDelete = New Button() With {.Text = "&Deactivate", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .Size = New Size(100, 38), .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
-        btnImportCsv = New Button() With {.Text = "Import CSV", .Size = New Size(100, 34), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
-        btnManageCategories = New Button() With {.Text = "Manage &categories…", .Size = New Size(160, 34), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {
+            .Text = "&Add Product",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnUpdate = New Button() With {
+            .Text = "&Update",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnDelete = New Button() With {
+            .Text = "&Deactivate",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnReactivate = New Button() With {
+            .Text = "Reactivate",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Enabled = False,
+            .Cursor = Cursors.Hand
+        }
+        btnRefresh = New Button() With {
+            .Text = "Refresh",
+            .AutoSize = True,
+            .MinimumSize = New Size(90, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnImportCsv = New Button() With {
+            .Text = "Import CSV",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnBack = New Button() With {
+            .Text = "← Back to Menu",
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnManageCategories = New Button() With {
+            .Text = "Manage &categories…",
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
 
         ' Apply Themes
         Try

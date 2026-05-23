@@ -127,37 +127,37 @@ Public Class CashierAccountsForm
             .Width = 190,
             .Height = FieldHeight,
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = Color.White,
-            .Font = New Font("Segoe UI", 10.0F)
+            .BackColor = UiTheme.CardSurface,
+            .Font = UiTheme.FontBody
         }
         cmbFilter.Items.AddRange(New Object() {"Active cashiers", "Inactive cashiers", "All cashiers"})
 
-        btnRegister = New Button() With {.Text = "+ Register Cashier", .Size = New Size(FieldWidth, 42), .Cursor = Cursors.Hand}
-        btnUpdateDisplay = New Button() With {.Text = "✏ Update Display Name", .Size = New Size(FieldWidth, 38), .Visible = False, .Cursor = Cursors.Hand}
-        btnResetPassword = New Button() With {.Text = "🔑 Reset Password", .Size = New Size(FieldWidth, 38), .Visible = False, .Cursor = Cursors.Hand}
-        btnDeactivate = New Button() With {.Text = "⊘ Deactivate Account", .Size = New Size(FieldWidth, 38), .Visible = False, .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "✓ Reactivate Account", .Size = New Size(FieldWidth, 38), .Visible = False, .Cursor = Cursors.Hand}
+        btnRegister = New Button() With {.Text = "+ Register Cashier", .Size = New Size(FieldWidth, UiTheme.ButtonHeightLg), .Cursor = Cursors.Hand}
+        btnUpdateDisplay = New Button() With {.Text = "✏ Update Display Name", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
+        btnResetPassword = New Button() With {.Text = "🔑 Reset Password", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
+        btnDeactivate = New Button() With {.Text = "⊘ Deactivate Account", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
+        btnReactivate = New Button() With {.Text = "✓ Reactivate Account", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
         btnRefresh = New Button() With {
             .Text = "↻  Refresh",
             .Size = New Size(100, FieldHeight),
             .Cursor = Cursors.Hand,
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .ForeColor = ColorTranslator.FromHtml("#1B7EC2"),
-            .Font = New Font("Segoe UI", 10.0F)
+            .Font = UiTheme.FontBody
         }
         btnRefresh.FlatAppearance.BorderSize = 1
         btnRefresh.FlatAppearance.BorderColor = BorderLight
 
         btnBack = New Button() With {
             .Text = "← Back to Menu",
-            .Size = New Size(150, 36),
+            .Size = New Size(150, UiTheme.ButtonHeightMd),
             .Location = New Point(24, 10),
             .Cursor = Cursors.Hand,
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .ForeColor = ColorTranslator.FromHtml("#1B7EC2"),
-            .Font = New Font("Segoe UI", 10.0F)
+            .Font = UiTheme.FontBody
         }
         btnBack.FlatAppearance.BorderSize = 1
         btnBack.FlatAppearance.BorderColor = BorderLight
@@ -186,14 +186,14 @@ Public Class CashierAccountsForm
         lblPassHint = New Label() With {
             .Text = "Minimum 6 characters",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 8.5F, FontStyle.Italic),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 4, 0, 0)
+            .Margin = New Padding(0, UiTheme.SpaceXs, 0, 0)
         }
         lblPassMatch = New Label() With {
             .AutoSize = True,
             .Visible = False,
-            .Font = New Font("Segoe UI", 9.0F)
+            .Font = UiTheme.FontBodySmall
         }
         lblNoSelection = New Label() With {
             .Text = "Select a cashier from the list to manage their account.",

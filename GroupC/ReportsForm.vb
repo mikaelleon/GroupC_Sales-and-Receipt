@@ -72,17 +72,26 @@ Public Class ReportsForm
         ' -----------------------------------------------------------
         ' 1. INSTANTIATE ALL CONTROLS (The Missing Code!)
         ' -----------------------------------------------------------
-        tabReports = New TabControl() With {.Dock = DockStyle.Fill, .Padding = New Point(12, 8), .Font = New Font("Segoe UI", 10.5F)}
+        tabReports = New TabControl() With {
+            .Dock = DockStyle.Fill,
+            .Padding = New Point(UiTheme.SpaceMd, UiTheme.SpaceSm),
+            .Font = UiTheme.FontBody
+        }
 
         ' Sales Tab Controls
         dtpFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today.AddDays(-30)}
         dtpTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today}
-        btnRun = New Button() With {.Text = "&Run report", .Size = New Size(120, 32), .Cursor = Cursors.Hand}
+        btnRun = New Button() With {
+            .Text = "&Run report",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
         lblSummary = New Label() With {
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 11, FontStyle.Bold),
+            .Font = UiTheme.FontHeading3,
             .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(16, 8, 0, 8)
+            .Margin = New Padding(UiTheme.SpaceLg, UiTheme.SpaceSm, 0, UiTheme.SpaceSm)
         }
 
         dgvDaily = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False, .BackgroundColor = Color.White, .BorderStyle = BorderStyle.None}
@@ -91,7 +100,12 @@ Public Class ReportsForm
         ' Audit Tab Controls
         dtpAuditFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today.AddDays(-30)}
         dtpAuditTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 140, .Value = DateTime.Today}
-        btnAuditRefresh = New Button() With {.Text = "&Load log", .Size = New Size(120, 32), .Cursor = Cursors.Hand}
+        btnAuditRefresh = New Button() With {
+            .Text = "&Load log",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
         dgvAudit = New DataGridView() With {.Dock = DockStyle.Fill, .ReadOnly = True, .AllowUserToAddRows = False, .BackgroundColor = Color.White, .BorderStyle = BorderStyle.None}
 
         ' Status Strip
@@ -114,22 +128,35 @@ Public Class ReportsForm
         ' 2. BUILD THE RESPONSIVE LAYOUT
         ' -----------------------------------------------------------
         ' Top Header & Back Button
-        Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand, .Margin = New Padding(0, 0, 20, 0)}
+        Dim btnBack As New Button() With {
+            .Text = "← Back to Menu",
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand,
+            .Margin = New Padding(0, 0, UiTheme.SpaceLg, 0)
+        }
         AddHandler btnBack.Click, Sub(s, ev) Me.Close()
         Try : UiTheme.ApplySecondaryButton(btnBack) : Catch : End Try
 
         Dim headerPanel As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
-            .Height = 72,
+            .Height = 76,
             .ColumnCount = 2,
             .RowCount = 1,
-            .Padding = New Padding(24, 16, 24, 16),
+            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.SpaceLg, UiTheme.SpaceXl, UiTheme.SpaceLg),
             .BackColor = UiTheme.CardSurface
         }
         headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim lblTitle As New Label() With {.Text = "System Reports & Audit", .Font = New Font("Segoe UI", 18, FontStyle.Bold), .ForeColor = UiTheme.PrimaryAccent, .AutoSize = True, .Anchor = AnchorStyles.Left Or AnchorStyles.Top Or AnchorStyles.Bottom, .TextAlign = ContentAlignment.MiddleLeft}
+        Dim lblTitle As New Label() With {
+            .Text = "System Reports & Audit",
+            .Font = UiTheme.FontHeading2,
+            .ForeColor = UiTheme.PrimaryAccent,
+            .AutoSize = True,
+            .Anchor = AnchorStyles.Left Or AnchorStyles.Top Or AnchorStyles.Bottom,
+            .TextAlign = ContentAlignment.MiddleLeft
+        }
         headerPanel.Controls.Add(btnBack, 0, 0)
         headerPanel.Controls.Add(lblTitle, 1, 0)
 
