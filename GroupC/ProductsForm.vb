@@ -83,6 +83,9 @@ Public Class ProductsForm
 
     Private suppressGridCategoryFilterEvents As Boolean
 
+    ''' <summary>Prevents stacking multiple BeginInvoke layout passes for the product grid.</summary>
+    Private productGridLayoutPending As Boolean
+
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.Text = AppBranding.WindowTitle("Manage Products")
@@ -407,8 +410,7 @@ Public Class ProductsForm
     End Sub
 
     Private Sub ProductsForm_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
-        ' Run after the grid has its final width so Fill sizing does not clip column headers.
-        BeginInvoke(New Action(AddressOf ApplyProductGridColumnLayout))
+        ScheduleProductGridColumnLayout()
     End Sub
 
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
@@ -530,6 +532,7 @@ Public Class ProductsForm
 
     Private Sub dgvProducts_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs) Handles dgvProducts.DataBindingComplete
         FormatProductColumns()
+        ScheduleProductGridColumnLayout()
         UpdateReactivateEnabled()
     End Sub
 
@@ -571,7 +574,31 @@ Public Class ProductsForm
         End If
 
         GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
-        ApplyProductGridColumnLayout()
+    End Sub
+
+    ''' <summary>
+    ''' Defers width-sensitive Fill layout until after the form and grid have finished layout.
+    ''' Coalesces duplicate requests from DataBindingComplete and Shown into one pass.
+    ''' </summary>
+    Private Sub ScheduleProductGridColumnLayout()
+        If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
+            Return
+        End If
+
+        If Not Me.IsHandleCreated OrElse Not dgvProducts.IsHandleCreated Then
+            Return
+        End If
+
+        If productGridLayoutPending Then
+            Return
+        End If
+
+        productGridLayoutPending = True
+        BeginInvoke(New MethodInvoker(
+            Sub()
+                productGridLayoutPending = False
+                ApplyProductGridColumnLayout()
+            End Sub))
     End Sub
 
     ''' <summary>
@@ -580,6 +607,10 @@ Public Class ProductsForm
     ''' </summary>
     Private Sub ApplyProductGridColumnLayout()
         If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
+            Return
+        End If
+
+        If dgvProducts.ClientSize.Width <= 0 Then
             Return
         End If
 
@@ -1298,7 +1329,6 @@ Public Class ProductsForm
             dgvProducts.Visible = True
             lblGridMessage.Visible = False
             ApplyCombinedFilter()
-            FormatProductColumns()
         Catch ex As Exception
             productsTable = Nothing
             productsView = Nothing
