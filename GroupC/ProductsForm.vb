@@ -1,4 +1,4 @@
-﻿Imports System.Collections.Generic
+Imports System.Collections.Generic
 Imports System.Data
 Imports System.Globalization
 Imports System.IO
@@ -84,12 +84,6 @@ Public Class ProductsForm
     Private WithEvents btnRemoveImage As Button
 
     Private pendingImageSourcePath As String
-    Private markedImageForRemoval As Boolean
-    Private WithEvents btnChooseImage As Button
-    Private WithEvents btnClearImage As Button
-    Private picProductPreview As PictureBox
-    Private selectedProductId As Integer = -1
-    Private pendingImageSourcePath As String
     Private clearImageOnSave As Boolean
 
     Private statusStrip As StatusStrip
@@ -101,18 +95,13 @@ Public Class ProductsForm
     Private productsTable As DataTable
     Private productsView As DataView
 
-    ''' <summary>
-    ''' Blocks filter ComboBox events while controls still building — parenting can fire SelectedIndexChanged before grid exists.
-    ''' </summary>
     Private suppressProductFilterEvents As Boolean
 
     Private suppressGridCategoryFilterEvents As Boolean
 
-    ''' <summary>Prevents stacking multiple BeginInvoke layout passes for the product grid.</summary>
     Private productGridLayoutPending As Boolean
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' 1. FORM SETUP (Full Screen & Responsive)
         Me.Text = AppBranding.WindowTitle("Manage Products")
         UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
 
@@ -137,19 +126,16 @@ Public Class ProductsForm
         Me.Controls.Clear()
         Me.BackColor = UiTheme.FormBackground
 
-        ' -----------------------------------------------------------
-        ' 1. INITIALIZE CONTROLS
-        ' -----------------------------------------------------------
         txtProductName = New TextBox() With {
             .Dock = DockStyle.Fill,
-            .MaxLength = 100,
+            .MaxLength = MaxProductNameLength,
             .Font = UiTheme.FontBody
         }
         numPrice = New NumericUpDown() With {
             .Dock = DockStyle.Fill,
             .DecimalPlaces = 2,
-            .Minimum = 0.01D,
-            .Maximum = 999999.99D,
+            .Minimum = MinProductPrice,
+            .Maximum = MaxProductPrice,
             .TextAlign = HorizontalAlignment.Right,
             .ThousandsSeparator = True,
             .Font = UiTheme.FontBody
@@ -163,29 +149,12 @@ Public Class ProductsForm
             .ThousandsSeparator = True,
             .Font = UiTheme.FontBody
         }
-        picProductPreview = New PictureBox() With {
-            .SizeMode = PictureBoxSizeMode.Zoom,
-            .BackColor = Color.White,
-            .BorderStyle = BorderStyle.FixedSingle,
-            .Dock = DockStyle.Fill
-        }
-        btnChooseImage = New Button() With {
-            .Text = "Choose image…",
-            .Cursor = Cursors.Hand
-        }
-        btnClearImage = New Button() With {
-            .Text = "Remove image",
-            .Cursor = Cursors.Hand
-        }
-        ConfigureSidebarSmallButton(btnChooseImage)
-        ConfigureSidebarSmallButton(btnClearImage)
         cmbCategory = New ComboBox() With {
             .Dock = DockStyle.Fill,
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Font = UiTheme.FontBody
         }
 
-        ' Apply UI Theme fixes to prevent TextBoxes from awkwardly stretching vertically in grids
         Try
             UiTheme.ApplyTableLayoutSingleLineTextBox(txtProductName)
             UiTheme.ApplyTableLayoutDropDown(cmbCategory)
@@ -196,10 +165,12 @@ Public Class ProductsForm
 
         txtSearch = New TextBox() With {
             .PlaceholderText = "Search products...",
+            .MaxLength = MaxSearchLength,
             .Font = UiTheme.FontBody
         }
         Try
             UiTheme.ApplyTableLayoutSingleLineTextBox(txtSearch)
+            txtSearch.Dock = DockStyle.Fill
         Catch
         End Try
         cmbFilter = New ComboBox() With {
@@ -288,14 +259,6 @@ Public Class ProductsForm
             .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
-        btnAdd = New Button() With {.Text = "&Add Product", .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update", .Cursor = Cursors.Hand}
-        btnDelete = New Button() With {.Text = "&Deactivate", .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .Cursor = Cursors.Hand}
-        btnImportCsv = New Button() With {.Text = "Import CSV", .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .Cursor = Cursors.Hand}
-        btnManageCategories = New Button() With {.Text = "Manage &categories…", .Cursor = Cursors.Hand}
 
         ConfigureSidebarButton(btnAdd)
         ConfigureSidebarButton(btnUpdate)
@@ -305,8 +268,9 @@ Public Class ProductsForm
         ConfigureSidebarButton(btnManageCategories)
         ConfigureSidebarButton(btnBack)
         ConfigureSidebarSmallButton(btnRefresh)
+        ConfigureSidebarSmallButton(btnChooseImage)
+        ConfigureSidebarSmallButton(btnRemoveImage)
 
-        ' Apply Themes
         Try
             UiTheme.ApplyPrimaryButton(btnAdd)
             UiTheme.ApplyPrimaryButton(btnUpdate)
@@ -318,7 +282,6 @@ Public Class ProductsForm
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
             UiTheme.ApplySecondaryButton(btnChooseImage)
             UiTheme.ApplySecondaryButton(btnRemoveImage)
-            UiTheme.ApplySecondaryButton(btnClearImage)
         Catch
         End Try
 
@@ -329,8 +292,6 @@ Public Class ProductsForm
             .AllowUserToResizeColumns = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
-            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            .ScrollBars = ScrollBars.Vertical,
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
             .BackgroundColor = Color.White,
             .BorderStyle = BorderStyle.None,
@@ -353,10 +314,6 @@ Public Class ProductsForm
         Catch
         End Try
 
-        ' -----------------------------------------------------------
-        ' 2. BUILD THE RESPONSIVE LAYOUT (Professional Hierarchy)
-        ' -----------------------------------------------------------
-        ' Root Container: Zero margins allow the Left Panel to touch the window edge
         Dim rootTable As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
@@ -367,7 +324,6 @@ Public Class ProductsForm
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, SidebarWidth))
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        ' --- LEFT SIDEBAR: DATA ENTRY ---
         Dim leftSidebar As New Panel() With {
             .Dock = DockStyle.Fill,
             .BackColor = UiTheme.CardSurface,
@@ -382,7 +338,6 @@ Public Class ProductsForm
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
-        ' Row 0: Header Section
         Dim headerPanel As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top}
         Dim lblTitleLeft As New Label() With {
             .Text = "Product Details",
@@ -401,8 +356,6 @@ Public Class ProductsForm
         Dim inputLayout As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 14,
-            .Margin = New Padding(0, 20, 0, 0)
             .RowCount = 15,
             .Margin = New Padding(0, UiTheme.SpaceLg, 0, UiTheme.SpaceMd),
             .Dock = DockStyle.Top
@@ -418,55 +371,99 @@ Public Class ProductsForm
         inputLayout.Controls.Add(numStock, 0, 5)
         inputLayout.Controls.Add(CreateFieldLabel("Category"), 0, 6)
         inputLayout.Controls.Add(cmbCategory, 0, 7)
-        inputLayout.Controls.Add(CreateLabel("Product image"), 0, 8)
+        inputLayout.Controls.Add(CreateFieldLabel("Product image"), 0, 8)
 
         Dim picHost As New Panel() With {
             .Dock = DockStyle.Top,
             .Height = 130,
-            .Margin = New Padding(0, 0, 0, 8),
+            .Margin = New Padding(0, 0, 0, 4),
             .BackColor = UiTheme.SurfaceVariant
         }
         picHost.Controls.Add(picProductImage)
         inputLayout.Controls.Add(picHost, 0, 9)
 
-        Dim pnlImageActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 16)}
-        pnlImageActions.Controls.Add(btnChooseImage)
-        pnlImageActions.Controls.Add(btnRemoveImage)
+        Dim pnlImageActions As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = New Padding(0, 4, 0, 16),
+            .Dock = DockStyle.Top
+        }
+        pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        pnlImageActions.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        btnChooseImage.Dock = DockStyle.Fill
+        btnRemoveImage.Dock = DockStyle.Fill
+
+        btnChooseImage.Margin = New Padding(0, 0, 4, 0)
+        btnRemoveImage.Margin = New Padding(4, 0, 0, 0)
+
+        pnlImageActions.Controls.Add(btnChooseImage, 0, 0)
+        pnlImageActions.Controls.Add(btnRemoveImage, 1, 0)
         inputLayout.Controls.Add(pnlImageActions, 0, 10)
 
-        Dim pnlPrimaryActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 14, 0, 0)}
-        pnlPrimaryActions.Controls.Add(btnAdd)
-        pnlPrimaryActions.Controls.Add(btnUpdate)
-        inputLayout.Controls.Add(pnlPrimaryActions, 0, 11)
+        Dim actionGrid As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .ColumnCount = 2,
+            .RowCount = 2,
+            .Margin = New Padding(0, 4, 0, 0),
+            .Dock = DockStyle.Top
+        }
+        actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Dim pnlStatusActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 10, 0, 0)}
-        pnlStatusActions.Controls.Add(btnDelete)
-        pnlStatusActions.Controls.Add(btnReactivate)
-        inputLayout.Controls.Add(pnlStatusActions, 0, 12)
+        btnAdd.Dock = DockStyle.Fill
+        btnUpdate.Dock = DockStyle.Fill
+        btnDelete.Dock = DockStyle.Fill
+        btnReactivate.Dock = DockStyle.Fill
 
-        leftLayout.Controls.Add(inputLayout, 0, 1)
+        btnAdd.Margin = New Padding(0, 0, 4, 8)
+        btnUpdate.Margin = New Padding(4, 0, 0, 8)
+        btnDelete.Margin = New Padding(0, 0, 4, 0)
+        btnReactivate.Margin = New Padding(4, 0, 0, 0)
 
-        ' Row 3: Footer / Utilities
-        Dim pnlUtility As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
-        inputLayout.Controls.Add(CreateFieldLabel("Product image"), 0, 8)
-        inputLayout.Controls.Add(CreateProductImagePanel(), 0, 9)
-        inputLayout.Controls.Add(CreateSidebarActionButtonGrid(), 0, 10)
+        actionGrid.Controls.Add(btnAdd, 0, 0)
+        actionGrid.Controls.Add(btnUpdate, 1, 0)
+        actionGrid.Controls.Add(btnDelete, 0, 1)
+        actionGrid.Controls.Add(btnReactivate, 1, 1)
+        inputLayout.Controls.Add(actionGrid, 0, 11)
 
         Dim lblUtilities As New Label() With {
             .Text = "Database utilities",
             .AutoSize = True,
             .ForeColor = UiTheme.TextSecondary,
             .Font = UiTheme.FontBodySmall,
-            .Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm),
-            .Dock = DockStyle.Fill
+            .Margin = New Padding(0, 24, 0, 4)
         }
-        inputLayout.Controls.Add(lblUtilities, 0, 11)
-        btnManageCategories.Margin = Padding.Empty
-        btnImportCsv.Margin = Padding.Empty
-        btnBack.Margin = Padding.Empty
-        inputLayout.Controls.Add(btnManageCategories, 0, 12)
-        inputLayout.Controls.Add(btnImportCsv, 0, 13)
+        inputLayout.Controls.Add(lblUtilities, 0, 12)
+
+        Dim pnlUtilities As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, 24),
+            .Dock = DockStyle.Top
+        }
+        pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        btnManageCategories.Dock = DockStyle.Fill
+        btnImportCsv.Dock = DockStyle.Fill
+
+        btnManageCategories.Margin = New Padding(0, 0, 4, 0)
+        btnImportCsv.Margin = New Padding(4, 0, 0, 0)
+
+        pnlUtilities.Controls.Add(btnManageCategories, 0, 0)
+        pnlUtilities.Controls.Add(btnImportCsv, 1, 0)
+        inputLayout.Controls.Add(pnlUtilities, 0, 13)
+
+        btnBack.Dock = DockStyle.None
+        btnBack.Anchor = AnchorStyles.Left
+        btnBack.Margin = New Padding(0, 0, 0, 0)
         inputLayout.Controls.Add(btnBack, 0, 14)
 
         Dim sidebarBody As New Panel() With {
@@ -483,13 +480,11 @@ Public Class ProductsForm
         leftLayout.Controls.Add(sidebarBody, 0, 1)
         leftSidebar.Controls.Add(leftLayout)
 
-        ' --- RIGHT CARD: DATA GRID ---
-        ' Using a TableLayoutPanel manages the Toolbar vs Grid elegantly without overlapping
         Dim rightCard As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .Padding = New Padding(30, 30, 30, 20) ' Excellent breathing room
+            .Padding = New Padding(30, 30, 30, 20)
         }
         rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Title
         rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Toolbar
@@ -507,20 +502,27 @@ Public Class ProductsForm
         Dim toolbar As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .ColumnCount = 4,
+            .ColumnCount = 5,
             .RowCount = 1,
             .Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
         }
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 250.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridFilterComboWidth))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridStatusFilterWidth))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 96.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
+
+        txtSearch.Dock = DockStyle.Fill
+        cmbGridCategoryFilter.Dock = DockStyle.Fill
+        cmbFilter.Dock = DockStyle.Fill
+        btnRefresh.Dock = DockStyle.Fill
+
         txtSearch.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
         cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
         cmbFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
-        btnRefresh.Dock = DockStyle.Fill
         btnRefresh.Margin = Padding.Empty
+
         toolbar.Controls.Add(txtSearch, 0, 0)
         toolbar.Controls.Add(cmbGridCategoryFilter, 1, 0)
         toolbar.Controls.Add(cmbFilter, 2, 0)
@@ -537,7 +539,6 @@ Public Class ProductsForm
 
         rightCard.Controls.Add(gridContainer, 0, 2)
 
-        ' 3. ASSEMBLE
         rootTable.Controls.Add(leftSidebar, 0, 0)
         rootTable.Controls.Add(rightCard, 1, 0)
 
@@ -606,9 +607,6 @@ Public Class ProductsForm
             btnReactivate.FlatAppearance.BorderColor = UiTheme.CardBorder
             btnReactivate.Cursor = Cursors.Default
         End If
-
-        ConfigureSidebarButton(btnReactivate)
-        btnReactivate.Margin = Padding.Empty
     End Sub
 
     Private Sub dgvProducts_RowPrePaint(sender As Object, e As DataGridViewRowPrePaintEventArgs) Handles dgvProducts.RowPrePaint
@@ -706,15 +704,6 @@ Public Class ProductsForm
 
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
-        If dgvProducts.Columns.Contains("is_active") Then
-            Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
-            activeCol.HeaderText = "Active"
-            activeCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
-            activeCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
-        End If
-
-        If dgvProducts.Columns.Contains("product_name") Then
-            dgvProducts.Columns("product_name").HeaderText = "Product"
         Dim sym As String = AppSettings.Current.CurrencySymbol
         Dim priceHeader As String = "Price (" & sym & ")"
         Dim priceColumnWidth As Integer = GetInventoryPriceColumnWidth(priceHeader)
@@ -733,10 +722,6 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("price") Then
             Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
-            priceCol.HeaderText = "Price (₱)"
-            priceCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
-            priceCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight
-            priceCol.DefaultCellStyle.Format = "N2"
             priceCol.HeaderText = priceHeader
             priceCol.DefaultCellStyle.Format = "N2"
             ConfigureInventoryGridFixedColumn(priceCol, priceColumnWidth, DataGridViewContentAlignment.MiddleRight, 2)
@@ -745,16 +730,6 @@ Public Class ProductsForm
         If dgvProducts.Columns.Contains("stock_quantity") Then
             Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
             stockCol.HeaderText = "Stock"
-            stockCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
-            stockCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
-        End If
-
-        If dgvProducts.Columns.Contains("category_name") Then
-            dgvProducts.Columns("category_name").HeaderText = "Category"
-        End If
-
-        If dgvProducts.Columns.Contains("image_path") Then
-            dgvProducts.Columns("image_path").Visible = False
             ConfigureInventoryGridFixedColumn(stockCol, GridStockColumnWidth, DataGridViewContentAlignment.MiddleCenter, 3)
         End If
 
@@ -771,8 +746,6 @@ Public Class ProductsForm
         If dgvProducts.Columns.Contains("category_id") Then
             dgvProducts.Columns("category_id").Visible = False
         End If
-
-        GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
     End Sub
 
     ''' <summary>
@@ -915,10 +888,14 @@ Public Class ProductsForm
             Return fallbackWidth
         End If
 
-        Dim measured As Size = TextRenderer.MeasureText(headerText, dgvProducts.ColumnHeadersDefaultCellStyle.Font)
+        Dim fontToUse As Font = dgvProducts.ColumnHeadersDefaultCellStyle.Font
+        If fontToUse Is Nothing Then
+            fontToUse = dgvProducts.Font
+        End If
+
+        Dim measured As Size = TextRenderer.MeasureText(headerText, fontToUse)
         Dim horizontalPadding As Integer = dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Left + dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Right
 
-        ' Include extra breathing room for grid borders and high-DPI rendering variance.
         Dim required As Integer = measured.Width + horizontalPadding + 20
         Return Math.Max(fallbackWidth, required)
     End Function
@@ -991,25 +968,20 @@ Public Class ProductsForm
 
     Private Shared Sub ConfigureProductInputRowStyles(layout As TableLayoutPanel)
         Dim inputRowHeight As Integer = Math.Max(UiTheme.InputHeight, 30)
-        Dim imageBlockHeight As Integer = ProductImageHeight + UiTheme.SpaceSm + SidebarSmallButtonRowHeight()
-        Dim actionBlockHeight As Integer = (SidebarButtonRowHeight() * 2) + UiTheme.SpaceSm
-        Dim buttonRowHeight As Integer = SidebarButtonRowHeight()
 
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, inputRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, inputRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, inputRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, inputRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, imageBlockHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, actionBlockHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, buttonRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, buttonRowHeight))
-        layout.RowStyles.Add(New RowStyle(SizeType.Absolute, buttonRowHeight))
+        layout.RowStyles.Clear()
+        For i As Integer = 0 To 16
+            layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Next
+
+        layout.RowStyles(1).SizeType = SizeType.Absolute
+        layout.RowStyles(1).Height = inputRowHeight
+        layout.RowStyles(3).SizeType = SizeType.Absolute
+        layout.RowStyles(3).Height = inputRowHeight
+        layout.RowStyles(5).SizeType = SizeType.Absolute
+        layout.RowStyles(5).Height = inputRowHeight
+        layout.RowStyles(7).SizeType = SizeType.Absolute
+        layout.RowStyles(7).Height = inputRowHeight
     End Sub
 
     Private Shared Sub ApplyTableLayoutNumeric(nud As NumericUpDown)
@@ -1023,70 +995,6 @@ Public Class ProductsForm
         nud.MinimumSize = New Size(0, h)
         nud.MaximumSize = New Size(0, h)
     End Sub
-
-    Private Function CreateProductImagePanel() As Control
-        Dim imagePanel As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .ColumnCount = 1,
-            .RowCount = 2,
-            .Margin = Padding.Empty,
-            .Dock = DockStyle.Top
-        }
-        imagePanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        imagePanel.RowStyles.Add(New RowStyle(SizeType.Absolute, ProductImageHeight))
-        imagePanel.RowStyles.Add(New RowStyle(SizeType.Absolute, SidebarSmallButtonRowHeight()))
-
-        Dim picHost As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        }
-        picHost.Controls.Add(picProductPreview)
-        imagePanel.Controls.Add(picHost, 0, 0)
-
-        Dim imageButtons As TableLayoutPanel = CreateTwoColumnButtonRow(btnChooseImage, btnClearImage, SidebarSmallButtonRowHeight())
-        imagePanel.Controls.Add(imageButtons, 0, 1)
-        Return imagePanel
-    End Function
-
-    Private Function CreateSidebarActionButtonGrid() As TableLayoutPanel
-        Dim actionGrid As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .ColumnCount = 2,
-            .RowCount = 2,
-            .Margin = New Padding(0, UiTheme.SpaceLg, 0, 0),
-            .Dock = DockStyle.Fill
-        }
-        actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, SidebarButtonRowHeight()))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, SidebarButtonRowHeight()))
-
-        ApplyPairedSidebarButtonMargins(btnAdd, btnUpdate)
-        ApplyPairedSidebarButtonMargins(btnDelete, btnReactivate)
-
-        actionGrid.Controls.Add(btnAdd, 0, 0)
-        actionGrid.Controls.Add(btnUpdate, 1, 0)
-        actionGrid.Controls.Add(btnDelete, 0, 1)
-        actionGrid.Controls.Add(btnReactivate, 1, 1)
-        Return actionGrid
-    End Function
-
-    Private Shared Function CreateTwoColumnButtonRow(left As Button, right As Button, rowHeight As Integer) As TableLayoutPanel
-        Dim row As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .ColumnCount = 2,
-            .RowCount = 1,
-            .Margin = Padding.Empty,
-            .Dock = DockStyle.Fill
-        }
-        row.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        row.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        row.RowStyles.Add(New RowStyle(SizeType.Absolute, rowHeight))
-        ApplyPairedSidebarButtonMargins(left, right)
-        row.Controls.Add(left, 0, 0)
-        row.Controls.Add(right, 1, 0)
-        Return row
-    End Function
 
     Private Shared Sub ApplyPairedSidebarButtonMargins(left As Button, right As Button)
         Dim halfGap As Integer = SidebarButtonGap \ 2
@@ -1125,7 +1033,7 @@ Public Class ProductsForm
 
     Private Sub ResetProductImageEditorState()
         pendingImageSourcePath = Nothing
-        markedImageForRemoval = False
+        clearImageOnSave = False
     End Sub
 
     Private Sub ClearProductImagePreview()
@@ -1137,27 +1045,7 @@ Public Class ProductsForm
 
     Private Sub ShowProductImageFromRelativePath(relativePath As String)
         ClearProductImagePreview()
-        Dim image As Image = ProductImageStorage.TryLoadImage(relativePath)
-        If image IsNot Nothing Then
-            picProductImage.Image = image
-        End If
-    End Sub
-
-    Private Sub ShowProductImageFromFile(sourceFilePath As String)
-        ClearProductImagePreview()
-        If Not ProductImageStorage.IsAllowedImageFile(sourceFilePath) Then
-            Return
-        End If
-
-        Try
-            Using stream As New FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read)
-                Using source As Image = Image.FromStream(stream)
-                    picProductImage.Image = New Bitmap(source)
-                End Using
-            End Using
-        Catch ex As Exception
-            MessageBox.Show("Could not load the image: " & ex.Message, "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-        End Try
+        picProductImage.Image = ProductImageHelper.TryLoadProductImage(relativePath)
     End Sub
 
     Private Shared Function TryReadInsertedProductId(value As Object) As Integer?
@@ -1212,70 +1100,36 @@ Public Class ProductsForm
         Return text
     End Function
 
-    Private Function GetSelectedProductImagePath(connection As SqlConnection, productId As Integer) As String
-        Dim sql As String = "SELECT image_path FROM products WHERE id = @id;"
-        Using cmd As New SqlCommand(sql, connection)
-            cmd.Parameters.AddWithValue("@id", productId)
-            Dim result As Object = cmd.ExecuteScalar()
-            Return ReadImagePathValue(result)
-        End Using
-    End Function
-
-    Private Sub UpdateProductImagePath(connection As SqlConnection, productId As Integer, relativePath As String)
-        Dim sql As String = "UPDATE products SET image_path = @image_path, updated_at = SYSUTCDATETIME() WHERE id = @id;"
-        Using cmd As New SqlCommand(sql, connection)
-            cmd.Parameters.AddWithValue("@id", productId)
-            If String.IsNullOrWhiteSpace(relativePath) Then
-                cmd.Parameters.AddWithValue("@image_path", DBNull.Value)
-            Else
-                cmd.Parameters.AddWithValue("@image_path", relativePath)
-            End If
-
-            cmd.ExecuteNonQuery()
-        End Using
-    End Sub
-
-    Private Sub PersistProductImageForProduct(connection As SqlConnection, productId As Integer)
-        Dim existingPath As String = GetSelectedProductImagePath(connection, productId)
-
-        If markedImageForRemoval Then
-            ProductImageStorage.DeleteImageIfExists(existingPath)
-            UpdateProductImagePath(connection, productId, Nothing)
-            Return
-        End If
-
-        If String.IsNullOrWhiteSpace(pendingImageSourcePath) Then
-            Return
-        End If
-
-        ProductImageStorage.DeleteImageIfExists(existingPath)
-        Dim savedPath As String = ProductImageStorage.SaveProductImage(productId, pendingImageSourcePath)
-        UpdateProductImagePath(connection, productId, savedPath)
-    End Sub
-
     Private Sub btnChooseImage_Click(sender As Object, e As EventArgs) Handles btnChooseImage.Click
-        Using ofd As New OpenFileDialog()
-            ofd.Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*"
-            ofd.Title = "Choose product image"
-            If ofd.ShowDialog(Me) <> DialogResult.OK Then
+        Using dialog As New OpenFileDialog()
+            dialog.Filter = ProductImageHelper.GetOpenFileDialogFilter()
+            dialog.Title = "Choose product image"
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then
                 Return
             End If
 
-            If Not ProductImageStorage.IsAllowedImageFile(ofd.FileName) Then
-                MessageBox.Show("Choose a PNG, JPG, BMP, GIF, or WEBP image.", "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            If Not ProductImageHelper.IsAllowedImageFile(dialog.FileName) Then
+                MessageBox.Show("Unsupported image type. Use JPG, PNG, BMP, GIF, or WEBP.", "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return
             End If
 
-            pendingImageSourcePath = ofd.FileName
-            markedImageForRemoval = False
+            pendingImageSourcePath = dialog.FileName
+            clearImageOnSave = False
             ShowProductImageFromFile(pendingImageSourcePath)
+            ClearProductsInputError()
         End Using
     End Sub
 
     Private Sub btnRemoveImage_Click(sender As Object, e As EventArgs) Handles btnRemoveImage.Click
         pendingImageSourcePath = Nothing
-        markedImageForRemoval = True
+        clearImageOnSave = True
         ClearProductImagePreview()
+        ClearProductsInputError()
+    End Sub
+
+    Private Sub ShowProductImageFromFile(sourceFilePath As String)
+        ClearProductImagePreview()
+        picProductImage.Image = ProductImageHelper.TryLoadImageFile(sourceFilePath)
     End Sub
 
     Private Sub ShowProductsInputError(message As String)
@@ -1455,13 +1309,11 @@ Public Class ProductsForm
                     "INSERT INTO products (product_name, price, category_id, stock_quantity) " &
                     "OUTPUT INSERTED.id " &
                     "VALUES (@product_name, @price, @category_id, @stock_quantity);"
-                    "OUTPUT INSERTED.id VALUES (@product_name, @price, @category_id, @stock_quantity);"
 
                 Dim newCatId As Integer? = Nothing
                 TryGetCategoryIdForSave(newCatId)
 
                 Dim newProductId As Integer? = Nothing
-                Dim newProductId As Integer
                 Using insertCmd As New SqlCommand(insertSql, connection)
                     insertCmd.Parameters.AddWithValue("@product_name", productName)
                     insertCmd.Parameters.AddWithValue("@price", price)
@@ -1479,17 +1331,9 @@ Public Class ProductsForm
                     Throw New InvalidOperationException("The product was saved but the database did not return a new product id.")
                 End If
 
-                If Not String.IsNullOrWhiteSpace(pendingImageSourcePath) AndAlso Not markedImageForRemoval Then
-                    PersistProductImageForProduct(connection, newProductId.Value)
-                End If
+                PersistProductImage(connection, newProductId.Value, Nothing)
 
-                AuditLogger.LogProduct(connection, "INSERT", Nothing, productName, "Added product")
-                    newProductId = Convert.ToInt32(insertCmd.ExecuteScalar())
-                End Using
-
-                PersistProductImage(connection, newProductId, Nothing)
-
-                AuditLogger.LogProduct(connection, "INSERT", newProductId, productName, "Added product")
+                AuditLogger.LogProduct(connection, "INSERT", newProductId.Value, productName, "Added product")
                 AuditLogger.LogAudit(
                     connection,
                     "PRODUCT_ADD",
@@ -1576,7 +1420,6 @@ Public Class ProductsForm
                     command.ExecuteNonQuery()
                 End Using
 
-                PersistProductImageForProduct(connection, productId)
                 Dim existingImagePath As String = GetSelectedRowImagePath()
                 PersistProductImage(connection, productId, existingImagePath)
 
@@ -1800,7 +1643,7 @@ Public Class ProductsForm
         End If
 
         Dim row As DataGridViewRow = dgvProducts.Rows(e.RowIndex)
-        txtProductName.Text = row.Cells("product_name").Value.ToString()
+        txtProductName.Text = Convert.ToString(row.Cells("product_name").Value, CultureInfo.CurrentCulture)
         Dim priceVal As Decimal = Convert.ToDecimal(row.Cells("price").Value)
         If priceVal < numPrice.Minimum Then
             numPrice.Value = numPrice.Minimum
@@ -1838,10 +1681,6 @@ Public Class ProductsForm
         End If
 
         ShowProductImageFromRelativePath(imagePath)
-        selectedProductId = Convert.ToInt32(row.Cells("id").Value)
-        pendingImageSourcePath = Nothing
-        clearImageOnSave = False
-        LoadProductPreviewFromRelativePath(GetCellStringValue(row, "image_path"))
 
         UpdateReactivateEnabled()
     End Sub
@@ -1944,7 +1783,6 @@ Public Class ProductsForm
                 End Select
 
                 Dim query As String =
-                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.is_active, p.category_id, p.image_path, c.category_name AS category_name " &
                     "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.image_path, p.is_active, p.category_id, c.category_name AS category_name " &
                     "FROM products p " &
                     "LEFT JOIN dbo.categories c ON c.category_id = p.category_id " &
@@ -1981,62 +1819,12 @@ Public Class ProductsForm
         SelectCategoryForEditor(Nothing)
         ResetProductImageEditorState()
         ClearProductImagePreview()
-        ResetProductImageEditor()
         ClearProductsInputError()
         txtProductName.Focus()
     End Sub
 
-    Private Sub btnChooseImage_Click(sender As Object, e As EventArgs) Handles btnChooseImage.Click
-        Using dialog As New OpenFileDialog()
-            dialog.Filter = ProductImageHelper.GetOpenFileDialogFilter()
-            dialog.Title = "Choose product image"
-            If dialog.ShowDialog(Me) <> DialogResult.OK Then
-                Return
-            End If
-
-            If Not ProductImageHelper.IsAllowedImageFile(dialog.FileName) Then
-                MessageBox.Show("Unsupported image type. Use JPG, PNG, BMP, GIF, or WEBP.", "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-                Return
-            End If
-
-            pendingImageSourcePath = dialog.FileName
-            clearImageOnSave = False
-            SetProductPreviewImage(ProductImageHelper.TryLoadImageFile(pendingImageSourcePath))
-            ClearProductsInputError()
-        End Using
-    End Sub
-
-    Private Sub btnClearImage_Click(sender As Object, e As EventArgs) Handles btnClearImage.Click
-        pendingImageSourcePath = Nothing
-        clearImageOnSave = True
-        SetProductPreviewImage(Nothing)
-        ClearProductsInputError()
-    End Sub
-
-    Private Sub ResetProductImageEditor()
-        selectedProductId = -1
-        pendingImageSourcePath = Nothing
-        clearImageOnSave = False
-        SetProductPreviewImage(Nothing)
-    End Sub
-
-    Private Sub SetProductPreviewImage(image As Image)
-        Dim previous As Image = picProductPreview.Image
-        picProductPreview.Image = image
-        previous?.Dispose()
-    End Sub
-
-    Private Sub LoadProductPreviewFromRelativePath(relativePath As String)
-        If String.IsNullOrWhiteSpace(relativePath) Then
-            SetProductPreviewImage(Nothing)
-            Return
-        End If
-
-        SetProductPreviewImage(ProductImageHelper.TryLoadProductImage(relativePath))
-    End Sub
-
     Private Function GetCellStringValue(row As DataGridViewRow, columnName As String) As String
-        If Not dgvProducts.Columns.Contains(columnName) Then
+        If row Is Nothing OrElse Not dgvProducts.Columns.Contains(columnName) Then
             Return String.Empty
         End If
 
