@@ -235,7 +235,8 @@ Public Class ProductsForm
             .AllowUserToAddRows = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
-            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            .ScrollBars = ScrollBars.Vertical,
             .BackgroundColor = Color.White,
             .BorderStyle = BorderStyle.None
         }
@@ -406,11 +407,8 @@ Public Class ProductsForm
     End Sub
 
     Private Sub ProductsForm_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
-        LayoutProductGridColumns()
-    End Sub
-
-    Private Sub dgvProducts_Resize(sender As Object, e As EventArgs) Handles dgvProducts.Resize
-        LayoutProductGridColumns()
+        ' Run after the grid has its final width so Fill sizing does not clip column headers.
+        BeginInvoke(New Action(AddressOf ApplyProductGridColumnLayout))
     End Sub
 
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
@@ -573,72 +571,56 @@ Public Class ProductsForm
         End If
 
         GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
-        ScheduleProductGridColumnLayout()
+        ApplyProductGridColumnLayout()
     End Sub
 
     ''' <summary>
-    ''' Sizes product grid columns to the current grid width so Active, Stock, and Category
-    ''' stay fully visible without manual resizing (Product absorbs leftover space).
+    ''' Keeps Active, Price, Stock, and Category at readable fixed widths; Product fills
+    ''' the rest so the grid never overflows horizontally (which clips header text).
     ''' </summary>
-    Private Sub LayoutProductGridColumns()
+    Private Sub ApplyProductGridColumnLayout()
         If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
             Return
         End If
 
-        Const activeWidth As Integer = 72
-        Const priceWidth As Integer = 104
-        Const stockWidth As Integer = 76
-        Const categoryWidth As Integer = 132
-        Const productMinWidth As Integer = 160
-
         dgvProducts.SuspendLayout()
         Try
-            dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+            dgvProducts.ScrollBars = ScrollBars.Vertical
+            dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            dgvProducts.HorizontalScrollingOffset = 0
 
-            Dim available As Integer = dgvProducts.ClientSize.Width
-            If available <= 0 Then
-                Return
-            End If
-
-            If dgvProducts.DisplayedRowCount(False) < dgvProducts.RowCount Then
-                available -= SystemInformation.VerticalScrollBarWidth
-            End If
-
-            Dim fixedTotal As Integer = activeWidth + priceWidth + stockWidth + categoryWidth
-            Dim productWidth As Integer = available - fixedTotal
-            If productWidth < productMinWidth Then
-                productWidth = productMinWidth
-            End If
+            ' Tighter header padding so labels like "Active" and "Category" fit narrow columns.
+            dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 0, 6, 0)
 
             If dgvProducts.Columns.Contains("is_active") Then
                 Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
                 activeCol.DisplayIndex = 0
                 activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                activeCol.Width = activeWidth
-                activeCol.MinimumWidth = 64
+                activeCol.Width = 76
+                activeCol.MinimumWidth = 68
             End If
 
             If dgvProducts.Columns.Contains("product_name") Then
                 Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
                 productCol.DisplayIndex = 1
-                productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                productCol.Width = productWidth
-                productCol.MinimumWidth = productMinWidth
+                productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                productCol.FillWeight = 200
+                productCol.MinimumWidth = 80
             End If
 
             If dgvProducts.Columns.Contains("price") Then
                 Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
                 priceCol.DisplayIndex = 2
                 priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                priceCol.Width = priceWidth
-                priceCol.MinimumWidth = 96
+                priceCol.Width = 100
+                priceCol.MinimumWidth = 92
             End If
 
             If dgvProducts.Columns.Contains("stock_quantity") Then
                 Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
                 stockCol.DisplayIndex = 3
                 stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                stockCol.Width = stockWidth
+                stockCol.Width = 72
                 stockCol.MinimumWidth = 64
             End If
 
@@ -646,20 +628,13 @@ Public Class ProductsForm
                 Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
                 categoryCol.DisplayIndex = 4
                 categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                categoryCol.Width = categoryWidth
-                categoryCol.MinimumWidth = 100
+                categoryCol.Width = 120
+                categoryCol.MinimumWidth = 96
             End If
         Finally
             dgvProducts.ResumeLayout(True)
+            dgvProducts.HorizontalScrollingOffset = 0
         End Try
-    End Sub
-
-    Private Sub ScheduleProductGridColumnLayout()
-        If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse Not dgvProducts.IsHandleCreated Then
-            Return
-        End If
-
-        BeginInvoke(New Action(AddressOf LayoutProductGridColumns))
     End Sub
 
     Private Function GetFilterMode() As ProductFilterMode
