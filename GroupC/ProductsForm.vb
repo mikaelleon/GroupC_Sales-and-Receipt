@@ -3,6 +3,7 @@ Imports System.Data
 Imports System.Globalization
 Imports System.IO
 Imports System.Drawing
+Imports System.Text
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
 
@@ -74,6 +75,9 @@ Public Class ProductsForm
     Private WithEvents btnDelete As Button
     Private WithEvents btnRefresh As Button
     Private WithEvents btnImportCsv As Button
+    Private WithEvents btnImportPdf As Button
+    Private WithEvents btnImportTxt As Button
+    Private WithEvents btnPrintCopy As Button
     Private WithEvents btnBack As Button
     Private WithEvents btnManageCategories As Button
 
@@ -228,6 +232,24 @@ Public Class ProductsForm
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
+        btnImportPdf = New Button() With {
+            .Text = "Import to PDF",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnImportTxt = New Button() With {
+            .Text = "Import to txt file",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnPrintCopy = New Button() With {
+            .Text = "Print copy",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
         btnBack = New Button() With {
             .Text = "← Back to Menu",
             .AutoSize = True,
@@ -265,6 +287,9 @@ Public Class ProductsForm
         ConfigureSidebarButton(btnDelete)
         ConfigureSidebarButton(btnReactivate)
         ConfigureSidebarButton(btnImportCsv)
+        ConfigureSidebarButton(btnImportPdf)
+        ConfigureSidebarButton(btnImportTxt)
+        ConfigureSidebarButton(btnPrintCopy)
         ConfigureSidebarButton(btnManageCategories)
         ConfigureSidebarButton(btnBack)
         ConfigureSidebarSmallButton(btnRefresh)
@@ -278,6 +303,9 @@ Public Class ProductsForm
             UiTheme.ApplySuccessButton(btnReactivate)
             UiTheme.ApplySecondaryButton(btnRefresh)
             UiTheme.ApplyPrimaryButton(btnImportCsv)
+            UiTheme.ApplySecondaryButton(btnImportPdf)
+            UiTheme.ApplySecondaryButton(btnImportTxt)
+            UiTheme.ApplySecondaryButton(btnPrintCopy)
             UiTheme.ApplySecondaryButton(btnBack)
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
             UiTheme.ApplySecondaryButton(btnChooseImage)
@@ -432,7 +460,7 @@ Public Class ProductsForm
         inputLayout.Controls.Add(actionGrid, 0, 11)
 
         Dim lblUtilities As New Label() With {
-            .Text = "Database utilities",
+            .Text = "Utility Tools",
             .AutoSize = True,
             .ForeColor = UiTheme.TextSecondary,
             .Font = UiTheme.FontBodySmall,
@@ -443,27 +471,38 @@ Public Class ProductsForm
         Dim pnlUtilities As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 2,
-            .RowCount = 1,
-            .Margin = New Padding(0, 0, 0, 24),
+            .RowCount = 3,
+            .Margin = New Padding(0, 0, 0, 48),
             .Dock = DockStyle.Top
         }
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         btnManageCategories.Dock = DockStyle.Fill
         btnImportCsv.Dock = DockStyle.Fill
+        btnImportPdf.Dock = DockStyle.Fill
+        btnImportTxt.Dock = DockStyle.Fill
+        btnPrintCopy.Dock = DockStyle.Fill
 
-        btnManageCategories.Margin = New Padding(0, 0, 4, 0)
-        btnImportCsv.Margin = New Padding(4, 0, 0, 0)
+        btnManageCategories.Margin = New Padding(0, 0, 4, 8)
+        btnImportCsv.Margin = New Padding(4, 0, 0, 8)
+        btnImportPdf.Margin = New Padding(0, 0, 4, 8)
+        btnImportTxt.Margin = New Padding(4, 0, 0, 8)
+        btnPrintCopy.Margin = New Padding(0, 0, 4, 0)
 
         pnlUtilities.Controls.Add(btnManageCategories, 0, 0)
         pnlUtilities.Controls.Add(btnImportCsv, 1, 0)
+        pnlUtilities.Controls.Add(btnImportPdf, 0, 1)
+        pnlUtilities.Controls.Add(btnImportTxt, 1, 1)
+        pnlUtilities.Controls.Add(btnPrintCopy, 0, 2)
         inputLayout.Controls.Add(pnlUtilities, 0, 13)
 
         btnBack.Dock = DockStyle.None
         btnBack.Anchor = AnchorStyles.Left
-        btnBack.Margin = New Padding(0, 0, 0, 0)
+        btnBack.Margin = New Padding(0, 32, 0, 0)
         inputLayout.Controls.Add(btnBack, 0, 14)
 
         Dim sidebarBody As New Panel() With {
@@ -509,14 +548,14 @@ Public Class ProductsForm
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 250.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridFilterComboWidth))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridStatusFilterWidth))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 100.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
 
         txtSearch.Dock = DockStyle.Fill
         cmbGridCategoryFilter.Dock = DockStyle.Fill
         cmbFilter.Dock = DockStyle.Fill
-        btnRefresh.Dock = DockStyle.Fill
+        btnRefresh.Dock = DockStyle.Right
 
         txtSearch.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
         cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
@@ -526,7 +565,7 @@ Public Class ProductsForm
         toolbar.Controls.Add(txtSearch, 0, 0)
         toolbar.Controls.Add(cmbGridCategoryFilter, 1, 0)
         toolbar.Controls.Add(cmbFilter, 2, 0)
-        toolbar.Controls.Add(btnRefresh, 3, 0)
+        toolbar.Controls.Add(btnRefresh, 4, 0)
 
         rightCard.Controls.Add(toolbar, 0, 1)
 
@@ -1884,6 +1923,61 @@ Public Class ProductsForm
         End Using
 
         LoadProducts()
+    End Sub
+
+    Private Function GetProductListText() As String
+        Dim sb As New StringBuilder()
+        sb.AppendLine("Product Inventory List")
+        sb.AppendLine("Generated on: " & DateTime.Now.ToString("g", CultureInfo.CurrentCulture))
+        sb.AppendLine(New String("-"c, 60))
+        If dgvProducts IsNot Nothing AndAlso dgvProducts.Rows.Count > 0 Then
+            For Each row As DataGridViewRow In dgvProducts.Rows
+                If row.IsNewRow Then Continue For
+                Dim name As String = If(row.Cells("product_name")?.FormattedValue?.ToString(), String.Empty)
+                Dim price As String = If(row.Cells("price")?.FormattedValue?.ToString(), String.Empty)
+                Dim stock As String = If(row.Cells("stock_quantity")?.FormattedValue?.ToString(), String.Empty)
+                sb.AppendLine(name.PadRight(30) & " | " & price.PadLeft(10) & " | Stock: " & stock)
+            Next
+        Else
+            sb.AppendLine("No products found.")
+        End If
+        Return sb.ToString()
+    End Function
+
+    Private Sub btnImportPdf_Click(sender As Object, e As EventArgs) Handles btnImportPdf.Click
+        Using saveDialog As New SaveFileDialog()
+            saveDialog.Filter = "PDF Files (*.pdf)|*.pdf"
+            saveDialog.FileName = "ProductsList_" & DateTime.Now.ToString("yyyyMMdd_HHmm", CultureInfo.InvariantCulture) & ".pdf"
+            If saveDialog.ShowDialog() = DialogResult.OK Then
+                Try
+                    PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, GetProductListText())
+                    ShowStatus("PDF exported successfully.", False)
+                Catch ex As Exception
+                    MessageBox.Show("Error exporting to PDF: " & ex.Message, "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnImportPdf_Click))
+                End Try
+            End If
+        End Using
+    End Sub
+
+    Private Sub btnImportTxt_Click(sender As Object, e As EventArgs) Handles btnImportTxt.Click
+        Using saveDialog As New SaveFileDialog()
+            saveDialog.Filter = "Text Files (*.txt)|*.txt"
+            saveDialog.FileName = "ProductsList_" & DateTime.Now.ToString("yyyyMMdd_HHmm", CultureInfo.InvariantCulture) & ".txt"
+            If saveDialog.ShowDialog() = DialogResult.OK Then
+                Try
+                    File.WriteAllText(saveDialog.FileName, GetProductListText())
+                    ShowStatus("Text file exported successfully.", False)
+                Catch ex As Exception
+                    MessageBox.Show("Error exporting to TXT: " & ex.Message, "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnImportTxt_Click))
+                End Try
+            End If
+        End Using
+    End Sub
+
+    Private Sub btnPrintCopy_Click(sender As Object, e As EventArgs) Handles btnPrintCopy.Click
+        MessageBox.Show("Print functionality for the products list is not fully implemented. Please export to PDF and print the file.", "Print Copy", MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
 End Class
