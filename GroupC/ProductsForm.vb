@@ -67,6 +67,13 @@ Public Class ProductsForm
 
     Private WithEvents cmbGridCategoryFilter As ComboBox
 
+    Private picProductImage As PictureBox
+    Private WithEvents btnChooseImage As Button
+    Private WithEvents btnRemoveImage As Button
+
+    Private pendingImageSourcePath As String
+    Private markedImageForRemoval As Boolean
+
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
@@ -218,6 +225,25 @@ Public Class ProductsForm
             .MinimumSize = New Size(140, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
+        picProductImage = New PictureBox() With {
+            .Dock = DockStyle.Fill,
+            .Height = 130,
+            .SizeMode = PictureBoxSizeMode.Zoom,
+            .BackColor = UiTheme.SurfaceVariant,
+            .BorderStyle = BorderStyle.FixedSingle
+        }
+        btnChooseImage = New Button() With {
+            .Text = "Choose image…",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnRemoveImage = New Button() With {
+            .Text = "Remove image",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
 
         ' Apply Themes
         Try
@@ -229,6 +255,8 @@ Public Class ProductsForm
             UiTheme.ApplyPrimaryButton(btnImportCsv)
             UiTheme.ApplySecondaryButton(btnBack)
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
+            UiTheme.ApplySecondaryButton(btnChooseImage)
+            UiTheme.ApplySecondaryButton(btnRemoveImage)
         Catch
         End Try
 
@@ -311,7 +339,7 @@ Public Class ProductsForm
             .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 10,
+            .RowCount = 14,
             .Margin = New Padding(0, 20, 0, 0)
         }
 
@@ -325,16 +353,31 @@ Public Class ProductsForm
         inputLayout.Controls.Add(numStock, 0, 5)
         inputLayout.Controls.Add(CreateLabel("Category"), 0, 6)
         inputLayout.Controls.Add(cmbCategory, 0, 7)
+        inputLayout.Controls.Add(CreateLabel("Product image"), 0, 8)
 
-        Dim pnlPrimaryActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 30, 0, 0)}
+        Dim picHost As New Panel() With {
+            .Dock = DockStyle.Top,
+            .Height = 130,
+            .Margin = New Padding(0, 0, 0, 8),
+            .BackColor = UiTheme.SurfaceVariant
+        }
+        picHost.Controls.Add(picProductImage)
+        inputLayout.Controls.Add(picHost, 0, 9)
+
+        Dim pnlImageActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 0, 0, 16)}
+        pnlImageActions.Controls.Add(btnChooseImage)
+        pnlImageActions.Controls.Add(btnRemoveImage)
+        inputLayout.Controls.Add(pnlImageActions, 0, 10)
+
+        Dim pnlPrimaryActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 14, 0, 0)}
         pnlPrimaryActions.Controls.Add(btnAdd)
         pnlPrimaryActions.Controls.Add(btnUpdate)
-        inputLayout.Controls.Add(pnlPrimaryActions, 0, 8)
+        inputLayout.Controls.Add(pnlPrimaryActions, 0, 11)
 
         Dim pnlStatusActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 10, 0, 0)}
         pnlStatusActions.Controls.Add(btnDelete)
         pnlStatusActions.Controls.Add(btnReactivate)
-        inputLayout.Controls.Add(pnlStatusActions, 0, 9)
+        inputLayout.Controls.Add(pnlStatusActions, 0, 12)
 
         leftLayout.Controls.Add(inputLayout, 0, 1)
 
@@ -573,6 +616,10 @@ Public Class ProductsForm
             dgvProducts.Columns("category_name").HeaderText = "Category"
         End If
 
+        If dgvProducts.Columns.Contains("image_path") Then
+            dgvProducts.Columns("image_path").Visible = False
+        End If
+
         GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
     End Sub
 
@@ -593,12 +640,20 @@ Public Class ProductsForm
             Return
         End If
 
-        productGridLayoutPending = True
-        BeginInvoke(New MethodInvoker(
-            Sub()
-                productGridLayoutPending = False
-                ApplyProductGridColumnLayout()
-            End Sub))
+        Try
+            productGridLayoutPending = True
+            BeginInvoke(New MethodInvoker(
+                Sub()
+                    Try
+                        ApplyProductGridColumnLayout()
+                    Finally
+                        productGridLayoutPending = False
+                    End Try
+                End Sub))
+        Catch
+            productGridLayoutPending = False
+            Throw
+        End Try
     End Sub
 
     ''' <summary>
@@ -610,8 +665,13 @@ Public Class ProductsForm
             Return
         End If
 
-        If dgvProducts.ClientSize.Width <= 0 Then
+        Dim available As Integer = dgvProducts.ClientSize.Width
+        If available <= 0 Then
             Return
+        End If
+
+        If dgvProducts.DisplayedRowCount(False) < dgvProducts.RowCount Then
+            available -= SystemInformation.VerticalScrollBarWidth
         End If
 
         dgvProducts.SuspendLayout()
@@ -671,6 +731,17 @@ Public Class ProductsForm
                 categoryCol.MinimumWidth = 96
                 categoryCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
+
+            Dim usedWidth As Integer = 0
+            For Each col As DataGridViewColumn In dgvProducts.Columns
+                If col.Visible Then
+                    usedWidth += col.Width
+                End If
+            Next
+
+            If dgvProducts.Columns.Contains("product_name") AndAlso usedWidth < available Then
+                dgvProducts.Columns("product_name").Width += available - usedWidth
+            End If
         Finally
             dgvProducts.ResumeLayout(True)
             dgvProducts.HorizontalScrollingOffset = 0
@@ -711,6 +782,161 @@ Public Class ProductsForm
 
         lblProductsInputError.Text = String.Empty
         lblProductsInputError.Visible = False
+    End Sub
+
+    Private Sub ResetProductImageEditorState()
+        pendingImageSourcePath = Nothing
+        markedImageForRemoval = False
+    End Sub
+
+    Private Sub ClearProductImagePreview()
+        If picProductImage?.Image IsNot Nothing Then
+            picProductImage.Image.Dispose()
+            picProductImage.Image = Nothing
+        End If
+    End Sub
+
+    Private Sub ShowProductImageFromRelativePath(relativePath As String)
+        ClearProductImagePreview()
+        Dim image As Image = ProductImageStorage.TryLoadImage(relativePath)
+        If image IsNot Nothing Then
+            picProductImage.Image = image
+        End If
+    End Sub
+
+    Private Sub ShowProductImageFromFile(sourceFilePath As String)
+        ClearProductImagePreview()
+        If Not ProductImageStorage.IsAllowedImageFile(sourceFilePath) Then
+            Return
+        End If
+
+        Try
+            Using stream As New FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read)
+                Using source As Image = Image.FromStream(stream)
+                    picProductImage.Image = New Bitmap(source)
+                End Using
+            End Using
+        Catch ex As Exception
+            MessageBox.Show("Could not load the image: " & ex.Message, "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End Try
+    End Sub
+
+    Private Shared Function TryReadInsertedProductId(value As Object) As Integer?
+        If value Is Nothing OrElse value Is DBNull.Value Then
+            Return Nothing
+        End If
+
+        If TypeOf value Is Integer Then
+            Return CInt(value)
+        End If
+
+        If TypeOf value Is Long Then
+            Dim longValue As Long = CLng(value)
+            If longValue >= Integer.MinValue AndAlso longValue <= Integer.MaxValue Then
+                Return CInt(longValue)
+            End If
+
+            Return Nothing
+        End If
+
+        If TypeOf value Is Short Then
+            Return CInt(value)
+        End If
+
+        If TypeOf value Is Decimal Then
+            Dim decimalValue As Decimal = CDec(value)
+            If decimalValue >= Integer.MinValue AndAlso decimalValue <= Integer.MaxValue AndAlso decimalValue = Decimal.Truncate(decimalValue) Then
+                Return CInt(decimalValue)
+            End If
+
+            Return Nothing
+        End If
+
+        Dim parsed As Integer
+        If Integer.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, parsed) Then
+            Return parsed
+        End If
+
+        Return Nothing
+    End Function
+
+    Private Shared Function ReadImagePathValue(value As Object) As String
+        If value Is Nothing OrElse value Is DBNull.Value Then
+            Return Nothing
+        End If
+
+        Dim text As String = value.ToString().Trim()
+        If text.Length = 0 Then
+            Return Nothing
+        End If
+
+        Return text
+    End Function
+
+    Private Function GetSelectedProductImagePath(connection As SqlConnection, productId As Integer) As String
+        Dim sql As String = "SELECT image_path FROM products WHERE id = @id;"
+        Using cmd As New SqlCommand(sql, connection)
+            cmd.Parameters.AddWithValue("@id", productId)
+            Dim result As Object = cmd.ExecuteScalar()
+            Return ReadImagePathValue(result)
+        End Using
+    End Function
+
+    Private Sub UpdateProductImagePath(connection As SqlConnection, productId As Integer, relativePath As String)
+        Dim sql As String = "UPDATE products SET image_path = @image_path, updated_at = SYSUTCDATETIME() WHERE id = @id;"
+        Using cmd As New SqlCommand(sql, connection)
+            cmd.Parameters.AddWithValue("@id", productId)
+            If String.IsNullOrWhiteSpace(relativePath) Then
+                cmd.Parameters.AddWithValue("@image_path", DBNull.Value)
+            Else
+                cmd.Parameters.AddWithValue("@image_path", relativePath)
+            End If
+
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Private Sub PersistProductImageForProduct(connection As SqlConnection, productId As Integer)
+        Dim existingPath As String = GetSelectedProductImagePath(connection, productId)
+
+        If markedImageForRemoval Then
+            ProductImageStorage.DeleteImageIfExists(existingPath)
+            UpdateProductImagePath(connection, productId, Nothing)
+            Return
+        End If
+
+        If String.IsNullOrWhiteSpace(pendingImageSourcePath) Then
+            Return
+        End If
+
+        ProductImageStorage.DeleteImageIfExists(existingPath)
+        Dim savedPath As String = ProductImageStorage.SaveProductImage(productId, pendingImageSourcePath)
+        UpdateProductImagePath(connection, productId, savedPath)
+    End Sub
+
+    Private Sub btnChooseImage_Click(sender As Object, e As EventArgs) Handles btnChooseImage.Click
+        Using ofd As New OpenFileDialog()
+            ofd.Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All files|*.*"
+            ofd.Title = "Choose product image"
+            If ofd.ShowDialog(Me) <> DialogResult.OK Then
+                Return
+            End If
+
+            If Not ProductImageStorage.IsAllowedImageFile(ofd.FileName) Then
+                MessageBox.Show("Choose a PNG, JPG, BMP, GIF, or WEBP image.", "Product image", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
+            End If
+
+            pendingImageSourcePath = ofd.FileName
+            markedImageForRemoval = False
+            ShowProductImageFromFile(pendingImageSourcePath)
+        End Using
+    End Sub
+
+    Private Sub btnRemoveImage_Click(sender As Object, e As EventArgs) Handles btnRemoveImage.Click
+        pendingImageSourcePath = Nothing
+        markedImageForRemoval = True
+        ClearProductImagePreview()
     End Sub
 
     Private Sub ShowProductsInputError(message As String)
@@ -887,11 +1113,14 @@ Public Class ProductsForm
                 End If
 
                 Dim insertSql As String =
-                    "INSERT INTO products (product_name, price, category_id, stock_quantity) VALUES (@product_name, @price, @category_id, @stock_quantity);"
+                    "INSERT INTO products (product_name, price, category_id, stock_quantity) " &
+                    "OUTPUT INSERTED.id " &
+                    "VALUES (@product_name, @price, @category_id, @stock_quantity);"
 
                 Dim newCatId As Integer? = Nothing
                 TryGetCategoryIdForSave(newCatId)
 
+                Dim newProductId As Integer? = Nothing
                 Using insertCmd As New SqlCommand(insertSql, connection)
                     insertCmd.Parameters.AddWithValue("@product_name", productName)
                     insertCmd.Parameters.AddWithValue("@price", price)
@@ -902,8 +1131,16 @@ Public Class ProductsForm
                     End If
                     insertCmd.Parameters.AddWithValue("@stock_quantity", stockQty)
 
-                    insertCmd.ExecuteNonQuery()
+                    newProductId = TryReadInsertedProductId(insertCmd.ExecuteScalar())
                 End Using
+
+                If Not newProductId.HasValue Then
+                    Throw New InvalidOperationException("The product was saved but the database did not return a new product id.")
+                End If
+
+                If Not String.IsNullOrWhiteSpace(pendingImageSourcePath) AndAlso Not markedImageForRemoval Then
+                    PersistProductImageForProduct(connection, newProductId.Value)
+                End If
 
                 AuditLogger.LogProduct(connection, "INSERT", Nothing, productName, "Added product")
                 AuditLogger.LogAudit(
@@ -991,6 +1228,8 @@ Public Class ProductsForm
 
                     command.ExecuteNonQuery()
                 End Using
+
+                PersistProductImageForProduct(connection, productId)
 
                 AuditLogger.LogProduct(connection, "UPDATE", productId, productName, "Updated product")
                 AuditLogger.LogAudit(
@@ -1243,6 +1482,14 @@ Public Class ProductsForm
 
         SelectCategoryForEditor(catKey)
 
+        ResetProductImageEditorState()
+        Dim imagePath As String = Nothing
+        If dgvProducts.Columns.Contains("image_path") Then
+            imagePath = ReadImagePathValue(row.Cells("image_path").Value)
+        End If
+
+        ShowProductImageFromRelativePath(imagePath)
+
         UpdateReactivateEnabled()
     End Sub
 
@@ -1344,7 +1591,7 @@ Public Class ProductsForm
                 End Select
 
                 Dim query As String =
-                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.is_active, p.category_id, c.category_name AS category_name " &
+                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.is_active, p.category_id, p.image_path, c.category_name AS category_name " &
                     "FROM products p " &
                     "LEFT JOIN dbo.categories c ON c.category_id = p.category_id " &
                     whereClause &
@@ -1378,6 +1625,8 @@ Public Class ProductsForm
         numPrice.Value = numPrice.Minimum
         numStock.Value = DefaultStockQuantity
         SelectCategoryForEditor(Nothing)
+        ResetProductImageEditorState()
+        ClearProductImagePreview()
         ClearProductsInputError()
         txtProductName.Focus()
     End Sub
