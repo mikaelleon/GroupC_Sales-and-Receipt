@@ -623,12 +623,18 @@ Public Class ProductsForm
             ' Tighter header padding so labels like "Active" and "Category" fit narrow columns.
             dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 0, 6, 0)
 
+            Dim activeWidth As Integer = GetRequiredHeaderWidth("is_active", 76)
+            Dim priceWidth As Integer = GetRequiredHeaderWidth("price", 100)
+            Dim stockWidth As Integer = GetRequiredHeaderWidth("stock_quantity", 72)
+            Dim categoryWidth As Integer = GetRequiredHeaderWidth("category_name", 120)
+
             If dgvProducts.Columns.Contains("is_active") Then
                 Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
                 activeCol.DisplayIndex = 0
                 activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                activeCol.Width = 76
+                activeCol.Width = activeWidth
                 activeCol.MinimumWidth = 68
+                activeCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
             If dgvProducts.Columns.Contains("product_name") Then
@@ -643,30 +649,56 @@ Public Class ProductsForm
                 Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
                 priceCol.DisplayIndex = 2
                 priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                priceCol.Width = 100
+                priceCol.Width = priceWidth
                 priceCol.MinimumWidth = 92
+                priceCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
             If dgvProducts.Columns.Contains("stock_quantity") Then
                 Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
                 stockCol.DisplayIndex = 3
                 stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                stockCol.Width = 72
+                stockCol.Width = stockWidth
                 stockCol.MinimumWidth = 64
+                stockCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
             If dgvProducts.Columns.Contains("category_name") Then
                 Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
                 categoryCol.DisplayIndex = 4
                 categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                categoryCol.Width = 120
+                categoryCol.Width = categoryWidth
                 categoryCol.MinimumWidth = 96
+                categoryCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
         Finally
             dgvProducts.ResumeLayout(True)
             dgvProducts.HorizontalScrollingOffset = 0
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Returns a safe width for a fixed column based on header text and padding.
+    ''' This avoids clipped headers on different DPI/font scaling settings.
+    ''' </summary>
+    Private Function GetRequiredHeaderWidth(columnName As String, fallbackWidth As Integer) As Integer
+        If dgvProducts Is Nothing OrElse Not dgvProducts.Columns.Contains(columnName) Then
+            Return fallbackWidth
+        End If
+
+        Dim col As DataGridViewColumn = dgvProducts.Columns(columnName)
+        Dim headerText As String = col.HeaderText
+        If String.IsNullOrWhiteSpace(headerText) Then
+            Return fallbackWidth
+        End If
+
+        Dim measured As Size = TextRenderer.MeasureText(headerText, dgvProducts.ColumnHeadersDefaultCellStyle.Font)
+        Dim horizontalPadding As Integer = dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Left + dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Right
+
+        ' Include extra breathing room for grid borders and high-DPI rendering variance.
+        Dim required As Integer = measured.Width + horizontalPadding + 20
+        Return Math.Max(fallbackWidth, required)
+    End Function
 
     Private Function GetFilterMode() As ProductFilterMode
         Return CType(cmbFilter.SelectedIndex, ProductFilterMode)
