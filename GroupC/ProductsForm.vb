@@ -552,10 +552,6 @@ Public Class ProductsForm
         inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
     End Sub
 
-    Private Sub ProductsForm_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
-        ScheduleProductGridColumnLayout()
-    End Sub
-
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
         If suppressProductFilterEvents Then
             Return
@@ -693,7 +689,6 @@ Public Class ProductsForm
 
     Private Sub dgvProducts_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs) Handles dgvProducts.DataBindingComplete
         FormatProductColumns()
-        ScheduleProductGridColumnLayout()
         UpdateReactivateEnabled()
     End Sub
 
@@ -1800,6 +1795,7 @@ Public Class ProductsForm
             dgvProducts.Visible = True
             lblGridMessage.Visible = False
             ApplyCombinedFilter()
+            FormatProductColumns()
         Catch ex As Exception
             productsTable = Nothing
             productsView = Nothing
