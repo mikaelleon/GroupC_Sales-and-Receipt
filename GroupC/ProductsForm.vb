@@ -534,31 +534,52 @@ Public Class ProductsForm
 
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
+        ' Fixed-width columns keep headers readable; Product/Category share remaining space via Fill.
+        If dgvProducts.Columns.Contains("is_active") Then
+            Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
+            activeCol.HeaderText = "Active"
+            activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+            activeCol.Width = 68
+            activeCol.MinimumWidth = 60
+            activeCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+            activeCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
+        End If
+
         If dgvProducts.Columns.Contains("product_name") Then
-            dgvProducts.Columns("product_name").HeaderText = "Product"
-            dgvProducts.Columns("product_name").MinimumWidth = 120
+            Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
+            productCol.HeaderText = "Product"
+            productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            productCol.FillWeight = 200
+            productCol.MinimumWidth = 120
         End If
 
         If dgvProducts.Columns.Contains("price") Then
-            dgvProducts.Columns("price").HeaderText = "Price (₱)"
-            dgvProducts.Columns("price").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
-            dgvProducts.Columns("price").DefaultCellStyle.Format = "N2"
+            Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
+            priceCol.HeaderText = "Price (₱)"
+            priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+            priceCol.Width = 108
+            priceCol.MinimumWidth = 96
+            priceCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+            priceCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight
+            priceCol.DefaultCellStyle.Format = "N2"
         End If
 
         If dgvProducts.Columns.Contains("stock_quantity") Then
-            dgvProducts.Columns("stock_quantity").HeaderText = "Stock"
-            dgvProducts.Columns("stock_quantity").Width = 72
-            dgvProducts.Columns("stock_quantity").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
-        End If
-
-        If dgvProducts.Columns.Contains("is_active") Then
-            dgvProducts.Columns("is_active").HeaderText = "Active"
-            dgvProducts.Columns("is_active").Width = 64
+            Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
+            stockCol.HeaderText = "Stock"
+            stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+            stockCol.Width = 72
+            stockCol.MinimumWidth = 64
+            stockCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+            stockCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then
-            dgvProducts.Columns("category_name").HeaderText = "Category"
-            dgvProducts.Columns("category_name").MinimumWidth = 90
+            Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
+            categoryCol.HeaderText = "Category"
+            categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            categoryCol.FillWeight = 100
+            categoryCol.MinimumWidth = 100
         End If
 
         GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
