@@ -89,6 +89,7 @@ Public NotInheritable Class DatabaseInitializer
             EnsureSalesExtendedColumns(connection)
             EnsureCategoriesAndProductCategory(connection)
             EnsureProductStockQuantity(connection)
+            EnsureProductImagePath(connection)
             EnsureAuditAndLogTables(connection)
             EnsureCashierAccountsTable(connection)
         End Using
@@ -150,6 +151,16 @@ Public NotInheritable Class DatabaseInitializer
         Dim addCol As String =
             "IF COL_LENGTH('dbo.products','stock_quantity') IS NULL " &
             "ALTER TABLE dbo.products ADD stock_quantity INT NOT NULL CONSTRAINT DF_products_stock_quantity DEFAULT (100);"
+
+        Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Private Shared Sub EnsureProductImagePath(connection As SqlConnection)
+        Dim addCol As String =
+            "IF COL_LENGTH('dbo.products','image_path') IS NULL " &
+            "ALTER TABLE dbo.products ADD image_path NVARCHAR(260) NULL;"
 
         Using cmd As New SqlCommand(addCol, connection)
             cmd.ExecuteNonQuery()

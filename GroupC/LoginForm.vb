@@ -53,7 +53,7 @@ Public Class LoginForm
             .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
         }
 
-        Dim loginLogo As Image = ReceiptBranding.TryGetReceiptLogo()
+        Dim loginLogo As Image = LogoBranding.TryGetBrandingLogo()
         Dim hasLogo As Boolean = loginLogo IsNot Nothing
         If hasLogo Then
             picLoginLogo.Image = loginLogo
@@ -120,14 +120,45 @@ Public Class LoginForm
             .Visible = False
         }
 
+        ' --- NEW UNIFORM USERNAME FIELD ---
         txtUsername = New TextBox() With {
+            .PlaceholderText = "Cashier username",
             .Font = UiTheme.FontBody,
-            .Width = LoginCardWidth,
-            .Height = UiTheme.InputHeight,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
-            .PlaceholderText = "Cashier username"
+            .BorderStyle = BorderStyle.None,
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(SecretTextPaddingLeft, UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm),
+            .BackColor = UiTheme.CardSurface,
+            .ForeColor = UiTheme.TextPrimary
         }
-        UiTheme.ApplyInputFieldStyle(txtUsername)
+
+        Dim usernameLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 1,
+            .BackColor = UiTheme.CardSurface,
+            .Margin = New Padding(0),
+            .Padding = New Padding(0)
+        }
+        usernameLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        usernameLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        usernameLayout.Controls.Add(txtUsername, 0, 0)
+
+        Dim usernameInner As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .MinimumSize = New Size(0, SecretFieldHeight - 2)
+        }
+        usernameInner.Controls.Add(usernameLayout)
+
+        Dim usernameOuter As New Panel() With {
+            .Width = LoginCardWidth,
+            .Height = SecretFieldHeight,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
+            .BackColor = UiTheme.InputBorder,
+            .Padding = New Padding(1) ' Creates the exact 1px uniform border
+        }
+        usernameOuter.Controls.Add(usernameInner)
+        ' ----------------------------------
 
         pnlUsername = New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
@@ -136,8 +167,9 @@ Public Class LoginForm
             .Visible = False,
             .Width = LoginCardWidth
         }
+
         pnlUsername.Controls.Add(lblUsername)
-        pnlUsername.Controls.Add(txtUsername)
+        pnlUsername.Controls.Add(usernameOuter) ' Add the outer panel instead of the raw text box
 
         lblSecretCaption = New Label() With {
             .Text = "Password:",
