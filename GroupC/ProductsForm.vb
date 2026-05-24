@@ -235,7 +235,7 @@ Public Class ProductsForm
             .AllowUserToAddRows = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
-            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
             .BackgroundColor = Color.White,
             .BorderStyle = BorderStyle.None
         }
@@ -405,6 +405,14 @@ Public Class ProductsForm
         Me.ResumeLayout(True)
     End Sub
 
+    Private Sub ProductsForm_Shown(sender As Object, e As EventArgs) Handles MyBase.Shown
+        LayoutProductGridColumns()
+    End Sub
+
+    Private Sub dgvProducts_Resize(sender As Object, e As EventArgs) Handles dgvProducts.Resize
+        LayoutProductGridColumns()
+    End Sub
+
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
         If suppressProductFilterEvents Then
             Return
@@ -534,31 +542,20 @@ Public Class ProductsForm
 
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
-        ' Fixed-width columns keep headers readable; Product/Category share remaining space via Fill.
         If dgvProducts.Columns.Contains("is_active") Then
             Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
             activeCol.HeaderText = "Active"
-            activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-            activeCol.Width = 68
-            activeCol.MinimumWidth = 60
             activeCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
             activeCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
         End If
 
         If dgvProducts.Columns.Contains("product_name") Then
-            Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
-            productCol.HeaderText = "Product"
-            productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
-            productCol.FillWeight = 200
-            productCol.MinimumWidth = 120
+            dgvProducts.Columns("product_name").HeaderText = "Product"
         End If
 
         If dgvProducts.Columns.Contains("price") Then
             Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
             priceCol.HeaderText = "Price (₱)"
-            priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-            priceCol.Width = 108
-            priceCol.MinimumWidth = 96
             priceCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
             priceCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight
             priceCol.DefaultCellStyle.Format = "N2"
@@ -567,22 +564,102 @@ Public Class ProductsForm
         If dgvProducts.Columns.Contains("stock_quantity") Then
             Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
             stockCol.HeaderText = "Stock"
-            stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-            stockCol.Width = 72
-            stockCol.MinimumWidth = 64
             stockCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
             stockCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then
-            Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
-            categoryCol.HeaderText = "Category"
-            categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
-            categoryCol.FillWeight = 100
-            categoryCol.MinimumWidth = 100
+            dgvProducts.Columns("category_name").HeaderText = "Category"
         End If
 
         GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
+        ScheduleProductGridColumnLayout()
+    End Sub
+
+    ''' <summary>
+    ''' Sizes product grid columns to the current grid width so Active, Stock, and Category
+    ''' stay fully visible without manual resizing (Product absorbs leftover space).
+    ''' </summary>
+    Private Sub LayoutProductGridColumns()
+        If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
+            Return
+        End If
+
+        Const activeWidth As Integer = 72
+        Const priceWidth As Integer = 104
+        Const stockWidth As Integer = 76
+        Const categoryWidth As Integer = 132
+        Const productMinWidth As Integer = 160
+
+        dgvProducts.SuspendLayout()
+        Try
+            dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+
+            Dim available As Integer = dgvProducts.ClientSize.Width
+            If available <= 0 Then
+                Return
+            End If
+
+            If dgvProducts.DisplayedRowCount(False) < dgvProducts.RowCount Then
+                available -= SystemInformation.VerticalScrollBarWidth
+            End If
+
+            Dim fixedTotal As Integer = activeWidth + priceWidth + stockWidth + categoryWidth
+            Dim productWidth As Integer = available - fixedTotal
+            If productWidth < productMinWidth Then
+                productWidth = productMinWidth
+            End If
+
+            If dgvProducts.Columns.Contains("is_active") Then
+                Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
+                activeCol.DisplayIndex = 0
+                activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                activeCol.Width = activeWidth
+                activeCol.MinimumWidth = 64
+            End If
+
+            If dgvProducts.Columns.Contains("product_name") Then
+                Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
+                productCol.DisplayIndex = 1
+                productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                productCol.Width = productWidth
+                productCol.MinimumWidth = productMinWidth
+            End If
+
+            If dgvProducts.Columns.Contains("price") Then
+                Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
+                priceCol.DisplayIndex = 2
+                priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                priceCol.Width = priceWidth
+                priceCol.MinimumWidth = 96
+            End If
+
+            If dgvProducts.Columns.Contains("stock_quantity") Then
+                Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
+                stockCol.DisplayIndex = 3
+                stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                stockCol.Width = stockWidth
+                stockCol.MinimumWidth = 64
+            End If
+
+            If dgvProducts.Columns.Contains("category_name") Then
+                Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
+                categoryCol.DisplayIndex = 4
+                categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                categoryCol.Width = categoryWidth
+                categoryCol.MinimumWidth = 100
+            End If
+        Finally
+            dgvProducts.ResumeLayout(True)
+        End Try
+    End Sub
+
+    Private Sub ScheduleProductGridColumnLayout()
+        If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse Not dgvProducts.IsHandleCreated Then
+            Return
+        End If
+
+        BeginInvoke(New Action(AddressOf LayoutProductGridColumns))
     End Sub
 
     Private Function GetFilterMode() As ProductFilterMode
