@@ -11,7 +11,8 @@ Imports PdfSharp.Pdf
 Public NotInheritable Class PdfReceiptExporter
 
     Private Const MarginPt As Double = 36
-    Private Const LineHeightPt As Double = 12
+    Private Const LineHeightPt As Double = 14
+    Private Const BlankLineHeightPt As Double = 8
     Private Const LogoMaxWidthPt As Double = 220
     Private Const LogoMaxHeightPt As Double = 70
 
@@ -53,7 +54,8 @@ Public NotInheritable Class PdfReceiptExporter
 
         Dim normalized As String = body.Replace(vbCrLf, vbLf)
         For Each line As String In normalized.Split(ChrW(10))
-            If y + LineHeightPt > maxY Then
+            Dim stepPt As Double = If(String.IsNullOrWhiteSpace(line), BlankLineHeightPt, LineHeightPt)
+            If y + stepPt > maxY Then
                 gfx.Dispose()
                 page = document.AddPage()
                 page.Size = PageSize.A4
@@ -62,8 +64,13 @@ Public NotInheritable Class PdfReceiptExporter
                 maxY = page.Height.Point - MarginPt
             End If
 
-            gfx.DrawString(line, font, brush, MarginPt, y)
-            y += LineHeightPt
+            If Not String.IsNullOrWhiteSpace(line) Then
+                Dim lineSize As XSize = gfx.MeasureString(line, font)
+                Dim x As Double = MarginPt + Math.Max(0.0, (contentWidth - lineSize.Width) / 2.0)
+                gfx.DrawString(line, font, brush, x, y)
+            End If
+
+            y += stepPt
         Next
 
         gfx.Dispose()

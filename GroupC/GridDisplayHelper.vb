@@ -71,11 +71,47 @@ Public NotInheritable Class GridDisplayHelper
     End Sub
 
     ''' <summary>
-    ''' Applies ID hiding and active-status emoji for standard admin grids.
+    ''' Moves the active/status column to the leftmost visible position.
+    ''' </summary>
+    Public Shared Sub MoveActiveStatusColumnToLeft(dgv As DataGridView)
+        If dgv Is Nothing OrElse dgv.Columns.Count = 0 Then
+            Return
+        End If
+
+        Dim statusCol As DataGridViewColumn = FindActiveStatusColumn(dgv)
+        If statusCol Is Nothing OrElse Not statusCol.Visible Then
+            Return
+        End If
+
+        statusCol.DisplayIndex = 0
+    End Sub
+
+    Private Shared Function FindActiveStatusColumn(dgv As DataGridView) As DataGridViewColumn
+        For Each col As DataGridViewColumn In dgv.Columns
+            If IsActiveStatusColumn(col) Then
+                Return col
+            End If
+        Next
+        Return Nothing
+    End Function
+
+    Private Shared Function IsActiveStatusColumn(col As DataGridViewColumn) As Boolean
+        If col Is Nothing Then
+            Return False
+        End If
+
+        Return String.Equals(col.Name, "is_active", StringComparison.OrdinalIgnoreCase) OrElse
+            String.Equals(col.Name, "colStatus", StringComparison.OrdinalIgnoreCase) OrElse
+            String.Equals(col.DataPropertyName, "is_active", StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ''' <summary>
+    ''' Applies ID hiding, active-status emoji, and leftmost status column for standard admin grids.
     ''' </summary>
     Public Shared Sub ApplyStandardBoundGridDisplay(dgv As DataGridView)
         HideInternalIdColumns(dgv)
         ConfigureActiveStatusDisplay(dgv, "is_active")
+        MoveActiveStatusColumnToLeft(dgv)
     End Sub
 
     Private Shared Sub WireActiveStatusFormatting(dgv As DataGridView)
@@ -102,9 +138,7 @@ Public NotInheritable Class GridDisplayHelper
             Return
         End If
 
-        Dim isActiveColumn As Boolean =
-            String.Equals(col.Name, "is_active", StringComparison.OrdinalIgnoreCase) OrElse
-            String.Equals(col.DataPropertyName, "is_active", StringComparison.OrdinalIgnoreCase)
+        Dim isActiveColumn As Boolean = IsActiveStatusColumn(col)
 
         If Not isActiveColumn Then
             Return

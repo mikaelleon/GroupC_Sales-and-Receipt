@@ -37,6 +37,8 @@ Public Class ProductsForm
     Private Const MaxProductPrice As Decimal = 999999.99D
     Private Const MaxProductNameLength As Integer = 100
     Private Const MaxSearchLength As Integer = 100
+    Private Const MaxStockQuantity As Integer = 999999
+    Private Const DefaultStockQuantity As Integer = 100
 
     Private Enum ProductFilterMode
         ActiveOnly = 0
@@ -46,6 +48,7 @@ Public Class ProductsForm
 
     Private WithEvents txtProductName As TextBox
     Private WithEvents numPrice As NumericUpDown
+    Private WithEvents numStock As NumericUpDown
     Private WithEvents cmbCategory As ComboBox
     Private WithEvents txtSearch As TextBox
     Private WithEvents dgvProducts As DataGridView
@@ -109,9 +112,34 @@ Public Class ProductsForm
         ' -----------------------------------------------------------
         ' 1. INITIALIZE CONTROLS
         ' -----------------------------------------------------------
-        txtProductName = New TextBox() With {.Dock = DockStyle.Fill, .MaxLength = 100, .Font = New Font("Segoe UI", 11)}
-        numPrice = New NumericUpDown() With {.Dock = DockStyle.Fill, .DecimalPlaces = 2, .Minimum = 0.01D, .Maximum = 999999.99D, .TextAlign = HorizontalAlignment.Right, .ThousandsSeparator = True, .Font = New Font("Segoe UI", 11)}
-        cmbCategory = New ComboBox() With {.Dock = DockStyle.Fill, .DropDownStyle = ComboBoxStyle.DropDownList, .Font = New Font("Segoe UI", 11)}
+        txtProductName = New TextBox() With {
+            .Dock = DockStyle.Fill,
+            .MaxLength = 100,
+            .Font = UiTheme.FontBody
+        }
+        numPrice = New NumericUpDown() With {
+            .Dock = DockStyle.Fill,
+            .DecimalPlaces = 2,
+            .Minimum = 0.01D,
+            .Maximum = 999999.99D,
+            .TextAlign = HorizontalAlignment.Right,
+            .ThousandsSeparator = True,
+            .Font = UiTheme.FontBody
+        }
+        numStock = New NumericUpDown() With {
+            .Dock = DockStyle.Fill,
+            .Minimum = 0D,
+            .Maximum = MaxStockQuantity,
+            .Value = DefaultStockQuantity,
+            .TextAlign = HorizontalAlignment.Right,
+            .ThousandsSeparator = True,
+            .Font = UiTheme.FontBody
+        }
+        cmbCategory = New ComboBox() With {
+            .Dock = DockStyle.Fill,
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Font = UiTheme.FontBody
+        }
 
         ' Apply UI Theme fixes to prevent TextBoxes from awkwardly stretching vertically in grids
         Try
@@ -120,20 +148,73 @@ Public Class ProductsForm
         Catch
         End Try
 
-        txtSearch = New TextBox() With {.Width = 260, .PlaceholderText = "Search products...", .Font = New Font("Segoe UI", 10)}
-        cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 160, .Font = New Font("Segoe UI", 10)}
+        txtSearch = New TextBox() With {
+            .Width = 260,
+            .PlaceholderText = "Search products...",
+            .Font = UiTheme.FontBody
+        }
+        cmbFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 160,
+            .Font = UiTheme.FontBody
+        }
         cmbFilter.Items.AddRange(New Object() {"Active products only", "All products", "Inactive only"})
-        cmbGridCategoryFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 180, .Font = New Font("Segoe UI", 10)}
+        cmbGridCategoryFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 180,
+            .Font = UiTheme.FontBody
+        }
         suppressProductFilterEvents = True
 
-        btnAdd = New Button() With {.Text = "&Add Product", .Size = New Size(120, 38), .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
-        btnDelete = New Button() With {.Text = "&Deactivate", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .Size = New Size(100, 38), .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .Size = New Size(90, 34), .Cursor = Cursors.Hand}
-        btnImportCsv = New Button() With {.Text = "Import CSV", .Size = New Size(100, 34), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
-        btnManageCategories = New Button() With {.Text = "Manage &categories…", .Size = New Size(160, 34), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {
+            .Text = "&Add Product",
+            .AutoSize = True,
+            .MinimumSize = New Size(120, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnUpdate = New Button() With {
+            .Text = "&Update",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnDelete = New Button() With {
+            .Text = "&Deactivate",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnReactivate = New Button() With {
+            .Text = "Reactivate",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Enabled = False,
+            .Cursor = Cursors.Hand
+        }
+        btnRefresh = New Button() With {
+            .Text = "Refresh",
+            .AutoSize = True,
+            .MinimumSize = New Size(90, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnImportCsv = New Button() With {
+            .Text = "Import CSV",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnBack = New Button() With {
+            .Text = "← Back to Menu",
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnManageCategories = New Button() With {
+            .Text = "Manage &categories…",
+            .AutoSize = True,
+            .MinimumSize = New Size(140, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
 
         ' Apply Themes
         Try
@@ -226,7 +307,7 @@ Public Class ProductsForm
             .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 8,
+            .RowCount = 10,
             .Margin = New Padding(0, 20, 0, 0)
         }
 
@@ -236,18 +317,20 @@ Public Class ProductsForm
         inputLayout.Controls.Add(txtProductName, 0, 1)
         inputLayout.Controls.Add(CreateLabel("Price (" & AppSettings.Current.CurrencySymbol & ")"), 0, 2)
         inputLayout.Controls.Add(numPrice, 0, 3)
-        inputLayout.Controls.Add(CreateLabel("Category"), 0, 4)
-        inputLayout.Controls.Add(cmbCategory, 0, 5)
+        inputLayout.Controls.Add(CreateLabel("Stock quantity"), 0, 4)
+        inputLayout.Controls.Add(numStock, 0, 5)
+        inputLayout.Controls.Add(CreateLabel("Category"), 0, 6)
+        inputLayout.Controls.Add(cmbCategory, 0, 7)
 
         Dim pnlPrimaryActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 30, 0, 0)}
         pnlPrimaryActions.Controls.Add(btnAdd)
         pnlPrimaryActions.Controls.Add(btnUpdate)
-        inputLayout.Controls.Add(pnlPrimaryActions, 0, 6)
+        inputLayout.Controls.Add(pnlPrimaryActions, 0, 8)
 
         Dim pnlStatusActions As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 10, 0, 0)}
         pnlStatusActions.Controls.Add(btnDelete)
         pnlStatusActions.Controls.Add(btnReactivate)
-        inputLayout.Controls.Add(pnlStatusActions, 0, 7)
+        inputLayout.Controls.Add(pnlStatusActions, 0, 9)
 
         leftLayout.Controls.Add(inputLayout, 0, 1)
 
@@ -462,6 +545,12 @@ Public Class ProductsForm
             dgvProducts.Columns("price").DefaultCellStyle.Format = "N2"
         End If
 
+        If dgvProducts.Columns.Contains("stock_quantity") Then
+            dgvProducts.Columns("stock_quantity").HeaderText = "Stock"
+            dgvProducts.Columns("stock_quantity").Width = 72
+            dgvProducts.Columns("stock_quantity").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+        End If
+
         If dgvProducts.Columns.Contains("is_active") Then
             dgvProducts.Columns("is_active").HeaderText = "Active"
             dgvProducts.Columns("is_active").Width = 64
@@ -471,6 +560,8 @@ Public Class ProductsForm
             dgvProducts.Columns("category_name").HeaderText = "Category"
             dgvProducts.Columns("category_name").MinimumWidth = 90
         End If
+
+        GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvProducts)
     End Sub
 
     Private Function GetFilterMode() As ProductFilterMode
@@ -512,6 +603,52 @@ Public Class ProductsForm
 
         Return True
     End Function
+
+    Private Function TryGetValidatedStockQuantity(ByRef stockQty As Integer) As Boolean
+        stockQty = 0
+        Dim stockText As String = numStock.Text.Trim()
+        If stockText.Length = 0 Then
+            ShowProductsInputError("Stock quantity cannot be empty.")
+            MessageBox.Show("Stock quantity cannot be empty.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            numStock.Focus()
+            Return False
+        End If
+
+        Dim stockDecimal As Decimal
+        If Not Decimal.TryParse(stockText, NumberStyles.Number, CultureInfo.CurrentCulture, stockDecimal) Then
+            If Not Decimal.TryParse(stockText, NumberStyles.Number, CultureInfo.InvariantCulture, stockDecimal) Then
+                ShowProductsInputError("Stock quantity must be a valid whole number.")
+                MessageBox.Show("Stock quantity must be a valid whole number.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                numStock.Focus()
+                Return False
+            End If
+        End If
+
+        If stockDecimal <> Decimal.Truncate(stockDecimal) Then
+            ShowProductsInputError("Stock quantity must be a whole number.")
+            MessageBox.Show("Stock quantity must be a whole number.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            numStock.Focus()
+            Return False
+        End If
+
+        stockQty = CInt(stockDecimal)
+        If stockQty < 0 OrElse stockQty > MaxStockQuantity Then
+            ShowProductsInputError(String.Format(CultureInfo.CurrentCulture, "Stock quantity must be from 0 to {0}.", MaxStockQuantity))
+            MessageBox.Show(
+                String.Format(CultureInfo.CurrentCulture, "Stock quantity must be between 0 and {0}.", MaxStockQuantity),
+                "Validation",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
+            numStock.Focus()
+            Return False
+        End If
+
+        Return True
+    End Function
+
+    Private Sub numStock_ValueChanged(sender As Object, e As EventArgs) Handles numStock.ValueChanged
+        ClearProductsInputError()
+    End Sub
 
     Private Function TryGetValidatedProductPrice(ByRef price As Decimal) As Boolean
         price = 0D
@@ -571,6 +708,11 @@ Public Class ProductsForm
             Return
         End If
 
+        Dim stockQty As Integer
+        If Not TryGetValidatedStockQuantity(stockQty) Then
+            Return
+        End If
+
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
@@ -609,7 +751,7 @@ Public Class ProductsForm
                 End If
 
                 Dim insertSql As String =
-                    "INSERT INTO products (product_name, price, category_id) VALUES (@product_name, @price, @category_id);"
+                    "INSERT INTO products (product_name, price, category_id, stock_quantity) VALUES (@product_name, @price, @category_id, @stock_quantity);"
 
                 Dim newCatId As Integer? = Nothing
                 TryGetCategoryIdForSave(newCatId)
@@ -622,6 +764,7 @@ Public Class ProductsForm
                     Else
                         insertCmd.Parameters.AddWithValue("@category_id", DBNull.Value)
                     End If
+                    insertCmd.Parameters.AddWithValue("@stock_quantity", stockQty)
 
                     insertCmd.ExecuteNonQuery()
                 End Using
@@ -670,6 +813,11 @@ Public Class ProductsForm
             Return
         End If
 
+        Dim stockQty As Integer
+        If Not TryGetValidatedStockQuantity(stockQty) Then
+            Return
+        End If
+
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
@@ -691,7 +839,7 @@ Public Class ProductsForm
 
                 Dim query As String =
                     "UPDATE products " &
-                    "SET product_name = @product_name, price = @price, category_id = @category_id, is_active = 1, updated_at = SYSUTCDATETIME() " &
+                    "SET product_name = @product_name, price = @price, category_id = @category_id, stock_quantity = @stock_quantity, is_active = 1, updated_at = SYSUTCDATETIME() " &
                     "WHERE id = @id;"
 
                 Using command As New SqlCommand(query, connection)
@@ -703,6 +851,7 @@ Public Class ProductsForm
                     Else
                         command.Parameters.AddWithValue("@category_id", DBNull.Value)
                     End If
+                    command.Parameters.AddWithValue("@stock_quantity", stockQty)
 
                     command.ExecuteNonQuery()
                 End Using
@@ -849,10 +998,10 @@ Public Class ProductsForm
                     Try
                         Dim mergeSql As String =
                             "MERGE products AS t " &
-                            "USING (SELECT @n AS product_name, @p AS price) AS s " &
+                            "USING (SELECT @n AS product_name, @p AS price, @s AS stock_quantity) AS s " &
                             "ON t.product_name = s.product_name " &
                             "WHEN MATCHED THEN UPDATE SET t.price = s.price, t.is_active = 1, t.updated_at = SYSUTCDATETIME() " &
-                            "WHEN NOT MATCHED THEN INSERT (product_name, price, category_id) VALUES (s.product_name, s.price, NULL);"
+                            "WHEN NOT MATCHED THEN INSERT (product_name, price, category_id, stock_quantity) VALUES (s.product_name, s.price, NULL, s.stock_quantity);"
 
                         For i As Integer = startIndex To lines.Length - 1
                             Dim raw As String = lines(i).Trim()
@@ -882,9 +1031,22 @@ Public Class ProductsForm
                                 Continue For
                             End If
 
+                            Dim stockQty As Integer = DefaultStockQuantity
+                            If parts.Length >= 3 Then
+                                Dim stockText As String = parts(2).Trim()
+                                Dim stockDecimal As Decimal
+                                If Decimal.TryParse(stockText, NumberStyles.Number, CultureInfo.CurrentCulture, stockDecimal) OrElse
+                                    Decimal.TryParse(stockText, NumberStyles.Number, CultureInfo.InvariantCulture, stockDecimal) Then
+                                    If stockDecimal = Decimal.Truncate(stockDecimal) AndAlso stockDecimal >= 0D AndAlso stockDecimal <= MaxStockQuantity Then
+                                        stockQty = CInt(stockDecimal)
+                                    End If
+                                End If
+                            End If
+
                             Using cmd As New SqlCommand(mergeSql, connection, transaction)
                                 cmd.Parameters.AddWithValue("@n", productName)
                                 cmd.Parameters.AddWithValue("@p", unitPrice)
+                                cmd.Parameters.AddWithValue("@s", stockQty)
                                 cmd.ExecuteNonQuery()
                             End Using
 
@@ -922,6 +1084,17 @@ Public Class ProductsForm
             numPrice.Value = numPrice.Maximum
         Else
             numPrice.Value = priceVal
+        End If
+
+        If dgvProducts.Columns.Contains("stock_quantity") Then
+            Dim stockVal As Integer = Convert.ToInt32(row.Cells("stock_quantity").Value)
+            If stockVal < CInt(numStock.Minimum) Then
+                numStock.Value = numStock.Minimum
+            ElseIf stockVal > CInt(numStock.Maximum) Then
+                numStock.Value = numStock.Maximum
+            Else
+                numStock.Value = stockVal
+            End If
         End If
 
         Dim catKey As Integer? = Nothing
@@ -1035,7 +1208,7 @@ Public Class ProductsForm
                 End Select
 
                 Dim query As String =
-                    "SELECT p.id, p.product_name, p.price, p.is_active, p.category_id, c.category_name AS category_name " &
+                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.is_active, p.category_id, c.category_name AS category_name " &
                     "FROM products p " &
                     "LEFT JOIN dbo.categories c ON c.category_id = p.category_id " &
                     whereClause &
@@ -1068,6 +1241,7 @@ Public Class ProductsForm
     Private Sub ClearInputs()
         txtProductName.Clear()
         numPrice.Value = numPrice.Minimum
+        numStock.Value = DefaultStockQuantity
         SelectCategoryForEditor(Nothing)
         ClearProductsInputError()
         txtProductName.Focus()

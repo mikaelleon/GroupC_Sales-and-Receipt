@@ -26,6 +26,31 @@ Public Class ReceiptSnapshot
     Public Property CashierName As String
 
     ''' <summary>
+    ''' Gets or sets the database sale id (set after save).
+    ''' </summary>
+    Public Property SaleId As Integer
+
+    ''' <summary>
+    ''' Gets or sets the transaction timestamp printed on the receipt.
+    ''' </summary>
+    Public Property SaleDateTime As DateTime
+
+    ''' <summary>
+    ''' Gets or sets the printed receipt number (for example RCP-000042).
+    ''' </summary>
+    Public Property ReceiptNumber As String
+
+    ''' <summary>
+    ''' Gets or sets the transaction reference printed on the receipt.
+    ''' </summary>
+    Public Property TransactionReference As String
+
+    ''' <summary>
+    ''' Gets or sets the payment method label (for example Cash).
+    ''' </summary>
+    Public Property PaymentMethod As String
+
+    ''' <summary>
     ''' Gets or sets the line items.
     ''' </summary>
     Public Property Lines As List(Of ReceiptLineRow)

@@ -30,7 +30,7 @@ Public NotInheritable Class ReceiptPrintHelper
     Public Sub PrintPage(e As PrintPageEventArgs, font As Font)
         Dim margin As RectangleF = e.MarginBounds
         Dim y As Single = margin.Top
-        Dim format As New StringFormat(StringFormatFlags.LineLimit)
+        Dim format As StringFormat = ReceiptBranding.CreateReceiptDrawFormat()
 
         If Not _headerPrinted Then
             y = DrawLogo(e.Graphics, margin, y)
@@ -39,11 +39,19 @@ Public NotInheritable Class ReceiptPrintHelper
 
         While _lineIndex < _lines.Length
             Dim line As String = _lines(_lineIndex)
-            Dim layout As New RectangleF(margin.Left, y, margin.Width, margin.Bottom - y)
-            Dim measured As SizeF = e.Graphics.MeasureString(line, font, New SizeF(margin.Width, Single.MaxValue), format)
-            Dim lineHeight As Single = measured.Height
-            If lineHeight < font.GetHeight(e.Graphics) Then
-                lineHeight = font.GetHeight(e.Graphics)
+            Dim lineHeight As Single
+
+            If String.IsNullOrWhiteSpace(line) Then
+                lineHeight = font.GetHeight(e.Graphics) * 0.65F
+            Else
+                Dim layout As New RectangleF(margin.Left, y, margin.Width, margin.Bottom - y)
+                Dim measured As SizeF = e.Graphics.MeasureString(line, font, New SizeF(margin.Width, Single.MaxValue), format)
+                lineHeight = measured.Height
+                If lineHeight < font.GetHeight(e.Graphics) Then
+                    lineHeight = font.GetHeight(e.Graphics)
+                End If
+
+                lineHeight *= 1.15F
             End If
 
             If y + lineHeight > margin.Bottom Then
@@ -51,7 +59,10 @@ Public NotInheritable Class ReceiptPrintHelper
                 Return
             End If
 
-            e.Graphics.DrawString(line, font, Brushes.Black, New RectangleF(margin.Left, y, margin.Width, lineHeight), format)
+            If Not String.IsNullOrWhiteSpace(line) Then
+                e.Graphics.DrawString(line, font, Brushes.Black, New RectangleF(margin.Left, y, margin.Width, lineHeight), format)
+            End If
+
             y += lineHeight
             _lineIndex += 1
         End While

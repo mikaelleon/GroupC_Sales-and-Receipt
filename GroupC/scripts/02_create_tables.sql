@@ -1,5 +1,9 @@
 -- Group C schema reference (SQL Server / LocalDB).
 -- Runtime DDL is applied by DatabaseInitializer.vb; keep this file in sync.
+--
+-- Tables created at runtime (see DatabaseInitializer.vb) when not present:
+--   sales, sale_items, audit_products, audit_sales, error_log, AuditLogs, cashier_accounts
+-- This script covers categories and products only.
 
 IF OBJECT_ID(N'dbo.categories', N'U') IS NULL
 BEGIN
@@ -37,5 +41,3 @@ BEGIN
     ALTER TABLE dbo.products
         ADD CONSTRAINT FK_products_categories FOREIGN KEY (category_id) REFERENCES dbo.categories (category_id);
 END;
-
--- sales, sale_items, audit_products, audit_sales, error_log, AuditLogs: see DatabaseInitializer.vb

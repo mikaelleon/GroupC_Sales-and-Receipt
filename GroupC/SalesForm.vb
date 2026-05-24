@@ -8,8 +8,10 @@ Imports Microsoft.Data.SqlClient
 Public Class SalesForm
 
     Private Class ProductCatalogEntry
+        Public Property ProductId As Integer
         Public Property UnitPrice As Decimal
         Public Property CategoryId As Integer?
+        Public Property StockQuantity As Integer
     End Class
 
     Private Class SalesCategoryFilterItem
@@ -33,6 +35,10 @@ Public Class SalesForm
     Private Const MinLineQty As Integer = 1
     Private Const MaxLineQty As Integer = 99999
     Private Const MaxCashTendered As Decimal = 999999999.99D
+    Private Const CheckoutSummaryLabelWidth As Single = 132.0F
+    Private Const CheckoutSummaryRowHeight As Integer = 36
+    Private Const TenderedFieldHeight As Integer = 40
+    Private Const SalesInputShellHeight As Integer = 42
     Private Const DiscountPwdPercent As Decimal = 20D
     Private Const DiscountSeniorPercent As Decimal = 20D
     Private Const DiscountMembershipPercent As Decimal = 10D
@@ -70,6 +76,7 @@ Public Class SalesForm
     Private WithEvents txtAmountTendered As TextBox
 
     Private lblSalesInputError As Label
+    Private lblStockOnHand As Label
 
     Private lblSubtotalValue As Label
     Private lblDiscountValue As Label
@@ -122,10 +129,30 @@ Public Class SalesForm
         ' -----------------------------------------------------------
         ' 1. INITIALIZE CONTROLS
         ' -----------------------------------------------------------
-        cmbSalesCategory = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Font = New Font("Segoe UI", 11), .Dock = DockStyle.Fill}
-        cmbProductName = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Font = New Font("Segoe UI", 11), .Dock = DockStyle.Fill}
-        txtPrice = New TextBox() With {.ReadOnly = True, .BackColor = UiTheme.CardSurface, .TextAlign = HorizontalAlignment.Right, .Font = New Font("Segoe UI", 11), .Dock = DockStyle.Fill}
-        numQuantity = New NumericUpDown() With {.Minimum = MinLineQty, .Maximum = MaxLineQty, .TextAlign = HorizontalAlignment.Right, .Font = New Font("Segoe UI", 11), .Dock = DockStyle.Fill}
+        cmbSalesCategory = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
+        cmbProductName = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
+        txtPrice = New TextBox() With {
+            .ReadOnly = True,
+            .BackColor = UiTheme.CardSurface,
+            .TextAlign = HorizontalAlignment.Right,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
+        numQuantity = New NumericUpDown() With {
+            .Minimum = MinLineQty,
+            .Maximum = MaxLineQty,
+            .TextAlign = HorizontalAlignment.Right,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
 
         Try
             UiTheme.ApplyTableLayoutDropDown(cmbSalesCategory)
@@ -134,17 +161,48 @@ Public Class SalesForm
         Catch
         End Try
 
-        btnAdd = New Button() With {.Text = "&Add to cart", .Size = New Size(120, 38), .Cursor = Cursors.Hand}
-        btnRemove = New Button() With {.Text = "&Remove item", .Size = New Size(120, 38), .Cursor = Cursors.Hand}
-        btnClear = New Button() With {.Text = "C&lear cart", .Size = New Size(100, 38), .Cursor = Cursors.Hand}
-        btnOpenProducts = New Button() With {.Text = "Open &Products…", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {
+            .Text = "&Add to cart",
+            .Height = UiTheme.ButtonHeightMd,
+            .AutoSize = True,
+            .Cursor = Cursors.Hand
+        }
+        btnRemove = New Button() With {
+            .Text = "&Remove item",
+            .Height = UiTheme.ButtonHeightMd,
+            .AutoSize = True,
+            .Cursor = Cursors.Hand
+        }
+        btnClear = New Button() With {
+            .Text = "C&lear cart",
+            .Height = UiTheme.ButtonHeightMd,
+            .AutoSize = True,
+            .Cursor = Cursors.Hand
+        }
+        btnOpenProducts = New Button() With {
+            .Text = "Open &Products…",
+            .Height = UiTheme.ButtonHeightMd,
+            .AutoSize = True,
+            .Cursor = Cursors.Hand
+        }
 
         ' Dynamic Back Button logic directly injected
-        Dim btnBack As New Button() With {.Text = "← Back to Menu", .Size = New Size(140, 36), .Cursor = Cursors.Hand}
+        Dim btnBack As New Button() With {
+            .Text = "← Back to Menu",
+            .Height = UiTheme.ButtonHeightMd,
+            .AutoSize = True,
+            .Cursor = Cursors.Hand
+        }
         AddHandler btnBack.Click, Sub(s, ev) Me.Close()
 
-        lblDiscountHeading = New Label() With {.Text = "Discount", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Anchor = AnchorStyles.Right Or AnchorStyles.Top, .Margin = New Padding(0, 5, 5, 0)}
-        lblCustomerDiscount = New Label() With {.Text = "Customer discount", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Font = New Font("Segoe UI", 9, FontStyle.Bold), .Margin = New Padding(0, 0, 0, 4)}
+        lblDiscountHeading = CreateCheckoutSummaryCaption("Discount:")
+        lblCustomerDiscount = New Label() With {
+            .Text = "Customer discount",
+            .AutoSize = True,
+            .ForeColor = UiTheme.TextSecondary,
+            .Font = UiTheme.FontBodySmall,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
+        }
 
         btnDiscPwd = CreatePosDiscountToggle("♿ PWD (20%)", PosDiscountType.Pwd)
         btnDiscSenior = CreatePosDiscountToggle("👴 Senior (20%)", PosDiscountType.Senior)
@@ -153,26 +211,64 @@ Public Class SalesForm
         btnTaxToggle = New Button() With {
             .Text = "🧾 VAT / Tax %",
             .AutoSize = True,
-            .MinimumSize = New Size(130, 32),
-            .Font = New Font("Segoe UI", 10),
+            .MinimumSize = New Size(130, UiTheme.ButtonHeightSm),
+            .Font = UiTheme.FontBody,
             .Cursor = Cursors.Hand,
             .FlatStyle = FlatStyle.Flat,
-            .Margin = New Padding(0, 8, 0, 4)
+            .Margin = New Padding(0, UiTheme.SpaceSm, 0, UiTheme.SpaceXs)
         }
         btnTaxToggle.FlatAppearance.BorderColor = UiTheme.CardBorder
-        numTaxPercent = New NumericUpDown() With {.DecimalPlaces = 2, .Minimum = 0D, .Maximum = 100D, .Increment = 0.5D, .Enabled = False, .Font = New Font("Segoe UI", 11), .Width = 100}
+        numTaxPercent = New NumericUpDown() With {
+            .DecimalPlaces = 2,
+            .Minimum = 0D,
+            .Maximum = 100D,
+            .Increment = 0.5D,
+            .Enabled = False,
+            .Font = UiTheme.FontBody,
+            .Width = 100
+        }
 
-        txtAmountTendered = New TextBox() With {.TextAlign = HorizontalAlignment.Right, .Font = New Font("Segoe UI", 12, FontStyle.Bold), .Dock = DockStyle.Fill}
+        txtAmountTendered = New TextBox() With {
+            .TextAlign = HorizontalAlignment.Right,
+            .Font = UiTheme.FontHeading3,
+            .BorderStyle = BorderStyle.None
+        }
+        Try
+            UiTheme.ApplyTableLayoutSingleLineTextBox(txtAmountTendered)
+        Catch
+        End Try
 
-        lblSubtotalValue = New Label() With {.Text = AppSettings.Current.CurrencySymbol & "0.00", .AutoSize = True, .Font = New Font("Segoe UI", 11)}
-        lblDiscountValue = New Label() With {.Text = AppSettings.Current.CurrencySymbol & "0.00", .AutoSize = True, .Font = New Font("Segoe UI", 11)}
-        lblTaxValue = New Label() With {.Text = AppSettings.Current.CurrencySymbol & "0.00", .AutoSize = True, .Font = New Font("Segoe UI", 11)}
-        lblChangeValue = New Label() With {.Text = AppSettings.Current.CurrencySymbol & "0.00", .AutoSize = True, .Font = New Font("Segoe UI", 12, FontStyle.Bold), .ForeColor = UiTheme.Success}
-        lblTotal = New Label() With {.Text = AppSettings.Current.CurrencySymbol & "0.00", .AutoSize = True, .Font = New Font("Segoe UI", 18, FontStyle.Bold), .ForeColor = UiTheme.PrimaryAccent}
+        lblSubtotalValue = CreateCheckoutSummaryValueLabel()
+        lblDiscountValue = CreateCheckoutSummaryValueLabel()
+        lblTaxValue = CreateCheckoutSummaryValueLabel()
+        lblChangeValue = CreateCheckoutSummaryValueLabel(bold:=True, successColor:=True)
+        lblTotal = New Label() With {
+            .Text = FormatMoney(0D),
+            .Dock = DockStyle.Fill,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .AutoSize = False,
+            .Height = 50,
+            .Font = UiTheme.FontHeading1,
+            .ForeColor = UiTheme.PrimaryAccent,
+            .Margin = New Padding(0, UiTheme.SpaceXs, 0, UiTheme.SpaceSm)
+        }
 
-        btnFinalize = New Button() With {.Text = "FINALIZE SALE", .Size = New Size(220, 50), .Font = New Font("Segoe UI", 12, FontStyle.Bold), .Cursor = Cursors.Hand}
+        btnFinalize = New Button() With {
+            .Text = "FINALIZE SALE",
+            .AutoSize = True,
+            .MinimumSize = New Size(180, UiTheme.ButtonHeightLg),
+            .Font = UiTheme.FontHeading3,
+            .Cursor = Cursors.Hand
+        }
 
         lblSalesInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Padding = New Padding(0, 5, 0, 10)}
+        lblStockOnHand = New Label() With {
+            .AutoSize = True,
+            .ForeColor = UiTheme.TextSecondary,
+            .Font = UiTheme.FontBodySmall,
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
+            .Text = "Available: —"
+        }
         lblEmptyHint = New Label() With {.Text = "No products in catalog. Open Manage Products.", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Visible = False}
 
         dgvProducts = New DataGridView() With {
@@ -181,9 +277,11 @@ Public Class SalesForm
             .AllowUserToDeleteRows = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
-            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            .AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,
             .BackgroundColor = Color.White,
-            .BorderStyle = BorderStyle.None
+            .BorderStyle = BorderStyle.None,
+            .ScrollBars = ScrollBars.Both
         }
 
         dgvProducts.Columns.Add("Index", "#")
@@ -191,15 +289,11 @@ Public Class SalesForm
         dgvProducts.Columns.Add("Price", "Price")
         dgvProducts.Columns.Add("Quantity", "Qty")
         dgvProducts.Columns.Add("Subtotal", "Subtotal")
-        dgvProducts.Columns("Index").Width = 40
         dgvProducts.Columns("Index").ReadOnly = True
         dgvProducts.Columns("ProductName").ReadOnly = True
         dgvProducts.Columns("Price").ReadOnly = True
         dgvProducts.Columns("Quantity").ReadOnly = False
         dgvProducts.Columns("Subtotal").ReadOnly = True
-        dgvProducts.Columns("Price").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
-        dgvProducts.Columns("Quantity").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
-        dgvProducts.Columns("Subtotal").DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
 
         Try
             UiTheme.ApplyPrimaryButton(btnAdd)
@@ -211,6 +305,8 @@ Public Class SalesForm
             UiTheme.ApplyDataGridViewChrome(dgvProducts)
         Catch
         End Try
+
+        ConfigureSalesCartGrid()
 
         statusStrip = New StatusStrip()
         statusLabel = New ToolStripStatusLabel("Ready") With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
@@ -234,7 +330,11 @@ Public Class SalesForm
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
         ' --- LEFT SIDEBAR (Product Selection) ---
-        Dim leftSidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Color.White, .Padding = New Padding(25, 30, 25, 30)}
+        Dim leftSidebar As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)
+        }
 
         Dim leftLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
@@ -248,10 +348,10 @@ Public Class SalesForm
 
         Dim lblTitleLeft As New Label() With {
             .Text = "Point of Sale",
-            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .Font = UiTheme.FontHeading2,
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 20)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
         }
         leftLayout.Controls.Add(lblTitleLeft, 0, 0)
 
@@ -259,23 +359,33 @@ Public Class SalesForm
             .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 10,
+            .RowCount = 11,
             .Margin = New Padding(0)
         }
-        Dim CreateLabel = Function(text As String) New Label() With {.Text = text, .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Margin = New Padding(0, 15, 0, 5)}
+        Dim CreateLabel = Function(text As String) New Label() With {
+            .Text = text,
+            .AutoSize = True,
+            .Font = UiTheme.FontBody,
+            .ForeColor = UiTheme.TextSecondary,
+            .Margin = New Padding(0, UiTheme.SpaceLg, 0, UiTheme.SpaceSm)
+        }
 
         inputLayout.Controls.Add(CreateLabel("Category Filter"), 0, 0)
         inputLayout.Controls.Add(cmbSalesCategory, 0, 1)
         inputLayout.Controls.Add(CreateLabel("Select Product"), 0, 2)
         inputLayout.Controls.Add(cmbProductName, 0, 3)
         inputLayout.Controls.Add(CreateLabel("Unit Price (" & AppSettings.Current.CurrencySymbol & ")"), 0, 4)
-        inputLayout.Controls.Add(txtPrice, 0, 5)
-        inputLayout.Controls.Add(CreateLabel("Quantity"), 0, 6)
-        inputLayout.Controls.Add(numQuantity, 0, 7)
+        inputLayout.Controls.Add(CreateSalesInputShell(txtPrice), 0, 5)
+        inputLayout.Controls.Add(lblStockOnHand, 0, 6)
+        inputLayout.Controls.Add(CreateLabel("Quantity"), 0, 7)
+        inputLayout.Controls.Add(numQuantity, 0, 8)
 
-        Dim pnlAdd As New FlowLayoutPanel() With {.AutoSize = True, .Margin = New Padding(0, 20, 0, 0)}
+        Dim pnlAdd As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
+        }
         pnlAdd.Controls.Add(btnAdd)
-        inputLayout.Controls.Add(pnlAdd, 0, 8)
+        inputLayout.Controls.Add(pnlAdd, 0, 9)
 
         leftLayout.Controls.Add(inputLayout, 0, 1)
 
@@ -285,7 +395,7 @@ Public Class SalesForm
             .FlowDirection = FlowDirection.TopDown
         }
         pnlUtility.Controls.Add(btnOpenProducts)
-        btnBack.Margin = New Padding(0, 15, 0, 0)
+        btnBack.Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
         pnlUtility.Controls.Add(btnBack)
 
         leftLayout.Controls.Add(pnlUtility, 0, 3)
@@ -297,16 +407,16 @@ Public Class SalesForm
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .Padding = New Padding(30, 30, 30, 20)
+            .Padding = New Padding(UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.SpaceLg)
         }
         rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Header
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 58.0F))  ' Cart grid (bounded — do not star 100%)
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 42.0F))  ' Checkout always reserved
+        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 62.0F))  ' Cart grid
+        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 38.0F))  ' Checkout
 
         Dim headerPanel As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top}
         Dim lblTitleRight As New Label() With {
             .Text = "Shopping Cart",
-            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .Font = UiTheme.FontHeading2,
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
             .Dock = DockStyle.Left
@@ -328,76 +438,141 @@ Public Class SalesForm
         headerPanel.Controls.Add(lblSalesInputError)
         rightCard.Controls.Add(headerPanel, 0, 0)
 
-        Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill, .Margin = New Padding(0, 12, 0, 8), .MinimumSize = New Size(0, 120)}
+        Dim gridContainer As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm),
+            .MinimumSize = New Size(0, 180)
+        }
         lblEmptyHint.Dock = DockStyle.Top
+        lblEmptyHint.Padding = New Padding(4, 0, 0, 6)
+        Dim gridCard As Panel = UiTheme.CreateCardPanel(Padding.Empty)
+        gridCard.Dock = DockStyle.Fill
+        Dim gridHost As Panel = UiTheme.GetCardContentHost(gridCard)
+        gridHost.Controls.Add(dgvProducts)
+        gridContainer.Controls.Add(gridCard)
         gridContainer.Controls.Add(lblEmptyHint)
-        gridContainer.Controls.Add(dgvProducts)
         rightCard.Controls.Add(gridContainer, 0, 1)
 
         ' --- CHECKOUT PANEL (Bottom Right Dashboard) ---
         Dim checkoutPanel As New TableLayoutPanel() With {
-            .ColumnCount = 3,
+            .ColumnCount = 5,
             .RowCount = 1,
             .Dock = DockStyle.Fill,
             .BackColor = UiTheme.CardSurface,
             .Margin = New Padding(0),
-            .MinimumSize = New Size(0, 200)
+            .MinimumSize = New Size(0, 220)
         }
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F)) ' Discount & Tax Settings
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F)) ' Subtotal, Tendered, Change Details
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 30.0F)) ' Finalize Button
+        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 36.0F))
+        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 1.0F))
+        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 40.0F))
+        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 1.0F))
+        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 24.0F))
 
-        ' 1. Settings Panel
-        Dim settingsLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4, .Padding = New Padding(15)}
+        Dim settingsLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Padding = New Padding(UiTheme.SpaceLg, UiTheme.SpaceMd, UiTheme.SpaceSm, UiTheme.SpaceMd),
+            .BackColor = Color.Transparent
+        }
+        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         settingsLayout.Controls.Add(lblCustomerDiscount, 0, 0)
 
         Dim discountToggleRow As New FlowLayoutPanel() With {
             .AutoSize = True,
-            .Dock = DockStyle.Fill,
+            .Dock = DockStyle.Top,
             .WrapContents = True,
-            .Margin = New Padding(0, 0, 0, 6)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         }
         discountToggleRow.Controls.Add(btnDiscPwd)
         discountToggleRow.Controls.Add(btnDiscSenior)
         discountToggleRow.Controls.Add(btnDiscMembership)
         settingsLayout.Controls.Add(discountToggleRow, 0, 1)
 
-        settingsLayout.Controls.Add(btnTaxToggle, 0, 2)
-        settingsLayout.Controls.Add(numTaxPercent, 0, 3)
+        Dim taxRow As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .ColumnCount = 2,
+            .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
+        }
+        taxRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        taxRow.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 108.0F))
+        btnTaxToggle.Dock = DockStyle.Fill
+        btnTaxToggle.AutoSize = False
+        btnTaxToggle.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
+        btnTaxToggle.MinimumSize = New Size(0, UiTheme.ButtonHeightSm)
+        numTaxPercent.Dock = DockStyle.Fill
+        numTaxPercent.Margin = Padding.Empty
+        numTaxPercent.MinimumSize = New Size(0, UiTheme.InputHeight)
+        taxRow.Controls.Add(btnTaxToggle, 0, 0)
+        taxRow.Controls.Add(numTaxPercent, 1, 0)
+        settingsLayout.Controls.Add(taxRow, 0, 2)
 
         RefreshPosDiscountToggleUi()
         RefreshTaxToggleUi()
 
-        ' 2. Details Panel
-        Dim detailsLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 2, .RowCount = 5, .Padding = New Padding(15)}
-        Dim CreateSummaryLabel = Function(text As String) New Label() With {.Text = text, .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Anchor = AnchorStyles.Right Or AnchorStyles.Top, .Margin = New Padding(0, 5, 5, 0)}
+        Dim detailsLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 5,
+            .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceLg, UiTheme.SpaceMd),
+            .BackColor = Color.Transparent
+        }
+        detailsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, CheckoutSummaryLabelWidth))
+        detailsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        For rowIdx As Integer = 0 To 4
+            detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryRowHeight))
+        Next
 
-        detailsLayout.Controls.Add(CreateSummaryLabel("Subtotal:"), 0, 0)
+        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Subtotal:"), 0, 0)
         detailsLayout.Controls.Add(lblSubtotalValue, 1, 0)
         detailsLayout.Controls.Add(lblDiscountHeading, 0, 1)
         detailsLayout.Controls.Add(lblDiscountValue, 1, 1)
-        detailsLayout.Controls.Add(CreateSummaryLabel("Tax:"), 0, 2)
+        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Tax:"), 0, 2)
         detailsLayout.Controls.Add(lblTaxValue, 1, 2)
-
-        detailsLayout.Controls.Add(CreateSummaryLabel("Tendered:"), 0, 3)
-        detailsLayout.Controls.Add(txtAmountTendered, 1, 3)
-        detailsLayout.Controls.Add(CreateSummaryLabel("Change:"), 0, 4)
+        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Tendered:"), 0, 3)
+        detailsLayout.Controls.Add(CreateTenderedInputShell(), 1, 3)
+        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Change:"), 0, 4)
         detailsLayout.Controls.Add(lblChangeValue, 1, 4)
 
-        ' 3. Finalize Panel
-        Dim finalizeLayout As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 3, .Padding = New Padding(15)}
-        finalizeLayout.Controls.Add(New Label() With {.Text = "AMOUNT DUE", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Font = New Font("Segoe UI", 10, FontStyle.Bold)}, 0, 0)
+        Dim finalizeLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceLg, UiTheme.SpaceMd),
+            .BackColor = Color.Transparent
+        }
+        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        Dim lblAmountDueTitle As New Label() With {
+            .Text = "AMOUNT DUE",
+            .Dock = DockStyle.Top,
+            .AutoSize = False,
+            .Height = 24,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .ForeColor = UiTheme.TextSecondary,
+            .Font = UiTheme.FontBody
+        }
+        btnFinalize.Dock = DockStyle.Top
+        btnFinalize.Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
+        btnFinalize.MinimumSize = New Size(180, UiTheme.ButtonHeightLg)
+        finalizeLayout.Controls.Add(lblAmountDueTitle, 0, 0)
         finalizeLayout.Controls.Add(lblTotal, 0, 1)
         finalizeLayout.Controls.Add(btnFinalize, 0, 2)
 
         checkoutPanel.Controls.Add(settingsLayout, 0, 0)
-        checkoutPanel.Controls.Add(detailsLayout, 1, 0)
-        checkoutPanel.Controls.Add(finalizeLayout, 2, 0)
+        checkoutPanel.Controls.Add(CreateCheckoutColumnSeparator(), 1, 0)
+        checkoutPanel.Controls.Add(detailsLayout, 2, 0)
+        checkoutPanel.Controls.Add(CreateCheckoutColumnSeparator(), 3, 0)
+        checkoutPanel.Controls.Add(finalizeLayout, 4, 0)
 
-        Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceSm))
         checkoutCard.Dock = DockStyle.Fill
-        checkoutCard.Margin = New Padding(0, 4, 0, 0)
-        checkoutCard.MinimumSize = New Size(0, 210)
+        checkoutCard.Margin = New Padding(0, UiTheme.SpaceXs, 0, 0)
+        checkoutCard.MinimumSize = New Size(0, 240)
         UiTheme.PopulateCardContent(checkoutCard, checkoutPanel)
 
         Dim checkoutHost As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .Padding = Padding.Empty}
@@ -431,6 +606,138 @@ Public Class SalesForm
 
     Private Shared Function FormatMoney(amount As Decimal) As String
         Return AppSettings.Current.CurrencySymbol & amount.ToString("N2", CultureInfo.CurrentCulture)
+    End Function
+
+    Private Sub ConfigureSalesCartGrid()
+        If dgvProducts Is Nothing Then
+            Return
+        End If
+
+        dgvProducts.RowTemplate.Height = 36
+        dgvProducts.ColumnHeadersHeight = 40
+        dgvProducts.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
+        dgvProducts.DefaultCellStyle.Padding = New Padding(6, 4, 8, 4)
+        dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(4, 4, 4, 4)
+
+        Dim sym As String = AppSettings.Current.CurrencySymbol
+
+        Dim indexCol As DataGridViewColumn = dgvProducts.Columns("Index")
+        indexCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        indexCol.Width = 48
+        indexCol.MinimumWidth = 48
+        indexCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+        indexCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
+
+        Dim productCol As DataGridViewColumn = dgvProducts.Columns("ProductName")
+        productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+        productCol.FillWeight = 200
+        productCol.MinimumWidth = 160
+        productCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+        productCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleLeft
+
+        Dim priceCol As DataGridViewColumn = dgvProducts.Columns("Price")
+        priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        priceCol.Width = 116
+        priceCol.MinimumWidth = 100
+        priceCol.HeaderText = "Price (" & sym & ")"
+        priceCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+        priceCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight
+
+        Dim qtyCol As DataGridViewColumn = dgvProducts.Columns("Quantity")
+        qtyCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        qtyCol.Width = 72
+        qtyCol.MinimumWidth = 64
+        qtyCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+        qtyCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
+
+        Dim subtotalCol As DataGridViewColumn = dgvProducts.Columns("Subtotal")
+        subtotalCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        subtotalCol.Width = 124
+        subtotalCol.MinimumWidth = 108
+        subtotalCol.HeaderText = "Subtotal (" & sym & ")"
+        subtotalCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight
+        subtotalCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight
+    End Sub
+
+    Private Shared Function CreateCheckoutSummaryCaption(text As String) As Label
+        Return New Label() With {
+            .Text = text,
+            .Dock = DockStyle.Fill,
+            .AutoSize = False,
+            .TextAlign = ContentAlignment.MiddleRight,
+            .ForeColor = UiTheme.TextSecondary,
+            .Font = New Font("Segoe UI", 10),
+            .Margin = New Padding(0, 0, 10, 0)
+        }
+    End Function
+
+    Private Shared Function CreateCheckoutSummaryValueLabel(Optional bold As Boolean = False, Optional successColor As Boolean = False) As Label
+        Dim fontStyle As FontStyle = If(bold, FontStyle.Bold, FontStyle.Regular)
+        Dim fore As Color = If(successColor, UiTheme.Success, UiTheme.TextPrimary)
+        Return New Label() With {
+            .Text = FormatMoney(0D),
+            .Dock = DockStyle.Fill,
+            .AutoSize = False,
+            .TextAlign = ContentAlignment.MiddleRight,
+            .ForeColor = fore,
+            .Font = New Font("Segoe UI", If(bold, 12.0F, 11.0F), fontStyle),
+            .Margin = Padding.Empty
+        }
+    End Function
+
+    Private Function CreateTenderedInputShell() As Panel
+        txtAmountTendered.Dock = DockStyle.Fill
+        txtAmountTendered.Margin = Padding.Empty
+
+        Dim inner As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(10, 6, 10, 6)
+        }
+        inner.Controls.Add(txtAmountTendered)
+
+        Dim outer As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Height = TenderedFieldHeight,
+            .MinimumSize = New Size(0, TenderedFieldHeight),
+            .BackColor = UiTheme.CardBorder,
+            .Padding = New Padding(1),
+            .Margin = Padding.Empty
+        }
+        outer.Controls.Add(inner)
+        Return outer
+    End Function
+
+    Private Shared Function CreateCheckoutColumnSeparator() As Panel
+        Return New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Width = 1,
+            .Margin = New Padding(0, 12, 0, 12),
+            .BackColor = UiTheme.CardBorder
+        }
+    End Function
+
+    Private Function CreateSalesInputShell(inner As Control) As Panel
+        inner.Dock = DockStyle.Fill
+        inner.Margin = Padding.Empty
+
+        Dim host As New Panel() With {
+            .Dock = DockStyle.Top,
+            .Height = SalesInputShellHeight,
+            .MinimumSize = New Size(0, SalesInputShellHeight),
+            .BackColor = UiTheme.CardBorder,
+            .Padding = New Padding(1),
+            .Margin = New Padding(0, 0, 0, 4)
+        }
+
+        Dim surface As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(10, 6, 10, 6)
+        }
+        surface.Controls.Add(inner)
+        host.Controls.Add(surface)
+        Return host
     End Function
 
     Private Sub ClearSalesInputError()
@@ -621,10 +928,151 @@ Public Class SalesForm
         Dim entry As ProductCatalogEntry = Nothing
         If productCatalog.TryGetValue(selectedProduct, entry) Then
             txtPrice.Text = entry.UnitPrice.ToString("N2", CultureInfo.CurrentCulture)
+            UpdateStockHintForProduct(entry.ProductId, selectedProduct)
         Else
             txtPrice.Clear()
+            If lblStockOnHand IsNot Nothing Then
+                lblStockOnHand.Text = "Available: —"
+            End If
+            numQuantity.Maximum = MaxLineQty
         End If
     End Sub
+
+    Private Sub UpdateStockHintForProduct(productId As Integer, productName As String)
+        If lblStockOnHand Is Nothing Then
+            Return
+        End If
+
+        Dim available As Integer = GetAvailableStock(productId, productName)
+        lblStockOnHand.Text = String.Format(CultureInfo.CurrentCulture, "Available: {0}", available)
+        lblStockOnHand.ForeColor = If(available > 0, UiTheme.TextSecondary, UiTheme.Danger)
+
+        Dim maxQty As Decimal = Math.Max(MinLineQty, Math.Min(MaxLineQty, available))
+        If maxQty < numQuantity.Minimum Then
+            maxQty = numQuantity.Minimum
+        End If
+        numQuantity.Maximum = maxQty
+        If numQuantity.Value > numQuantity.Maximum Then
+            numQuantity.Value = numQuantity.Maximum
+        End If
+    End Sub
+
+    Private Function GetCartQuantityForProduct(productId As Integer, productName As String, Optional excludeRowIndex As Integer = -1) As Integer
+        If Not IsSalesCartGridReady() Then
+            Return 0
+        End If
+
+        Dim total As Integer = 0
+        For i As Integer = 0 To dgvProducts.Rows.Count - 1
+            If i = excludeRowIndex Then
+                Continue For
+            End If
+
+            Dim line As CartLineItem = TryCast(dgvProducts.Rows(i).Tag, CartLineItem)
+            If line Is Nothing Then
+                Continue For
+            End If
+
+            If ProductLinesMatch(line, productId, productName) Then
+                total += line.Quantity
+            End If
+        Next
+
+        Return total
+    End Function
+
+    Private Shared Function ProductLinesMatch(line As CartLineItem, productId As Integer, productName As String) As Boolean
+        If line Is Nothing Then
+            Return False
+        End If
+
+        If productId > 0 AndAlso line.ProductId > 0 Then
+            Return line.ProductId = productId
+        End If
+
+        Return String.Equals(line.ProductName, productName, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Function GetOnHandStock(productId As Integer, productName As String) As Integer
+        Dim entry As ProductCatalogEntry = Nothing
+        If productCatalog.TryGetValue(productName, entry) Then
+            Return entry.StockQuantity
+        End If
+
+        If productId > 0 Then
+            For Each kvp As KeyValuePair(Of String, ProductCatalogEntry) In productCatalog
+                If kvp.Value.ProductId = productId Then
+                    Return kvp.Value.StockQuantity
+                End If
+            Next
+        End If
+
+        Return 0
+    End Function
+
+    Private Function GetAvailableStock(productId As Integer, productName As String, Optional excludeRowIndex As Integer = -1) As Integer
+        Dim onHand As Integer = GetOnHandStock(productId, productName)
+        Return Math.Max(0, onHand - GetCartQuantityForProduct(productId, productName, excludeRowIndex))
+    End Function
+
+    Private Function TryValidateLineStock(productId As Integer, productName As String, lineQuantity As Integer, excludeRowIndex As Integer, ByRef message As String) As Boolean
+        message = String.Empty
+        Dim onHand As Integer = GetOnHandStock(productId, productName)
+        Dim totalNeeded As Integer = GetCartQuantityForProduct(productId, productName, excludeRowIndex) + lineQuantity
+        If totalNeeded <= onHand Then
+            Return True
+        End If
+
+        Dim available As Integer = Math.Max(0, onHand - GetCartQuantityForProduct(productId, productName, excludeRowIndex))
+        message = String.Format(
+            CultureInfo.CurrentCulture,
+            "Not enough stock for ""{0}"". Available: {1}, requested: {2}.",
+            productName,
+            available,
+            lineQuantity)
+        Return False
+    End Function
+
+    Private Function ValidateAllCartStock() As Boolean
+        If Not IsSalesCartGridReady() Then
+            Return True
+        End If
+
+        Dim totals As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+        Dim ids As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+        For Each row As DataGridViewRow In dgvProducts.Rows
+            Dim line As CartLineItem = TryCast(row.Tag, CartLineItem)
+            If line Is Nothing Then
+                Continue For
+            End If
+
+            Dim key As String = line.ProductName
+            If totals.ContainsKey(key) Then
+                totals(key) += line.Quantity
+            Else
+                totals(key) = line.Quantity
+                ids(key) = line.ProductId
+            End If
+        Next
+
+        For Each kvp As KeyValuePair(Of String, Integer) In totals
+            Dim onHand As Integer = GetOnHandStock(ids(kvp.Key), kvp.Key)
+            If kvp.Value > onHand Then
+                Dim msg As String = String.Format(
+                    CultureInfo.CurrentCulture,
+                    "Not enough stock for ""{0}"". On hand: {1}, in cart: {2}.",
+                    kvp.Key,
+                    onHand,
+                    kvp.Value)
+                ShowSalesInputError(msg)
+                MessageBox.Show(msg, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return False
+            End If
+        Next
+
+        Return True
+    End Function
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
         Try
@@ -698,21 +1146,71 @@ Public Class SalesForm
                 Return
             End If
 
-            Dim line As New CartLineItem(productName, price, quantity)
+            Dim catalogEntry As ProductCatalogEntry = Nothing
+            If Not productCatalog.TryGetValue(productName, catalogEntry) Then
+                ShowSalesInputError("Product is not in the active catalog.")
+                MessageBox.Show("Product is not in the active catalog.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                cmbProductName.Focus()
+                Return
+            End If
+
+            For i As Integer = 0 To dgvProducts.Rows.Count - 1
+                Dim existingLine As CartLineItem = TryCast(dgvProducts.Rows(i).Tag, CartLineItem)
+                If existingLine Is Nothing Then
+                    Continue For
+                End If
+
+                If ProductLinesMatch(existingLine, catalogEntry.ProductId, productName) Then
+                    Dim mergedQty As Integer = existingLine.Quantity + quantity
+                    Dim stockMsg As String = String.Empty
+                    If Not TryValidateLineStock(catalogEntry.ProductId, productName, mergedQty, i, stockMsg) Then
+                        ShowSalesInputError(stockMsg)
+                        MessageBox.Show(stockMsg, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        numQuantity.Focus()
+                        Return
+                    End If
+
+                    existingLine.Quantity = mergedQty
+                    dgvProducts.Rows(i).Cells("Quantity").Value = mergedQty
+                    dgvProducts.Rows(i).Cells("Subtotal").Value = FormatMoney(existingLine.LineSubtotal)
+                    cmbProductName.SelectedIndex = -1
+                    txtPrice.Clear()
+                    lblStockOnHand.Text = "Available: —"
+                    numQuantity.Value = MinLineQty
+                    numQuantity.Maximum = MaxLineQty
+                    cmbProductName.Focus()
+                    ClearSalesInputError()
+                    UpdateSummaryLabels()
+                    ShowStatus("Cart quantity updated.", False)
+                    Return
+                End If
+            Next
+
+            Dim stockMessage As String = String.Empty
+            If Not TryValidateLineStock(catalogEntry.ProductId, productName, quantity, -1, stockMessage) Then
+                ShowSalesInputError(stockMessage)
+                MessageBox.Show(stockMessage, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                numQuantity.Focus()
+                Return
+            End If
+
+            Dim line As New CartLineItem(productName, price, quantity, catalogEntry.ProductId)
             Dim rowNumber As Integer = dgvProducts.Rows.Count + 1
 
             Dim idx As Integer = dgvProducts.Rows.Add(
             rowNumber,
             productName,
-            line.UnitPrice.ToString("N2", CultureInfo.CurrentCulture),
+            FormatMoney(line.UnitPrice),
             quantity,
-            line.LineSubtotal.ToString("N2", CultureInfo.CurrentCulture))
+            FormatMoney(line.LineSubtotal))
 
             dgvProducts.Rows(idx).Tag = line
 
             cmbProductName.SelectedIndex = -1
             txtPrice.Clear()
+            lblStockOnHand.Text = "Available: —"
             numQuantity.Value = MinLineQty
+            numQuantity.Maximum = MaxLineQty
             cmbProductName.Focus()
             ClearSalesInputError()
 
@@ -847,9 +1345,17 @@ Public Class SalesForm
         End If
 
         Dim qty As Integer = Convert.ToInt32(row.Cells("Quantity").Value)
+        Dim stockMessage As String = String.Empty
+        If Not TryValidateLineStock(line.ProductId, line.ProductName, qty, e.RowIndex, stockMessage) Then
+            ShowSalesInputError(stockMessage)
+            MessageBox.Show(stockMessage, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            row.Cells("Quantity").Value = line.Quantity
+            Return
+        End If
+
         line.Quantity = qty
-        row.Cells("Price").Value = line.UnitPrice.ToString("N2", CultureInfo.CurrentCulture)
-        row.Cells("Subtotal").Value = line.LineSubtotal.ToString("N2", CultureInfo.CurrentCulture)
+        row.Cells("Price").Value = FormatMoney(line.UnitPrice)
+        row.Cells("Subtotal").Value = FormatMoney(line.LineSubtotal)
         UpdateSummaryLabels()
     End Sub
 
@@ -894,6 +1400,10 @@ Public Class SalesForm
                 Return
             End If
         Next
+
+        If Not ValidateAllCartStock() Then
+            Return
+        End If
 
         Dim grandTotal As Decimal = GetGrandTotal()
         Dim tenderedText As String = txtAmountTendered.Text.Trim()
@@ -949,11 +1459,19 @@ Public Class SalesForm
         End If
 
         Dim snapshot As ReceiptSnapshot = BuildReceiptSnapshot()
-        snapshot.ReceiptText = BuildReceiptText(snapshot)
+        snapshot.SaleDateTime = DateTime.Now
+        snapshot.PaymentMethod = "Cash"
+        snapshot.ReceiptText = String.Empty
         Dim newSaleId As Integer = -1
         If Not SaveSale(snapshot, newSaleId) Then
             Return
         End If
+
+        snapshot.SaleId = newSaleId
+        snapshot.ReceiptNumber = ReceiptBranding.FormatReceiptNumber(newSaleId)
+        snapshot.TransactionReference = ReceiptBranding.FormatTransactionReference(newSaleId, snapshot.SaleDateTime)
+        snapshot.ReceiptText = ReceiptBranding.BuildReceiptText(snapshot)
+        UpdateSaleReceiptText(newSaleId, snapshot.ReceiptText)
 
         Using receiptForm As New ReceiptForm(snapshot, newSaleId)
             receiptForm.ShowDialog()
@@ -1004,66 +1522,20 @@ Public Class SalesForm
         Return snap
     End Function
 
-    Private Function BuildReceiptText(snapshot As ReceiptSnapshot) As String
-        Dim receipt As New StringBuilder()
-        Dim sym As String = snapshot.CurrencySymbol
-
-        receipt.AppendLine(ReceiptBranding.FormatReceiptHeader(snapshot.StoreName))
-        receipt.AppendLine("Date: " & DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture))
-        If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
-            receipt.AppendLine("Cashier: " & snapshot.CashierName.Trim())
-        End If
-        receipt.AppendLine("----------------------------------------")
-        receipt.AppendLine("Item              Qty   Price    Subtotal")
-        receipt.AppendLine("----------------------------------------")
-
-        For Each lineRow As ReceiptLineRow In snapshot.Lines
-            Dim itemName As String = lineRow.ProductName
-            If itemName.Length > 15 Then
-                itemName = itemName.Substring(0, 15)
-            End If
-
-            Dim qtyStr As String = lineRow.Quantity.ToString(CultureInfo.CurrentCulture)
-            Dim priceStr As String = sym & lineRow.UnitPrice.ToString("N2", CultureInfo.CurrentCulture)
-            Dim subStr As String = sym & lineRow.LineTotal.ToString("N2", CultureInfo.CurrentCulture)
-
-            receipt.AppendLine(itemName.PadRight(18) &
-                               qtyStr.PadLeft(3) & " " &
-                               priceStr.PadLeft(8) & " " &
-                               subStr.PadLeft(9))
-        Next
-
-        receipt.AppendLine("----------------------------------------")
-        receipt.AppendLine("Subtotal:".PadRight(22) & (sym & snapshot.SubtotalBeforeDiscount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-
-        If snapshot.DiscountAmount > 0D Then
-            Dim discLabel As String
-            If Not String.IsNullOrWhiteSpace(snapshot.DiscountLabel) Then
-                discLabel = "Discount (" & snapshot.DiscountLabel & "):"
-            ElseIf snapshot.DiscountIsPercent Then
-                discLabel = "Discount (" & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & "%):"
-            Else
-                discLabel = "Discount (" & sym & snapshot.DiscountPercent.ToString("N2", CultureInfo.CurrentCulture) & " fixed):"
-            End If
-
-            receipt.AppendLine(discLabel.PadRight(22) &
-                               ("-" & sym & snapshot.DiscountAmount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(17))
-        End If
-
-        If snapshot.TaxApplied AndAlso snapshot.TaxAmount > 0D Then
-            receipt.AppendLine(("Tax (" & snapshot.TaxPercent.ToString("N2", CultureInfo.CurrentCulture) & "%):").PadRight(22) &
-                               (sym & snapshot.TaxAmount.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        End If
-
-        receipt.AppendLine("TOTAL DUE:".PadRight(22) & (sym & snapshot.GrandTotal.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("TENDERED:".PadRight(22) & (sym & snapshot.AmountTendered.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("CHANGE:".PadRight(22) & (sym & snapshot.ChangeGiven.ToString("N2", CultureInfo.CurrentCulture)).PadLeft(18))
-        receipt.AppendLine("========================================")
-        receipt.AppendLine(ReceiptBranding.CenterText(snapshot.FooterText))
-        receipt.AppendLine("========================================")
-
-        Return receipt.ToString()
-    End Function
+    Private Sub UpdateSaleReceiptText(saleId As Integer, receiptText As String)
+        Try
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                Using command As New SqlCommand("UPDATE sales SET receipt_text = @receipt_text WHERE sale_id = @sale_id;", connection)
+                    command.Parameters.AddWithValue("@receipt_text", If(receiptText, String.Empty))
+                    command.Parameters.AddWithValue("@sale_id", saleId)
+                    command.ExecuteNonQuery()
+                End Using
+            End Using
+        Catch ex As Exception
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(UpdateSaleReceiptText))
+        End Try
+    End Sub
 
     Private Function SaveSale(snapshot As ReceiptSnapshot, ByRef newSaleId As Integer) As Boolean
         newSaleId = -1
@@ -1123,6 +1595,60 @@ Public Class SalesForm
                         End Using
                     Next
 
+                    Dim deductionsById As New Dictionary(Of Integer, Integer)()
+                    Dim deductionsByName As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+                    For Each row As DataGridViewRow In dgvProducts.Rows
+                        Dim line As CartLineItem = TryCast(row.Tag, CartLineItem)
+                        If line Is Nothing Then
+                            Continue For
+                        End If
+
+                        If line.ProductId > 0 Then
+                            If deductionsById.ContainsKey(line.ProductId) Then
+                                deductionsById(line.ProductId) += line.Quantity
+                            Else
+                                deductionsById(line.ProductId) = line.Quantity
+                            End If
+                        Else
+                            If deductionsByName.ContainsKey(line.ProductName) Then
+                                deductionsByName(line.ProductName) += line.Quantity
+                            Else
+                                deductionsByName(line.ProductName) = line.Quantity
+                            End If
+                        End If
+                    Next
+
+                    For Each kvp As KeyValuePair(Of Integer, Integer) In deductionsById
+                        Dim deductSql As String =
+                            "UPDATE products SET stock_quantity = stock_quantity - @qty, updated_at = SYSUTCDATETIME() " &
+                            "WHERE id = @id AND is_active = 1 AND stock_quantity >= @qty;"
+                        Using deductCmd As New SqlCommand(deductSql, connection, transaction)
+                            deductCmd.Parameters.AddWithValue("@id", kvp.Key)
+                            deductCmd.Parameters.AddWithValue("@qty", kvp.Value)
+                            Dim affected As Integer = deductCmd.ExecuteNonQuery()
+                            If affected <> 1 Then
+                                Throw New InvalidOperationException(
+                                    String.Format(CultureInfo.CurrentCulture, "Insufficient stock for product id {0}.", kvp.Key))
+                            End If
+                        End Using
+                    Next
+
+                    For Each kvp As KeyValuePair(Of String, Integer) In deductionsByName
+                        Dim deductSql As String =
+                            "UPDATE products SET stock_quantity = stock_quantity - @qty, updated_at = SYSUTCDATETIME() " &
+                            "WHERE product_name = @name AND is_active = 1 AND stock_quantity >= @qty;"
+                        Using deductCmd As New SqlCommand(deductSql, connection, transaction)
+                            deductCmd.Parameters.AddWithValue("@name", kvp.Key)
+                            deductCmd.Parameters.AddWithValue("@qty", kvp.Value)
+                            Dim affected As Integer = deductCmd.ExecuteNonQuery()
+                            If affected <> 1 Then
+                                Throw New InvalidOperationException(
+                                    String.Format(CultureInfo.CurrentCulture, "Insufficient stock for ""{0}"".", kvp.Key))
+                            End If
+                        End Using
+                    Next
+
                     transaction.Commit()
                     AuditLogger.LogSale(connection, "FINALIZE", saleId, "Sale saved from SalesForm")
                     AuditLogger.LogAudit(
@@ -1140,7 +1666,13 @@ Public Class SalesForm
             numQuantity.Value = MinLineQty
             ClearSalesInputError()
             UpdateSummaryLabels()
+            LoadProducts()
             Return True
+        Catch ex As InvalidOperationException
+            ShowStatus("Sale not saved — insufficient stock.", True)
+            MessageBox.Show(ex.Message, "Insufficient stock", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(SaveSale))
+            Return False
         Catch ex As Exception
             ShowDatabaseError("Error saving sale", ex)
             ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(SaveSale))
@@ -1209,7 +1741,7 @@ Public Class SalesForm
                 suppressSalesCategoryEvent = False
 
                 Dim query As String =
-                    "SELECT product_name, price, category_id " &
+                    "SELECT id, product_name, price, category_id, stock_quantity " &
                     "FROM products " &
                     "WHERE is_active = 1 " &
                     "ORDER BY product_name;"
@@ -1226,8 +1758,10 @@ Public Class SalesForm
                             End If
 
                             productCatalog(productName) = New ProductCatalogEntry With {
+                                .ProductId = Convert.ToInt32(reader("id")),
                                 .UnitPrice = price,
-                                .CategoryId = catId}
+                                .CategoryId = catId,
+                                .StockQuantity = Convert.ToInt32(reader("stock_quantity"))}
                         End While
                     End Using
                 End Using
@@ -1272,6 +1806,10 @@ Public Class SalesForm
 
         For Each productName As String In names
             Dim entry As ProductCatalogEntry = productCatalog(productName)
+            If entry.StockQuantity <= 0 Then
+                Continue For
+            End If
+
             If CategoryFilterMatches(sel, entry.CategoryId) Then
                 cmbProductName.Items.Add(productName)
             End If
@@ -1411,6 +1949,58 @@ Public Class SalesForm
         For i As Integer = 0 To dgvProducts.Rows.Count - 1
             dgvProducts.Rows(i).Cells("Index").Value = i + 1
         Next
+    End Sub
+
+    ''' <summary>
+    ''' Loads sale line items into the cart (duplicate sale workflow).
+    ''' </summary>
+    Public Sub LoadCartFromSaleId(saleId As Integer)
+        If saleId <= 0 OrElse Not IsSalesCartGridReady() Then
+            Return
+        End If
+
+        Try
+            dgvProducts.Rows.Clear()
+            txtAmountTendered.Clear()
+            ResetPosCheckoutOptions()
+
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                Dim sql As String =
+                    "SELECT product_name, price, quantity FROM sale_items WHERE sale_id = @sid ORDER BY sale_item_id;"
+                Using cmd As New SqlCommand(sql, connection)
+                    cmd.Parameters.AddWithValue("@sid", saleId)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            Dim productName As String = reader("product_name").ToString()
+                            Dim price As Decimal = Convert.ToDecimal(reader("price"))
+                            Dim quantity As Integer = Convert.ToInt32(reader("quantity"))
+                            Dim productId As Integer = 0
+                            Dim entry As ProductCatalogEntry = Nothing
+                            If productCatalog.TryGetValue(productName, entry) Then
+                                productId = entry.ProductId
+                            End If
+
+                            Dim line As New CartLineItem(productName, price, quantity, productId)
+                            Dim idx As Integer = dgvProducts.Rows.Add(
+                                dgvProducts.Rows.Count + 1,
+                                productName,
+                                FormatMoney(line.UnitPrice),
+                                quantity,
+                                FormatMoney(line.LineSubtotal))
+                            dgvProducts.Rows(idx).Tag = line
+                        End While
+                    End Using
+                End Using
+            End Using
+
+            ReindexRows()
+            UpdateSummaryLabels()
+            ShowStatus("Cart loaded from sale #" & saleId.ToString(CultureInfo.InvariantCulture) & ".", False)
+        Catch ex As Exception
+            MessageBox.Show("Could not duplicate sale: " & ex.Message, "Sales", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(LoadCartFromSaleId))
+        End Try
     End Sub
 
 End Class

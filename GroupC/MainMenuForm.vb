@@ -143,7 +143,11 @@ Public Class MainMenuForm
         dbHealthTooltip = New ToolTip()
 
         ' Dashboard Labels
-        lblDbHealth = New Label() With {.AutoSize = True, .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold), .Text = "System Status: Loading..."}
+        lblDbHealth = New Label() With {
+            .AutoSize = True,
+            .Font = UiTheme.FontBody,
+            .Text = "System Status: Loading..."
+        }
         lblDashProducts = CreateDashValueLabel("—")
         lblDashSalesToday = CreateDashValueLabel("—")
         lblDashLastSale = CreateDashValueLabel("—")
@@ -160,18 +164,41 @@ Public Class MainMenuForm
 
         tmrChartRedraw = New Timer() With {.Interval = 150}
 
-        dtpChartFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 118, .Margin = New Padding(0, 4, 12, 4)}
-        dtpChartTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 118, .Margin = New Padding(0, 4, 12, 4)}
+        dtpChartFrom = New DateTimePicker() With {
+            .Format = DateTimePickerFormat.Short,
+            .Width = 118,
+            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs)
+        }
+        dtpChartTo = New DateTimePicker() With {
+            .Format = DateTimePickerFormat.Short,
+            .Width = 118,
+            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs)
+        }
         dtpChartFrom.Value = DateTime.Today.AddDays(-6)
         dtpChartTo.Value = DateTime.Today
 
-        cmbChartPreset = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 140, .Margin = New Padding(0, 4, 12, 4)}
+        cmbChartPreset = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 140,
+            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs),
+            .Font = UiTheme.FontBody
+        }
         cmbChartPreset.Items.AddRange(New Object() {ChartPresetLast7, ChartPresetLast14, ChartPresetLast30, ChartPresetThisMonth, ChartPresetCustom})
 
-        cmbChartSort = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 170, .Margin = New Padding(0, 4, 12, 4)}
+        cmbChartSort = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 170,
+            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs),
+            .Font = UiTheme.FontBody
+        }
         cmbChartSort.Items.AddRange(New Object() {"Date (oldest first)", "Date (newest first)", "Highest day", "Lowest day"})
 
-        btnApplyChart = New Button() With {.Text = "Apply", .AutoSize = True, .MinimumSize = New Size(88, 36), .Margin = New Padding(8, 2, 0, 2)}
+        btnApplyChart = New Button() With {
+            .Text = "Apply",
+            .AutoSize = True,
+            .MinimumSize = New Size(88, UiTheme.ButtonHeightSm),
+            .Margin = New Padding(UiTheme.SpaceSm, 0, 0, 0)
+        }
         UiTheme.ApplyPrimaryButton(btnApplyChart)
 
         lblChartFilterError = New Label() With {
@@ -242,18 +269,18 @@ Public Class MainMenuForm
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
         ' 2. Left Sidebar (Navigation)
-        ' Give it a distinct White background to stand out from the gray dashboard
+        ' Give it a distinct white background to stand out from the gray dashboard
         Dim navContainer As New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = Color.White,
-            .Padding = New Padding(10, 20, 10, 20)
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(UiTheme.SpaceSm, UiTheme.SpaceLg, UiTheme.SpaceSm, UiTheme.SpaceLg)
         }
 
         Dim navLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .Margin = Padding.Empty
         }
         navLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
@@ -266,7 +293,7 @@ Public Class MainMenuForm
             .AutoScroll = True,
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.CardSurface,
             .Padding = New Padding(0)
         }
         flowNavMain.HorizontalScroll.Enabled = False
@@ -278,8 +305,8 @@ Public Class MainMenuForm
             .AutoScroll = False,
             .Dock = DockStyle.Bottom,
             .AutoSize = True,
-            .BackColor = Color.White,
-            .Padding = New Padding(0, 8, 0, 0)
+            .BackColor = UiTheme.CardSurface,
+            .Padding = New Padding(0, UiTheme.SpaceLg, 0, 0)
         }
         flowNavBottom.HorizontalScroll.Enabled = False
         flowNavBottom.HorizontalScroll.Visible = False
@@ -287,8 +314,9 @@ Public Class MainMenuForm
         Dim mainNavButtons = {btnProducts, btnCategories, btnCashierAccounts, btnSales, btnReceipt, btnReports}
         For Each btn In mainNavButtons
             If btn IsNot Nothing Then
-                btn.Width = 200
-                btn.Margin = New Padding(10, 5, 10, 10)
+                btn.Width = 220
+                btn.Height = UiTheme.ButtonHeightLg
+                btn.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
                 flowNavMain.Controls.Add(btn)
             End If
         Next
@@ -296,8 +324,9 @@ Public Class MainMenuForm
         Dim bottomNavButtons = {btnSettings, btnBackup, btnLogout}
         For Each btn In bottomNavButtons
             If btn IsNot Nothing Then
-                btn.Width = 200
-                btn.Margin = New Padding(10, 5, 10, 10)
+                btn.Width = 220
+                btn.Height = UiTheme.ButtonHeightMd
+                btn.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
                 flowNavBottom.Controls.Add(btn)
             End If
         Next
@@ -308,12 +337,12 @@ Public Class MainMenuForm
         navContainer.Controls.Add(navLayout)
 
         ' 3. Right Dashboard Container
-        ' Generous 30px padding creates modern "breathing room" around the edges
+        ' Generous padding creates modern "breathing room" around the edges
         Dim dashLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .Padding = New Padding(30, 30, 30, 20)
+            .Padding = New Padding(UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.SpaceLg)
         }
         dashLayout.RowCount = 4
         dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Header
@@ -322,23 +351,23 @@ Public Class MainMenuForm
         dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Chart
 
         ' --- Header Section ---
-        ' Add a professional title above the database health label
+        ' Professional title above the database health label
         Dim headerLayout As New TableLayoutPanel() With {
             .AutoSize = True,
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 2,
-            .Margin = New Padding(0, 0, 0, 25)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
         }
         Dim lblTitle As New Label() With {
             .Text = AppBranding.ApplicationName,
-            .Font = New Font("Segoe UI", 18.0F, FontStyle.Bold),
+            .Font = UiTheme.FontHeading2,
             .ForeColor = UiTheme.PrimaryAccent,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, 5)
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         }
-        lblDbHealth.Margin = New Padding(2, 0, 0, 0) ' Slight indent to align visually
-        lblDbHealth.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold) ' Shrink DB health so it isn't distracting
+        lblDbHealth.Margin = New Padding(0)
+        lblDbHealth.Font = UiTheme.FontBodySmall
 
         headerLayout.Controls.Add(lblTitle, 0, 0)
         headerLayout.Controls.Add(lblDbHealth, 0, 1)
@@ -349,7 +378,7 @@ Public Class MainMenuForm
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
             .RowCount = 2,
-            .Margin = New Padding(0, 0, 0, 20),
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
             .AutoSize = True
         }
         cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
@@ -365,9 +394,9 @@ Public Class MainMenuForm
         dashLayout.Controls.Add(cardsLayout, 0, 1)
 
         ' --- Chart filters ---
-        Dim filterCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        Dim filterCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceMd))
         filterCard.Dock = DockStyle.Fill
-        filterCard.Margin = New Padding(0, 0, 0, 10)
+        filterCard.Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
         Dim filterInner As Panel = UiTheme.GetCardContentHost(filterCard)
         If filterInner IsNot Nothing Then
             Dim filterStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .AutoSize = True}
@@ -398,10 +427,10 @@ Public Class MainMenuForm
         dashLayout.Controls.Add(filterCard, 0, 2)
 
         ' --- Chart Section (card + paint panel) ---
-        Dim chartCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
+        Dim chartCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceLg))
         chartCard.Dock = DockStyle.Fill
         chartCard.Margin = New Padding(0)
-        chartCard.MinimumSize = New Size(0, 240)
+        chartCard.MinimumSize = New Size(0, 280)
         Dim chartInner As Panel = UiTheme.GetCardContentHost(chartCard)
         If chartInner IsNot Nothing Then
             pnlSalesChart.Dock = DockStyle.Fill
@@ -419,21 +448,22 @@ Public Class MainMenuForm
     End Sub
 
     Private Function CreateNavButton(text As String) As Button
-        ' THE FIX: Removed the automatic theme application here so we can customize them in InitializeControls
+        ' Removed automatic theme application here so we can customize them in InitializeControls
         Dim button As New Button() With {
             .Text = text,
-            .Width = 200,
-            .Height = 45,
-            .Margin = New Padding(10, 5, 10, 10),
-            .Cursor = Cursors.Hand
+            .Width = 220,
+            .Height = UiTheme.ButtonHeightLg,
+            .Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs),
+            .Cursor = Cursors.Hand,
+            .Font = UiTheme.FontButton
         }
         Return button
     End Function
 
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
-        Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(10))
-        outer.Margin = New Padding(6, 4, 6, 4)
-        outer.MinimumSize = New Size(140, 88)
+        Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceLg))
+        outer.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
+        outer.MinimumSize = New Size(160, 100)
         outer.Dock = DockStyle.Fill
 
         Dim inner As Panel = UiTheme.GetCardContentHost(outer)
@@ -443,15 +473,15 @@ Public Class MainMenuForm
 
         Dim lblTitle As New Label() With {
             .Text = title,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Bold),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.TextSecondary,
             .Dock = DockStyle.Top,
-            .Height = 22
+            .Height = 24
         }
 
         valueLabel.Dock = DockStyle.Fill
         valueLabel.TextAlign = ContentAlignment.MiddleLeft
-        valueLabel.Font = New Font("Segoe UI", 18.0F, FontStyle.Bold)
+        valueLabel.Font = UiTheme.FontHeading2
         valueLabel.ForeColor = UiTheme.PrimaryAccent
 
         inner.Controls.Add(lblTitle)
@@ -782,14 +812,10 @@ Public Class MainMenuForm
             displayEnd.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) &
             " · Total " & chartCurrencySymbol & chartPeriodTotal.ToString("N2", CultureInfo.CurrentCulture)
 
-        Using titleFont As New Font("Segoe UI", 11.0F, FontStyle.Bold)
-            Using subFont As New Font("Segoe UI", 9.0F, FontStyle.Regular)
-                Using titleBrush As New SolidBrush(UiTheme.TextPrimary)
-                    Using subBrush As New SolidBrush(UiTheme.TextSecondary)
-                        g.DrawString("Daily sales", titleFont, titleBrush, pad, pad)
-                        g.DrawString(subtitle, subFont, subBrush, pad, pad + 20.0F)
-                    End Using
-                End Using
+        Using titleBrush As New SolidBrush(UiTheme.TextPrimary)
+            Using subBrush As New SolidBrush(UiTheme.TextSecondary)
+                g.DrawString("Daily sales", UiTheme.FontHeading3, titleBrush, pad, pad)
+                g.DrawString(subtitle, UiTheme.FontBodySmall, subBrush, pad, pad + 20.0F)
             End Using
         End Using
 
@@ -831,16 +857,14 @@ Public Class MainMenuForm
             Next
         End Using
 
-        Using axisFont As New Font("Segoe UI", 8.0F)
-            Using axisBrush As New SolidBrush(UiTheme.TextSecondary)
-                For tick As Integer = 0 To 4
-                    Dim frac As Decimal = 1D - (tick / 4D)
-                    Dim tickVal As Decimal = maxVal * frac
-                    Dim label As String = FormatCompactMoney(chartCurrencySymbol, tickVal)
-                    Dim y As Single = chartRect.Top + chartRect.Height * (tick / 4.0F)
-                    g.DrawString(label, axisFont, axisBrush, 4.0F, y - 7.0F)
-                Next
-            End Using
+        Using axisBrush As New SolidBrush(UiTheme.TextSecondary)
+            For tick As Integer = 0 To 4
+                Dim frac As Decimal = 1D - (tick / 4D)
+                Dim tickVal As Decimal = maxVal * frac
+                Dim label As String = FormatCompactMoney(chartCurrencySymbol, tickVal)
+                Dim y As Single = chartRect.Top + chartRect.Height * (tick / 4.0F)
+                g.DrawString(label, UiTheme.FontCaption, axisBrush, 4.0F, y - 7.0F)
+            Next
         End Using
 
         Dim slotCount As Integer = chartPoints.Count
@@ -855,12 +879,10 @@ Public Class MainMenuForm
         End If
         Dim showValueLabels As Boolean = slotCount <= 14
 
-        Using dayFont As New Font("Segoe UI", 8.0F, FontStyle.Regular)
-            Using valueFont As New Font("Segoe UI", 7.5F, FontStyle.Regular)
-                Using labelBrush As New SolidBrush(UiTheme.TextSecondary)
-                    Using todayBrush As New SolidBrush(UiTheme.SecondaryAccent)
-                        Using defaultBrush As New SolidBrush(UiTheme.PrimaryAccent)
-                            For i As Integer = 0 To slotCount - 1
+        Using labelBrush As New SolidBrush(UiTheme.TextSecondary)
+            Using todayBrush As New SolidBrush(UiTheme.SecondaryAccent)
+                Using defaultBrush As New SolidBrush(UiTheme.PrimaryAccent)
+                    For i As Integer = 0 To slotCount - 1
                                 Dim pt As ChartDayPoint = chartPoints(i)
                                 Dim day As DateTime = pt.Day
                                 Dim amt As Decimal = pt.Amount
@@ -889,10 +911,10 @@ Public Class MainMenuForm
                                     Else
                                         dayLbl = day.ToString("d", CultureInfo.CurrentCulture)
                                     End If
-                                    Dim daySize As SizeF = g.MeasureString(dayLbl, dayFont)
+                                    Dim daySize As SizeF = g.MeasureString(dayLbl, UiTheme.FontCaption)
                                     g.DrawString(
                                         dayLbl,
-                                        dayFont,
+                                        UiTheme.FontCaption,
                                         If(isToday, todayBrush, labelBrush),
                                         x + (barW - daySize.Width) / 2.0F,
                                         chartRect.Bottom + 8.0F)
@@ -900,49 +922,43 @@ Public Class MainMenuForm
 
                                 If showValueLabels AndAlso amt > 0D Then
                                     Dim moneyLbl As String = chartCurrencySymbol & amt.ToString("N0", CultureInfo.CurrentCulture)
-                                    Dim moneySize As SizeF = g.MeasureString(moneyLbl, valueFont)
+                                    Dim moneySize As SizeF = g.MeasureString(moneyLbl, UiTheme.FontCaption)
                                     Dim labelX As Single = x + (barW - moneySize.Width) / 2.0F
                                     Dim labelYAbove As Single = y - moneySize.Height - 4.0F
                                     If barH > 22.0F AndAlso labelYAbove >= chartRect.Top + 2.0F Then
-                                        g.DrawString(moneyLbl, valueFont, labelBrush, labelX, labelYAbove)
+                                        g.DrawString(moneyLbl, UiTheme.FontCaption, labelBrush, labelX, labelYAbove)
                                     Else
-                                        g.DrawString(moneyLbl, valueFont, labelBrush, labelX, chartRect.Bottom + 26.0F)
+                                        g.DrawString(moneyLbl, UiTheme.FontCaption, labelBrush, labelX, chartRect.Bottom + 26.0F)
                                     End If
                                 End If
                             Next
                         End Using
                     End Using
                 End Using
-            End Using
-        End Using
     End Sub
 
     Private Shared Sub DrawChartMessage(g As Graphics, bounds As Rectangle, title As String, detail As String, accent As Color)
-        Using titleFont As New Font("Segoe UI", 11.0F, FontStyle.Bold)
-            Using detailFont As New Font("Segoe UI", 9.5F, FontStyle.Regular)
-                Using titleBrush As New SolidBrush(accent)
-                    Using detailBrush As New SolidBrush(UiTheme.TextSecondary)
-                        Using format As New StringFormat() With {
-                            .Alignment = StringAlignment.Center,
-                            .LineAlignment = StringAlignment.Near,
-                            .Trimming = StringTrimming.EllipsisCharacter
-                        }
-                            Dim titleSize As SizeF = g.MeasureString(title, titleFont, bounds.Width)
-                            Dim detailSize As SizeF = SizeF.Empty
-                            If Not String.IsNullOrEmpty(detail) Then
-                                detailSize = g.MeasureString(detail, detailFont, bounds.Width)
-                            End If
+        Using titleBrush As New SolidBrush(accent)
+            Using detailBrush As New SolidBrush(UiTheme.TextSecondary)
+                Using format As New StringFormat() With {
+                    .Alignment = StringAlignment.Center,
+                    .LineAlignment = StringAlignment.Near,
+                    .Trimming = StringTrimming.EllipsisCharacter
+                }
+                    Dim titleSize As SizeF = g.MeasureString(title, UiTheme.FontHeading3, bounds.Width)
+                    Dim detailSize As SizeF = SizeF.Empty
+                    If Not String.IsNullOrEmpty(detail) Then
+                        detailSize = g.MeasureString(detail, UiTheme.FontBody, bounds.Width)
+                    End If
 
-                            Dim blockH As Single = titleSize.Height + If(detailSize.IsEmpty, 0.0F, 6.0F + detailSize.Height)
-                            Dim y As Single = bounds.Top + (bounds.Height - blockH) / 2.0F
-                            Dim titleRect As New RectangleF(bounds.Left, y, bounds.Width, titleSize.Height + 2.0F)
-                            g.DrawString(title, titleFont, titleBrush, titleRect, format)
-                            If Not String.IsNullOrEmpty(detail) Then
-                                Dim detailRect As New RectangleF(bounds.Left, y + titleSize.Height + 6.0F, bounds.Width, detailSize.Height + 4.0F)
-                                g.DrawString(detail, detailFont, detailBrush, detailRect, format)
-                            End If
-                        End Using
-                    End Using
+                    Dim blockH As Single = titleSize.Height + If(detailSize.IsEmpty, 0.0F, 6.0F + detailSize.Height)
+                    Dim y As Single = bounds.Top + (bounds.Height - blockH) / 2.0F
+                    Dim titleRect As New RectangleF(bounds.Left, y, bounds.Width, titleSize.Height + 2.0F)
+                    g.DrawString(title, UiTheme.FontHeading3, titleBrush, titleRect, format)
+                    If Not String.IsNullOrEmpty(detail) Then
+                        Dim detailRect As New RectangleF(bounds.Left, y + titleSize.Height + 6.0F, bounds.Width, detailSize.Height + 4.0F)
+                        g.DrawString(detail, UiTheme.FontBody, detailBrush, detailRect, format)
+                    End If
                 End Using
             End Using
         End Using

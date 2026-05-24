@@ -44,6 +44,7 @@ Public NotInheritable Class DatabaseInitializer
                 "        product_name NVARCHAR(100) NOT NULL UNIQUE, " &
                 "        price DECIMAL(10, 2) NOT NULL CHECK (price > 0), " &
                 "        is_active BIT NOT NULL CONSTRAINT DF_products_is_active DEFAULT (1), " &
+                "        stock_quantity INT NOT NULL CONSTRAINT DF_products_stock_quantity DEFAULT (100), " &
                 "        created_at DATETIME2 NOT NULL CONSTRAINT DF_products_created_at DEFAULT (SYSUTCDATETIME()), " &
                 "        updated_at DATETIME2 NOT NULL CONSTRAINT DF_products_updated_at DEFAULT (SYSUTCDATETIME()) " &
                 "    ); " &
@@ -87,6 +88,7 @@ Public NotInheritable Class DatabaseInitializer
 
             EnsureSalesExtendedColumns(connection)
             EnsureCategoriesAndProductCategory(connection)
+            EnsureProductStockQuantity(connection)
             EnsureAuditAndLogTables(connection)
             EnsureCashierAccountsTable(connection)
         End Using
@@ -142,6 +144,16 @@ Public NotInheritable Class DatabaseInitializer
             End Using
         Catch
         End Try
+    End Sub
+
+    Private Shared Sub EnsureProductStockQuantity(connection As SqlConnection)
+        Dim addCol As String =
+            "IF COL_LENGTH('dbo.products','stock_quantity') IS NULL " &
+            "ALTER TABLE dbo.products ADD stock_quantity INT NOT NULL CONSTRAINT DF_products_stock_quantity DEFAULT (100);"
+
+        Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
     End Sub
 
     Private Shared Sub EnsureAuditAndLogTables(connection As SqlConnection)
@@ -233,12 +245,12 @@ Public NotInheritable Class DatabaseInitializer
                 " IF @fiction IS NULL SET @fiction = (SELECT TOP 1 category_id FROM dbo.categories ORDER BY category_id); " &
                 " IF @textbooks IS NULL SET @textbooks = @fiction; " &
                 " IF @stationery IS NULL SET @stationery = @fiction; " &
-                " INSERT INTO dbo.products (product_name, price, category_id) VALUES " &
-                "  (N'The Great Gatsby', 450.00, @fiction), " &
-                "  (N'Introduction to Algorithms', 1200.00, @textbooks), " &
-                "  (N'Notebook', 45.00, @stationery), " &
-                "  (N'Ballpen', 12.00, @stationery), " &
-                "  (N'Bookmark Set', 25.00, @stationery); " &
+                " INSERT INTO dbo.products (product_name, price, category_id, stock_quantity) VALUES " &
+                "  (N'The Great Gatsby', 450.00, @fiction, 100), " &
+                "  (N'Introduction to Algorithms', 1200.00, @textbooks, 50), " &
+                "  (N'Notebook', 45.00, @stationery, 200), " &
+                "  (N'Ballpen', 12.00, @stationery, 500), " &
+                "  (N'Bookmark Set', 25.00, @stationery, 150); " &
                 "END;"
 
             Using command As New SqlCommand(seedProducts, connection)

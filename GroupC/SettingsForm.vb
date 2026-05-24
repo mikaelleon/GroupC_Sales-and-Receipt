@@ -35,12 +35,12 @@ Public Class SettingsForm
 
         Dim root As New TableLayoutPanel()
         root.Dock = DockStyle.Fill
-        root.Padding = New Padding(12)
+        root.Padding = New Padding(UiTheme.SpaceLg)
         root.ColumnCount = 1
         root.RowCount = 1
         root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
-        Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(16))
+        Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceXl))
         cardOuter.Dock = DockStyle.Fill
         Dim cardInner As Panel = UiTheme.GetCardContentHost(cardOuter)
 
@@ -54,19 +54,49 @@ Public Class SettingsForm
             fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         Next
 
-        Dim lblStore As New Label() With {.Text = "Store name", .AutoSize = True, .Margin = New Padding(0, 6, 8, 6), .ForeColor = UiTheme.TextSecondary}
+        Dim lblStore As New Label() With {
+            .Text = "Store name",
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
+            .ForeColor = UiTheme.TextSecondary
+        }
         txtStoreName = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.StoreName, .MaxLength = MaxStoreNameLength}
-        Dim lblFoot As New Label() With {.Text = "Receipt footer", .AutoSize = True, .Margin = New Padding(0, 6, 8, 6), .ForeColor = UiTheme.TextSecondary}
+        Dim lblFoot As New Label() With {
+            .Text = "Receipt footer",
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
+            .ForeColor = UiTheme.TextSecondary
+        }
         txtFooter = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.ReceiptFooter, .MaxLength = MaxFooterLength}
-        Dim lblCur As New Label() With {.Text = "Currency symbol", .AutoSize = True, .Margin = New Padding(0, 6, 8, 6), .ForeColor = UiTheme.TextSecondary}
+        Dim lblCur As New Label() With {
+            .Text = "Currency symbol",
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
+            .ForeColor = UiTheme.TextSecondary
+        }
         txtCurrency = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.CurrencySymbol, .MaxLength = MaxCurrencySymbolLength}
 
-        btnOk = New Button() With {.Text = "OK", .DialogResult = DialogResult.None, .AutoSize = True, .MinimumSize = New Size(100, 32)}
-        btnCancel = New Button() With {.Text = "Cancel", .DialogResult = DialogResult.Cancel, .AutoSize = True, .MinimumSize = New Size(100, 32)}
+        btnOk = New Button() With {
+            .Text = "OK",
+            .DialogResult = DialogResult.None,
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm)
+        }
+        btnCancel = New Button() With {
+            .Text = "Cancel",
+            .DialogResult = DialogResult.Cancel,
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm)
+        }
         UiTheme.ApplyPrimaryButton(btnOk)
         UiTheme.ApplySecondaryButton(btnCancel)
 
-        Dim buttonRow As New FlowLayoutPanel() With {.AutoSize = True, .FlowDirection = FlowDirection.RightToLeft, .Dock = DockStyle.Fill, .Padding = New Padding(0, 12, 0, 0)}
+        Dim buttonRow As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.RightToLeft,
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(0, UiTheme.SpaceLg, 0, 0)
+        }
         buttonRow.Controls.Add(btnCancel)
         buttonRow.Controls.Add(btnOk)
 
