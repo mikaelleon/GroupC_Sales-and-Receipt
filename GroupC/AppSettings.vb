@@ -100,6 +100,10 @@ Public NotInheritable Class AppSettings
             data.TermsText = "Prices include applicable taxes unless stated otherwise."
         End If
 
+        If data.StockThreshold <= 0 Then
+            data.StockThreshold = 5
+        End If
+
         Return data
     End Function
 
@@ -149,5 +153,10 @@ Public Class AppSettingsData
     ''' Gets or sets terms and conditions text for receipts.
     ''' </summary>
     Public Property TermsText As String
+
+    ''' <summary>
+    ''' Gets or sets the stock quantity threshold for low-stock alerts (products at or below this level).
+    ''' </summary>
+    Public Property StockThreshold As Integer
 
 End Class

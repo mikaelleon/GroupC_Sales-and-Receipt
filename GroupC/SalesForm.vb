@@ -1240,7 +1240,7 @@ Public Class SalesForm
             .Location = New Point(8, lblPrice.Bottom + 2),
             .AutoSize = True,
             .Font = UiTheme.FontBodySmall,
-            .ForeColor = If(available > 0, UiTheme.TextSecondary, UiTheme.Danger)
+            .ForeColor = GetStockLabelColor(available)
         }
 
         card.Controls.Add(pic)
@@ -1287,7 +1287,7 @@ Public Class SalesForm
 
             Dim available As Integer = GetAvailableStock(entry.ProductId, productName)
             stockLabel.Text = String.Format(CultureInfo.CurrentCulture, "Available: {0}", available)
-            stockLabel.ForeColor = If(available > 0, UiTheme.TextSecondary, UiTheme.Danger)
+            stockLabel.ForeColor = GetStockLabelColor(available)
         Next
 
         If Not String.IsNullOrWhiteSpace(selectedProductName) Then
@@ -1373,6 +1373,18 @@ Public Class SalesForm
     Private Function GetAvailableStock(productId As Integer, productName As String, Optional excludeRowIndex As Integer = -1) As Integer
         Dim onHand As Integer = GetOnHandStock(productId, productName)
         Return Math.Max(0, onHand - GetCartQuantityForProduct(productId, productName, excludeRowIndex))
+    End Function
+
+    Private Function GetStockLabelColor(available As Integer) As Color
+        If available <= AppSettings.Current.StockThreshold Then
+            Return UiTheme.Danger
+        End If
+
+        If available = 0 Then
+            Return UiTheme.Danger
+        End If
+
+        Return UiTheme.TextSecondary
     End Function
 
     Private Function TryValidateLineStock(productId As Integer, productName As String, lineQuantity As Integer, excludeRowIndex As Integer, ByRef message As String) As Boolean
