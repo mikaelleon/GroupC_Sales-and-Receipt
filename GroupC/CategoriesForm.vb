@@ -11,6 +11,10 @@ Public Class CategoriesForm
     Inherits Form
 
     Private Const MaxCategoryNameLength As Integer = 100
+    Private Const GridStatusColumnWidth As Integer = 68
+    Private Const GridProductsColumnWidth As Integer = 88
+    Private Const GridCategoryFillWeight As Integer = 200
+    Private Const GridCategoryMinWidth As Integer = 120
 
     Private WithEvents txtCategoryName As TextBox
     Private WithEvents cmbFilter As ComboBox
@@ -29,6 +33,7 @@ Public Class CategoriesForm
 
     Private categoriesTable As DataTable
     Private suppressFilterEvents As Boolean
+    Private categoryGridLayoutPending As Boolean
 
     Private Sub CategoriesForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Categories")
@@ -80,12 +85,17 @@ Public Class CategoriesForm
             .Dock = DockStyle.Fill,
             .ReadOnly = True,
             .AllowUserToAddRows = False,
+            .AllowUserToResizeColumns = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
-            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            .ScrollBars = ScrollBars.Both
         }
         UiTheme.ApplyDataGridViewChrome(dgvCategories)
         AddHandler dgvCategories.DataBindingComplete, AddressOf dgvCategories_DataBindingComplete
+        AddHandler dgvCategories.Resize, AddressOf dgvCategories_Resize
+        AddHandler Me.Shown, AddressOf CategoriesForm_Shown
+        AddHandler Me.Resize, AddressOf CategoriesForm_Resize
 
         lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False}
 
@@ -239,6 +249,18 @@ Public Class CategoriesForm
         ConfigureCategoryGridColumns()
     End Sub
 
+    Private Sub CategoriesForm_Shown(sender As Object, e As EventArgs)
+        ScheduleCategoryGridColumnLayout()
+    End Sub
+
+    Private Sub CategoriesForm_Resize(sender As Object, e As EventArgs)
+        ScheduleCategoryGridColumnLayout()
+    End Sub
+
+    Private Sub dgvCategories_Resize(sender As Object, e As EventArgs)
+        ScheduleCategoryGridColumnLayout()
+    End Sub
+
     Private Sub ConfigureCategoryGridColumns()
         If dgvCategories.Columns.Count = 0 Then
             Return
@@ -246,22 +268,146 @@ Public Class CategoriesForm
 
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvCategories)
 
+        If dgvCategories.Columns.Contains("is_active") Then
+            Dim statusCol As DataGridViewColumn = dgvCategories.Columns("is_active")
+            statusCol.HeaderText = "Active"
+            statusCol.SortMode = DataGridViewColumnSortMode.NotSortable
+        End If
+
         If dgvCategories.Columns.Contains("category_name") Then
             dgvCategories.Columns("category_name").HeaderText = "Category"
         End If
 
-        If dgvCategories.Columns.Contains("is_active") Then
-            dgvCategories.Columns("is_active").HeaderText = "Active"
-            dgvCategories.Columns("is_active").Width = 64
-        End If
-
         If dgvCategories.Columns.Contains("active_products") Then
-            dgvCategories.Columns("active_products").HeaderText = "Active products"
-            dgvCategories.Columns("active_products").Width = 110
+            Dim productsCol As DataGridViewColumn = dgvCategories.Columns("active_products")
+            productsCol.HeaderText = "Products"
+            productsCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+            productsCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
+            productsCol.SortMode = DataGridViewColumnSortMode.NotSortable
         End If
 
-        GridDisplayHelper.MoveActiveStatusColumnToLeft(dgvCategories)
+        ScheduleCategoryGridColumnLayout()
     End Sub
+
+    Private Sub ScheduleCategoryGridColumnLayout()
+        If dgvCategories Is Nothing OrElse dgvCategories.IsDisposed OrElse dgvCategories.Columns.Count = 0 Then
+            Return
+        End If
+
+        If Not Me.IsHandleCreated OrElse Not dgvCategories.IsHandleCreated Then
+            Return
+        End If
+
+        If categoryGridLayoutPending Then
+            Return
+        End If
+
+        Try
+            categoryGridLayoutPending = True
+            BeginInvoke(New MethodInvoker(
+                Sub()
+                    Try
+                        ApplyCategoryGridColumnLayout()
+                    Finally
+                        categoryGridLayoutPending = False
+                    End Try
+                End Sub))
+        Catch
+            categoryGridLayoutPending = False
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Active status and product count stay at readable fixed widths; category name fills the rest.
+    ''' </summary>
+    Private Sub ApplyCategoryGridColumnLayout()
+        If dgvCategories Is Nothing OrElse dgvCategories.IsDisposed OrElse dgvCategories.Columns.Count = 0 Then
+            Return
+        End If
+
+        Dim available As Integer = dgvCategories.ClientSize.Width
+        If available <= 0 Then
+            Return
+        End If
+
+        If dgvCategories.DisplayedRowCount(False) < dgvCategories.RowCount Then
+            available -= SystemInformation.VerticalScrollBarWidth
+        End If
+
+        dgvCategories.SuspendLayout()
+        Try
+            dgvCategories.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+            dgvCategories.HorizontalScrollingOffset = 0
+            dgvCategories.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 0, 6, 0)
+
+            Dim statusWidth As Integer = GetCategoryGridHeaderWidth("is_active", GridStatusColumnWidth)
+            Dim productsWidth As Integer = GetCategoryGridHeaderWidth("active_products", GridProductsColumnWidth)
+
+            If dgvCategories.Columns.Contains("is_active") Then
+                Dim statusCol As DataGridViewColumn = dgvCategories.Columns("is_active")
+                statusCol.DisplayIndex = 0
+                statusCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                statusCol.Width = statusWidth
+                statusCol.MinimumWidth = statusWidth
+                statusCol.SortMode = DataGridViewColumnSortMode.NotSortable
+            End If
+
+            If dgvCategories.Columns.Contains("category_name") Then
+                Dim categoryCol As DataGridViewColumn = dgvCategories.Columns("category_name")
+                categoryCol.DisplayIndex = 1
+                categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                categoryCol.FillWeight = GridCategoryFillWeight
+                categoryCol.MinimumWidth = GridCategoryMinWidth
+            End If
+
+            If dgvCategories.Columns.Contains("active_products") Then
+                Dim productsCol As DataGridViewColumn = dgvCategories.Columns("active_products")
+                productsCol.DisplayIndex = 2
+                productsCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                productsCol.Width = productsWidth
+                productsCol.MinimumWidth = productsWidth
+                productsCol.SortMode = DataGridViewColumnSortMode.NotSortable
+            End If
+
+            Dim usedWidth As Integer = 0
+            For Each col As DataGridViewColumn In dgvCategories.Columns
+                If col.Visible Then
+                    usedWidth += col.Width
+                End If
+            Next
+
+            If dgvCategories.Columns.Contains("category_name") AndAlso usedWidth < available Then
+                dgvCategories.Columns("category_name").Width += available - usedWidth
+            End If
+        Finally
+            dgvCategories.ResumeLayout(True)
+            dgvCategories.HorizontalScrollingOffset = 0
+        End Try
+    End Sub
+
+    Private Function GetCategoryGridHeaderWidth(columnName As String, fallbackWidth As Integer) As Integer
+        If dgvCategories Is Nothing OrElse Not dgvCategories.Columns.Contains(columnName) Then
+            Return fallbackWidth
+        End If
+
+        Dim col As DataGridViewColumn = dgvCategories.Columns(columnName)
+        Dim headerText As String = col.HeaderText
+        If String.IsNullOrWhiteSpace(headerText) Then
+            Return fallbackWidth
+        End If
+
+        Dim fontToUse As Font = dgvCategories.ColumnHeadersDefaultCellStyle.Font
+        If fontToUse Is Nothing Then
+            fontToUse = dgvCategories.Font
+        End If
+
+        Dim measured As Size = TextRenderer.MeasureText(headerText, fontToUse)
+        Dim horizontalPadding As Integer =
+            dgvCategories.ColumnHeadersDefaultCellStyle.Padding.Left +
+            dgvCategories.ColumnHeadersDefaultCellStyle.Padding.Right
+
+        Return Math.Max(fallbackWidth, measured.Width + horizontalPadding + 20)
+    End Function
 
     Private Function GetSelectedCategoryId() As Integer?
         If dgvCategories.CurrentRow Is Nothing Then
