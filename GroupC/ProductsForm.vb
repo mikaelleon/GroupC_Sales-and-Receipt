@@ -254,7 +254,7 @@ Public Class ProductsForm
         btnPrintCopy = New Button() With {
             .Text = "Print copy",
             .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
             .Cursor = Cursors.Hand
         }
         btnBack = New Button() With {
@@ -427,11 +427,12 @@ Public Class ProductsForm
             .ColumnCount = 2,
             .RowCount = 1,
             .Margin = New Padding(0, 4, 0, 16),
-            .Dock = DockStyle.Fill
+            .Dock = DockStyle.Top,
+            .Height = SidebarThemedButtonRowHeight()
         }
         pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        pnlImageActions.RowStyles.Add(New RowStyle(SizeType.Absolute, SidebarSmallButtonRowHeight()))
+        pnlImageActions.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
         ApplyPairedSidebarButtonMargins(btnChooseImage, btnRemoveImage)
 
@@ -439,25 +440,23 @@ Public Class ProductsForm
         pnlImageActions.Controls.Add(btnRemoveImage, 1, 0)
         inputLayout.Controls.Add(pnlImageActions, 0, 10)
 
-        Dim actionRowHeight As Integer = SidebarButtonRowHeight()
         Dim actionGrid As New TableLayoutPanel() With {
             .AutoSize = False,
             .ColumnCount = 2,
             .RowCount = 3,
-            .Margin = New Padding(0, 4, 0, 0),
-            .Dock = DockStyle.Fill
+            .Margin = New Padding(0, 4, 0, UiTheme.SpaceMd),
+            .Dock = DockStyle.Top,
+            .Height = SidebarActionPanelHeight()
         }
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 33.34F))
 
         btnDelete.Dock = DockStyle.Fill
-        btnDelete.Anchor = AnchorStyles.None
 
-        ApplyPairedSidebarButtonMargins(btnAdd, btnUpdate)
-        btnDelete.Margin = New Padding(0, 0, 0, SidebarButtonGap)
+        ApplyPairedSidebarButtonMargins(btnAdd, btnUpdate, SidebarButtonGap)
         ApplyPairedSidebarButtonMargins(btnDeactivate, btnReactivate)
 
         actionGrid.Controls.Add(btnAdd, 0, 0)
@@ -469,27 +468,27 @@ Public Class ProductsForm
         inputLayout.Controls.Add(actionGrid, 0, 11)
 
         Dim lblUtilities As New Label() With {
-            .Text = "Utility Tools",
+            .Text = "Utility tools",
             .AutoSize = True,
             .ForeColor = UiTheme.TextSecondary,
             .Font = UiTheme.FontBodySmall,
-            .Margin = New Padding(0, 24, 0, 4)
+            .Margin = New Padding(0, UiTheme.SpaceXl, 0, UiTheme.SpaceSm)
         }
         inputLayout.Controls.Add(lblUtilities, 0, 12)
 
-        Dim utilityRowHeight As Integer = SidebarSmallButtonRowHeight()
         Dim pnlUtilities As New TableLayoutPanel() With {
             .AutoSize = False,
             .ColumnCount = 2,
             .RowCount = 3,
-            .Margin = New Padding(0, 0, 0, 48),
-            .Dock = DockStyle.Fill
+            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
+            .Dock = DockStyle.Top,
+            .Height = SidebarUtilityPanelHeight()
         }
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Percent, 33.34F))
 
         ApplyPairedSidebarButtonMargins(btnManageCategories, btnImportCsv, SidebarButtonGap)
         ApplyPairedSidebarButtonMargins(btnImportPdf, btnImportTxt, SidebarButtonGap)
@@ -505,7 +504,7 @@ Public Class ProductsForm
 
         btnBack.Dock = DockStyle.None
         btnBack.Anchor = AnchorStyles.Left
-        btnBack.Margin = New Padding(0, 32, 0, 0)
+        btnBack.Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceLg)
         inputLayout.Controls.Add(btnBack, 0, 14)
 
         Dim sidebarBody As New Panel() With {
@@ -999,12 +998,25 @@ Public Class ProductsForm
         }
     End Function
 
+    ''' <summary>Row height for themed sidebar buttons (Apply*Button uses ButtonHeightMd).</summary>
+    Private Shared Function SidebarThemedButtonRowHeight(Optional extraBottomSpacing As Integer = 0) As Integer
+        Return UiTheme.ButtonHeightMd + extraBottomSpacing
+    End Function
+
     Private Shared Function SidebarButtonRowHeight() As Integer
-        Return UiTheme.ButtonHeightMd + UiTheme.SpaceMd
+        Return SidebarThemedButtonRowHeight(SidebarButtonGap)
     End Function
 
     Private Shared Function SidebarSmallButtonRowHeight() As Integer
-        Return UiTheme.ButtonHeightSm + UiTheme.SpaceSm
+        Return SidebarThemedButtonRowHeight(SidebarButtonGap)
+    End Function
+
+    Private Shared Function SidebarActionPanelHeight() As Integer
+        Return SidebarThemedButtonRowHeight(SidebarButtonGap) * 2 + SidebarThemedButtonRowHeight()
+    End Function
+
+    Private Shared Function SidebarUtilityPanelHeight() As Integer
+        Return SidebarThemedButtonRowHeight(SidebarButtonGap) * 2 + SidebarThemedButtonRowHeight()
     End Function
 
     Private Shared Function ToolbarRowHeight() As Integer
@@ -1015,7 +1027,7 @@ Public Class ProductsForm
         Dim inputRowHeight As Integer = Math.Max(UiTheme.InputHeight, 30)
 
         layout.RowStyles.Clear()
-        For i As Integer = 0 To 16
+        For i As Integer = 0 To layout.RowCount - 1
             layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         Next
 
@@ -1027,6 +1039,14 @@ Public Class ProductsForm
         layout.RowStyles(5).Height = inputRowHeight
         layout.RowStyles(7).SizeType = SizeType.Absolute
         layout.RowStyles(7).Height = inputRowHeight
+        layout.RowStyles(9).SizeType = SizeType.Absolute
+        layout.RowStyles(9).Height = 130
+        layout.RowStyles(10).SizeType = SizeType.Absolute
+        layout.RowStyles(10).Height = SidebarThemedButtonRowHeight() + 20
+        layout.RowStyles(11).SizeType = SizeType.Absolute
+        layout.RowStyles(11).Height = SidebarActionPanelHeight() + UiTheme.SpaceMd
+        layout.RowStyles(13).SizeType = SizeType.Absolute
+        layout.RowStyles(13).Height = SidebarUtilityPanelHeight() + UiTheme.SpaceLg
     End Sub
 
     Private Shared Sub ApplyTableLayoutNumeric(nud As NumericUpDown)
@@ -1060,7 +1080,7 @@ Public Class ProductsForm
         btn.Dock = DockStyle.Fill
         btn.Margin = Padding.Empty
         btn.TextAlign = ContentAlignment.MiddleCenter
-        btn.MinimumSize = New Size(0, UiTheme.ButtonHeightSm)
+        btn.MinimumSize = New Size(0, UiTheme.ButtonHeightMd)
     End Sub
 
     Private Function GetFilterMode() As ProductFilterMode
