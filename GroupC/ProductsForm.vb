@@ -3,6 +3,7 @@ Imports System.Data
 Imports System.Globalization
 Imports System.IO
 Imports System.Drawing
+Imports System.Text
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
 
@@ -44,13 +45,12 @@ Public Class ProductsForm
     Private Const ProductImageHeight As Integer = 180
     Private Const GridFilterComboWidth As Integer = 190
     Private Const GridStatusFilterWidth As Integer = 190
-    Private Const GridActiveColumnWidth As Integer = 58
+    Private Const GridActiveColumnWidth As Integer = 100
     Private Const GridPriceColumnWidth As Integer = 108
-    Private Const GridStockColumnWidth As Integer = 76
+    Private Const GridStockColumnWidth As Integer = 80
     Private Const GridProductFillWeight As Integer = 230
-    Private Const GridCategoryFillWeight As Integer = 160
     Private Const GridProductMinWidth As Integer = 150
-    Private Const GridCategoryMinWidth As Integer = 120
+    Private Const GridCategoryFixedWidth As Integer = 140
 
     Private Enum ProductFilterMode
         ActiveOnly = 0
@@ -72,8 +72,12 @@ Public Class ProductsForm
     Private WithEvents btnAdd As Button
     Private WithEvents btnUpdate As Button
     Private WithEvents btnDelete As Button
+    Private WithEvents btnDeactivate As Button
     Private WithEvents btnRefresh As Button
     Private WithEvents btnImportCsv As Button
+    Private WithEvents btnImportPdf As Button
+    Private WithEvents btnImportTxt As Button
+    Private WithEvents btnPrintCopy As Button
     Private WithEvents btnBack As Button
     Private WithEvents btnManageCategories As Button
 
@@ -204,6 +208,12 @@ Public Class ProductsForm
             .Cursor = Cursors.Hand
         }
         btnDelete = New Button() With {
+            .Text = "&Delete",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
+            .Cursor = Cursors.Hand
+        }
+        btnDeactivate = New Button() With {
             .Text = "&Deactivate",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
@@ -224,6 +234,24 @@ Public Class ProductsForm
         }
         btnImportCsv = New Button() With {
             .Text = "Import CSV",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnImportPdf = New Button() With {
+            .Text = "Import to PDF",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnImportTxt = New Button() With {
+            .Text = "Import to txt file",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .Cursor = Cursors.Hand
+        }
+        btnPrintCopy = New Button() With {
+            .Text = "Print copy",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
@@ -263,8 +291,12 @@ Public Class ProductsForm
         ConfigureSidebarButton(btnAdd)
         ConfigureSidebarButton(btnUpdate)
         ConfigureSidebarButton(btnDelete)
+        ConfigureSidebarButton(btnDeactivate)
         ConfigureSidebarButton(btnReactivate)
         ConfigureSidebarButton(btnImportCsv)
+        ConfigureSidebarButton(btnImportPdf)
+        ConfigureSidebarButton(btnImportTxt)
+        ConfigureSidebarButton(btnPrintCopy)
         ConfigureSidebarButton(btnManageCategories)
         ConfigureSidebarButton(btnBack)
         ConfigureSidebarSmallButton(btnRefresh)
@@ -274,10 +306,14 @@ Public Class ProductsForm
         Try
             UiTheme.ApplyPrimaryButton(btnAdd)
             UiTheme.ApplyPrimaryButton(btnUpdate)
-            UiTheme.ApplyWarningButton(btnDelete)
+            UiTheme.ApplyDangerButton(btnDelete)
+            UiTheme.ApplyWarningButton(btnDeactivate)
             UiTheme.ApplySuccessButton(btnReactivate)
             UiTheme.ApplySecondaryButton(btnRefresh)
             UiTheme.ApplyPrimaryButton(btnImportCsv)
+            UiTheme.ApplySecondaryButton(btnImportPdf)
+            UiTheme.ApplySecondaryButton(btnImportTxt)
+            UiTheme.ApplySecondaryButton(btnPrintCopy)
             UiTheme.ApplySecondaryButton(btnBack)
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
             UiTheme.ApplySecondaryButton(btnChooseImage)
@@ -406,7 +442,7 @@ Public Class ProductsForm
         Dim actionGrid As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 2,
-            .RowCount = 2,
+            .RowCount = 3,
             .Margin = New Padding(0, 4, 0, 0),
             .Dock = DockStyle.Top
         }
@@ -414,25 +450,31 @@ Public Class ProductsForm
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         btnAdd.Dock = DockStyle.Fill
         btnUpdate.Dock = DockStyle.Fill
-        btnDelete.Dock = DockStyle.Fill
+        btnDelete.Dock = DockStyle.None
+        btnDelete.Anchor = AnchorStyles.None
+        btnDeactivate.Dock = DockStyle.Fill
         btnReactivate.Dock = DockStyle.Fill
 
         btnAdd.Margin = New Padding(0, 0, 4, 8)
         btnUpdate.Margin = New Padding(4, 0, 0, 8)
-        btnDelete.Margin = New Padding(0, 0, 4, 0)
+        btnDelete.Margin = New Padding(0, 0, 0, 8)
+        btnDeactivate.Margin = New Padding(0, 0, 4, 0)
         btnReactivate.Margin = New Padding(4, 0, 0, 0)
 
         actionGrid.Controls.Add(btnAdd, 0, 0)
         actionGrid.Controls.Add(btnUpdate, 1, 0)
         actionGrid.Controls.Add(btnDelete, 0, 1)
-        actionGrid.Controls.Add(btnReactivate, 1, 1)
+        actionGrid.SetColumnSpan(btnDelete, 2)
+        actionGrid.Controls.Add(btnDeactivate, 0, 2)
+        actionGrid.Controls.Add(btnReactivate, 1, 2)
         inputLayout.Controls.Add(actionGrid, 0, 11)
 
         Dim lblUtilities As New Label() With {
-            .Text = "Database utilities",
+            .Text = "Utility Tools",
             .AutoSize = True,
             .ForeColor = UiTheme.TextSecondary,
             .Font = UiTheme.FontBodySmall,
@@ -443,27 +485,38 @@ Public Class ProductsForm
         Dim pnlUtilities As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 2,
-            .RowCount = 1,
-            .Margin = New Padding(0, 0, 0, 24),
+            .RowCount = 3,
+            .Margin = New Padding(0, 0, 0, 48),
             .Dock = DockStyle.Top
         }
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         btnManageCategories.Dock = DockStyle.Fill
         btnImportCsv.Dock = DockStyle.Fill
+        btnImportPdf.Dock = DockStyle.Fill
+        btnImportTxt.Dock = DockStyle.Fill
+        btnPrintCopy.Dock = DockStyle.Fill
 
-        btnManageCategories.Margin = New Padding(0, 0, 4, 0)
-        btnImportCsv.Margin = New Padding(4, 0, 0, 0)
+        btnManageCategories.Margin = New Padding(0, 0, 4, 8)
+        btnImportCsv.Margin = New Padding(4, 0, 0, 8)
+        btnImportPdf.Margin = New Padding(0, 0, 4, 8)
+        btnImportTxt.Margin = New Padding(4, 0, 0, 8)
+        btnPrintCopy.Margin = New Padding(0, 0, 4, 0)
 
         pnlUtilities.Controls.Add(btnManageCategories, 0, 0)
         pnlUtilities.Controls.Add(btnImportCsv, 1, 0)
+        pnlUtilities.Controls.Add(btnImportPdf, 0, 1)
+        pnlUtilities.Controls.Add(btnImportTxt, 1, 1)
+        pnlUtilities.Controls.Add(btnPrintCopy, 0, 2)
         inputLayout.Controls.Add(pnlUtilities, 0, 13)
 
         btnBack.Dock = DockStyle.None
         btnBack.Anchor = AnchorStyles.Left
-        btnBack.Margin = New Padding(0, 0, 0, 0)
+        btnBack.Margin = New Padding(0, 32, 0, 0)
         inputLayout.Controls.Add(btnBack, 0, 14)
 
         Dim sidebarBody As New Panel() With {
@@ -509,14 +562,14 @@ Public Class ProductsForm
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 250.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridFilterComboWidth))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridStatusFilterWidth))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 100.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
 
         txtSearch.Dock = DockStyle.Fill
         cmbGridCategoryFilter.Dock = DockStyle.Fill
         cmbFilter.Dock = DockStyle.Fill
-        btnRefresh.Dock = DockStyle.Fill
+        btnRefresh.Dock = DockStyle.Right
 
         txtSearch.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
         cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
@@ -526,7 +579,7 @@ Public Class ProductsForm
         toolbar.Controls.Add(txtSearch, 0, 0)
         toolbar.Controls.Add(cmbGridCategoryFilter, 1, 0)
         toolbar.Controls.Add(cmbFilter, 2, 0)
-        toolbar.Controls.Add(btnRefresh, 3, 0)
+        toolbar.Controls.Add(btnRefresh, 4, 0)
 
         rightCard.Controls.Add(toolbar, 0, 1)
 
@@ -570,6 +623,7 @@ Public Class ProductsForm
 
     Private Sub UpdateReactivateEnabled()
         btnReactivate.Enabled = False
+        btnDeactivate.Enabled = False
         If dgvProducts.SelectedRows.Count = 0 Then
             Return
         End If
@@ -584,6 +638,7 @@ Public Class ProductsForm
         End If
 
         Dim isActive As Boolean = Convert.ToBoolean(activeVal)
+        btnDeactivate.Enabled = isActive
         btnReactivate.Enabled = Not isActive
         RefreshReactivateButtonAppearance()
     End Sub
@@ -731,7 +786,7 @@ Public Class ProductsForm
         If dgvProducts.Columns.Contains("category_name") Then
             Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
             categoryCol.HeaderText = "Category"
-            ConfigureInventoryGridFillColumn(categoryCol, GridCategoryFillWeight, GridCategoryMinWidth, DataGridViewContentAlignment.MiddleLeft, 4)
+            ConfigureInventoryGridFixedColumn(categoryCol, GridCategoryFixedWidth, DataGridViewContentAlignment.MiddleLeft, 4)
         End If
 
         If dgvProducts.Columns.Contains("image_path") Then
@@ -803,10 +858,10 @@ Public Class ProductsForm
             ' Tighter header padding so labels like "Active" and "Category" fit narrow columns.
             dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 0, 6, 0)
 
-            Dim activeWidth As Integer = GetRequiredHeaderWidth("is_active", 76)
-            Dim priceWidth As Integer = GetRequiredHeaderWidth("price", 100)
-            Dim stockWidth As Integer = GetRequiredHeaderWidth("stock_quantity", 72)
-            Dim categoryWidth As Integer = GetRequiredHeaderWidth("category_name", 120)
+            Dim activeWidth As Integer = GetRequiredHeaderWidth("is_active", GridActiveColumnWidth)
+            Dim priceWidth As Integer = GetRequiredHeaderWidth("price", GridPriceColumnWidth)
+            Dim stockWidth As Integer = GetRequiredHeaderWidth("stock_quantity", GridStockColumnWidth)
+            Dim categoryWidth As Integer = GetRequiredHeaderWidth("category_name", GridCategoryFixedWidth)
 
             If dgvProducts.Columns.Contains("is_active") Then
                 Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
@@ -1450,6 +1505,54 @@ Public Class ProductsForm
         End If
 
         If MessageBox.Show(
+            "Permanently delete this product? This cannot be undone.",
+            "Confirm delete",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2) <> DialogResult.OK Then
+            Return
+        End If
+
+        Dim productId As Integer = Convert.ToInt32(dgvProducts.SelectedRows(0).Cells("id").Value)
+        Dim productName As String = GetCellStringValue(dgvProducts.SelectedRows(0), "product_name")
+        Dim imagePath As String = GetSelectedRowImagePath()
+
+        Try
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+
+                Dim query As String = "DELETE FROM products WHERE id = @id;"
+
+                Using command As New SqlCommand(query, connection)
+                    command.Parameters.AddWithValue("@id", productId)
+                    command.ExecuteNonQuery()
+                End Using
+
+                AuditLogger.LogProduct(connection, "HARD_DELETE", productId, productName, "Deleted product")
+                AuditLogger.LogAudit(
+                    connection,
+                    "PRODUCT_HARD_DELETE",
+                    "Deleted product #" & productId.ToString(CultureInfo.InvariantCulture) & " " & productName,
+                    AppSession.CurrentRole)
+            End Using
+
+            ProductImageHelper.DeleteProductImage(imagePath)
+            ClearInputs()
+            LoadProducts()
+            ShowStatus("Product deleted.", False)
+        Catch ex As Exception
+            MessageBox.Show("Error deleting product: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnDelete_Click))
+        End Try
+    End Sub
+
+    Private Sub btnDeactivate_Click(sender As Object, e As EventArgs) Handles btnDeactivate.Click
+        If dgvProducts.SelectedRows.Count = 0 Then
+            MessageBox.Show("Select a product first.", "Products", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        If MessageBox.Show(
             "Deactivate this product? It will be hidden from active lists.",
             "Confirm deactivate",
             MessageBoxButtons.OKCancel,
@@ -1459,6 +1562,7 @@ Public Class ProductsForm
         End If
 
         Dim productId As Integer = Convert.ToInt32(dgvProducts.SelectedRows(0).Cells("id").Value)
+        Dim productName As String = GetCellStringValue(dgvProducts.SelectedRows(0), "product_name")
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
@@ -1472,11 +1576,11 @@ Public Class ProductsForm
                     command.ExecuteNonQuery()
                 End Using
 
-                AuditLogger.LogProduct(connection, "DEACTIVATE", productId, Nothing, "Deactivated product")
+                AuditLogger.LogProduct(connection, "DEACTIVATE", productId, productName, "Deactivated product")
                 AuditLogger.LogAudit(
                     connection,
-                    "PRODUCT_DELETE",
-                    "Deactivated product #" & productId.ToString(CultureInfo.InvariantCulture),
+                    "PRODUCT_DEACTIVATE",
+                    "Deactivated product #" & productId.ToString(CultureInfo.InvariantCulture) & " " & productName,
                     AppSession.CurrentRole)
             End Using
 
@@ -1484,8 +1588,8 @@ Public Class ProductsForm
             LoadProducts()
             ShowStatus("Product deactivated.", False)
         Catch ex As Exception
-            MessageBox.Show("Error deleting product: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
-            ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnDelete_Click))
+            MessageBox.Show("Error deactivating product: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnDeactivate_Click))
         End Try
     End Sub
 
@@ -1884,6 +1988,61 @@ Public Class ProductsForm
         End Using
 
         LoadProducts()
+    End Sub
+
+    Private Function GetProductListText() As String
+        Dim sb As New StringBuilder()
+        sb.AppendLine("Product Inventory List")
+        sb.AppendLine("Generated on: " & DateTime.Now.ToString("g", CultureInfo.CurrentCulture))
+        sb.AppendLine(New String("-"c, 60))
+        If dgvProducts IsNot Nothing AndAlso dgvProducts.Rows.Count > 0 Then
+            For Each row As DataGridViewRow In dgvProducts.Rows
+                If row.IsNewRow Then Continue For
+                Dim name As String = If(row.Cells("product_name")?.FormattedValue?.ToString(), String.Empty)
+                Dim price As String = If(row.Cells("price")?.FormattedValue?.ToString(), String.Empty)
+                Dim stock As String = If(row.Cells("stock_quantity")?.FormattedValue?.ToString(), String.Empty)
+                sb.AppendLine(name.PadRight(30) & " | " & price.PadLeft(10) & " | Stock: " & stock)
+            Next
+        Else
+            sb.AppendLine("No products found.")
+        End If
+        Return sb.ToString()
+    End Function
+
+    Private Sub btnImportPdf_Click(sender As Object, e As EventArgs) Handles btnImportPdf.Click
+        Using saveDialog As New SaveFileDialog()
+            saveDialog.Filter = "PDF Files (*.pdf)|*.pdf"
+            saveDialog.FileName = "ProductsList_" & DateTime.Now.ToString("yyyyMMdd_HHmm", CultureInfo.InvariantCulture) & ".pdf"
+            If saveDialog.ShowDialog() = DialogResult.OK Then
+                Try
+                    PdfReceiptExporter.ExportTextToPdf(saveDialog.FileName, GetProductListText())
+                    ShowStatus("PDF exported successfully.", False)
+                Catch ex As Exception
+                    MessageBox.Show("Error exporting to PDF: " & ex.Message, "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnImportPdf_Click))
+                End Try
+            End If
+        End Using
+    End Sub
+
+    Private Sub btnImportTxt_Click(sender As Object, e As EventArgs) Handles btnImportTxt.Click
+        Using saveDialog As New SaveFileDialog()
+            saveDialog.Filter = "Text Files (*.txt)|*.txt"
+            saveDialog.FileName = "ProductsList_" & DateTime.Now.ToString("yyyyMMdd_HHmm", CultureInfo.InvariantCulture) & ".txt"
+            If saveDialog.ShowDialog() = DialogResult.OK Then
+                Try
+                    File.WriteAllText(saveDialog.FileName, GetProductListText())
+                    ShowStatus("Text file exported successfully.", False)
+                Catch ex As Exception
+                    MessageBox.Show("Error exporting to TXT: " & ex.Message, "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnImportTxt_Click))
+                End Try
+            End If
+        End Using
+    End Sub
+
+    Private Sub btnPrintCopy_Click(sender As Object, e As EventArgs) Handles btnPrintCopy.Click
+        MessageBox.Show("Print functionality for the products list is not fully implemented. Please export to PDF and print the file.", "Print Copy", MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
 
 End Class
