@@ -6,13 +6,13 @@ Actionable improvements for the International Bookstore POS (VB.NET WinForms, SQ
 
 ## 1. Features
 
-### Low-stock alert on dashboard
+### Low-stock alert on dashboard (Implemented)
 - **What:** Show count of products at or below a threshold (e.g. stock ≤ 5) on `MainMenuForm` KPI cards or a warning strip.
 - **Why:** Small retail counters need restock visibility without opening Products every shift.
 - **Where:** `MainMenuForm.RefreshHealthAndDashboard` — add SQL `COUNT(*)` on `products WHERE is_active = 1 AND stock_quantity <= @threshold`; new label on dashboard card row.
 - **WinForms note:** Simple label/badge on existing card panel — no custom control required.
 
-### Backup and restore screen
+### Backup and restore screen (Implemented)
 - **What:** Implement the missing backup/restore form referenced by the main menu (copy `.mdf` / run scripted backup, show restore steps).
 - **Why:** Menu already exposes "Backup / Restore" to admins; class file is absent — feature is broken/incomplete.
 - **Where:** New `BackupRestoreForm.vb`; wire existing `MainMenuForm.btnBackup_Click`.
@@ -58,7 +58,7 @@ Actionable improvements for the International Bookstore POS (VB.NET WinForms, SQ
 - **File:** `MainMenuForm.vb` / new `BackupRestoreForm.vb`
 - **Effort:** Medium (form + file ops + docs)
 
-### Products export buttons mislabeled
+### Products export buttons mislabeled (Implemented)
 - **Current:** "Import to PDF" and "Import to txt file" export the current product list (`btnImportPdf_Click`, `btnImportTxt_Click`).
 - **Should:** Rename to "Export to PDF" / "Export to text" to match behavior.
 - **File:** `ProductsForm.vb` button `.Text` only
