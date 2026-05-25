@@ -264,9 +264,9 @@ Public Class ProductsForm
             .Cursor = Cursors.Hand
         }
         btnManageCategories = New Button() With {
-            .Text = "Manage &categories…",
+            .Text = "&Categories…",
             .AutoSize = True,
-            .MinimumSize = New Size(140, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
         picProductImage = New PictureBox() With {
@@ -294,11 +294,11 @@ Public Class ProductsForm
         ConfigureSidebarButton(btnDelete)
         ConfigureSidebarButton(btnDeactivate)
         ConfigureSidebarButton(btnReactivate)
-        ConfigureSidebarButton(btnImportCsv)
-        ConfigureSidebarButton(btnImportPdf)
-        ConfigureSidebarButton(btnImportTxt)
-        ConfigureSidebarButton(btnPrintCopy)
-        ConfigureSidebarButton(btnManageCategories)
+        ConfigureSidebarSmallButton(btnImportCsv)
+        ConfigureSidebarSmallButton(btnImportPdf)
+        ConfigureSidebarSmallButton(btnImportTxt)
+        ConfigureSidebarSmallButton(btnPrintCopy)
+        ConfigureSidebarSmallButton(btnManageCategories)
         ConfigureSidebarButton(btnBack)
         ConfigureSidebarSmallButton(btnRefresh)
         ConfigureSidebarSmallButton(btnChooseImage)
@@ -423,51 +423,42 @@ Public Class ProductsForm
         inputLayout.Controls.Add(picHost, 0, 9)
 
         Dim pnlImageActions As New TableLayoutPanel() With {
-            .AutoSize = True,
+            .AutoSize = False,
             .ColumnCount = 2,
             .RowCount = 1,
             .Margin = New Padding(0, 4, 0, 16),
-            .Dock = DockStyle.Top
+            .Dock = DockStyle.Fill
         }
         pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        pnlImageActions.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlImageActions.RowStyles.Add(New RowStyle(SizeType.Absolute, SidebarSmallButtonRowHeight()))
 
-        btnChooseImage.Dock = DockStyle.Fill
-        btnRemoveImage.Dock = DockStyle.Fill
-
-        btnChooseImage.Margin = New Padding(0, 0, 4, 0)
-        btnRemoveImage.Margin = New Padding(4, 0, 0, 0)
+        ApplyPairedSidebarButtonMargins(btnChooseImage, btnRemoveImage)
 
         pnlImageActions.Controls.Add(btnChooseImage, 0, 0)
         pnlImageActions.Controls.Add(btnRemoveImage, 1, 0)
         inputLayout.Controls.Add(pnlImageActions, 0, 10)
 
+        Dim actionRowHeight As Integer = SidebarButtonRowHeight()
         Dim actionGrid As New TableLayoutPanel() With {
-            .AutoSize = True,
+            .AutoSize = False,
             .ColumnCount = 2,
             .RowCount = 3,
             .Margin = New Padding(0, 4, 0, 0),
-            .Dock = DockStyle.Top
+            .Dock = DockStyle.Fill
         }
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        actionGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
+        actionGrid.RowStyles.Add(New RowStyle(SizeType.Absolute, actionRowHeight))
 
-        btnAdd.Dock = DockStyle.Fill
-        btnUpdate.Dock = DockStyle.Fill
-        btnDelete.Dock = DockStyle.None
+        btnDelete.Dock = DockStyle.Fill
         btnDelete.Anchor = AnchorStyles.None
-        btnDeactivate.Dock = DockStyle.Fill
-        btnReactivate.Dock = DockStyle.Fill
 
-        btnAdd.Margin = New Padding(0, 0, 4, 8)
-        btnUpdate.Margin = New Padding(4, 0, 0, 8)
-        btnDelete.Margin = New Padding(0, 0, 0, 8)
-        btnDeactivate.Margin = New Padding(0, 0, 4, 0)
-        btnReactivate.Margin = New Padding(4, 0, 0, 0)
+        ApplyPairedSidebarButtonMargins(btnAdd, btnUpdate)
+        btnDelete.Margin = New Padding(0, 0, 0, SidebarButtonGap)
+        ApplyPairedSidebarButtonMargins(btnDeactivate, btnReactivate)
 
         actionGrid.Controls.Add(btnAdd, 0, 0)
         actionGrid.Controls.Add(btnUpdate, 1, 0)
@@ -486,36 +477,30 @@ Public Class ProductsForm
         }
         inputLayout.Controls.Add(lblUtilities, 0, 12)
 
+        Dim utilityRowHeight As Integer = SidebarSmallButtonRowHeight()
         Dim pnlUtilities As New TableLayoutPanel() With {
-            .AutoSize = True,
+            .AutoSize = False,
             .ColumnCount = 2,
             .RowCount = 3,
             .Margin = New Padding(0, 0, 0, 48),
-            .Dock = DockStyle.Top
+            .Dock = DockStyle.Fill
         }
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
+        pnlUtilities.RowStyles.Add(New RowStyle(SizeType.Absolute, utilityRowHeight))
 
-        btnManageCategories.Dock = DockStyle.Fill
-        btnImportCsv.Dock = DockStyle.Fill
-        btnImportPdf.Dock = DockStyle.Fill
-        btnImportTxt.Dock = DockStyle.Fill
-        btnPrintCopy.Dock = DockStyle.Fill
-
-        btnManageCategories.Margin = New Padding(0, 0, 4, 8)
-        btnImportCsv.Margin = New Padding(4, 0, 0, 8)
-        btnImportPdf.Margin = New Padding(0, 0, 4, 8)
-        btnImportTxt.Margin = New Padding(4, 0, 0, 8)
-        btnPrintCopy.Margin = New Padding(0, 0, 4, 0)
+        ApplyPairedSidebarButtonMargins(btnManageCategories, btnImportCsv, SidebarButtonGap)
+        ApplyPairedSidebarButtonMargins(btnImportPdf, btnImportTxt, SidebarButtonGap)
+        btnPrintCopy.Margin = Padding.Empty
 
         pnlUtilities.Controls.Add(btnManageCategories, 0, 0)
         pnlUtilities.Controls.Add(btnImportCsv, 1, 0)
         pnlUtilities.Controls.Add(btnImportPdf, 0, 1)
         pnlUtilities.Controls.Add(btnImportTxt, 1, 1)
         pnlUtilities.Controls.Add(btnPrintCopy, 0, 2)
+        pnlUtilities.SetColumnSpan(btnPrintCopy, 2)
         inputLayout.Controls.Add(pnlUtilities, 0, 13)
 
         btnBack.Dock = DockStyle.None
@@ -1056,10 +1041,10 @@ Public Class ProductsForm
         nud.MaximumSize = New Size(0, h)
     End Sub
 
-    Private Shared Sub ApplyPairedSidebarButtonMargins(left As Button, right As Button)
+    Private Shared Sub ApplyPairedSidebarButtonMargins(left As Button, right As Button, Optional bottomGap As Integer = 0)
         Dim halfGap As Integer = SidebarButtonGap \ 2
-        left.Margin = New Padding(0, 0, halfGap, 0)
-        right.Margin = New Padding(halfGap, 0, 0, 0)
+        left.Margin = New Padding(0, 0, halfGap, bottomGap)
+        right.Margin = New Padding(halfGap, 0, 0, bottomGap)
     End Sub
 
     Private Shared Sub ConfigureSidebarButton(btn As Button)
