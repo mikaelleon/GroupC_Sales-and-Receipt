@@ -45,12 +45,13 @@ Public Class ProductsForm
     Private Const ProductImageHeight As Integer = 180
     Private Const GridFilterComboWidth As Integer = 190
     Private Const GridStatusFilterWidth As Integer = 190
-    Private Const GridActiveColumnWidth As Integer = 100
-    Private Const GridPriceColumnWidth As Integer = 108
-    Private Const GridStockColumnWidth As Integer = 80
-    Private Const GridProductFillWeight As Integer = 230
-    Private Const GridProductMinWidth As Integer = 150
-    Private Const GridCategoryFixedWidth As Integer = 140
+    Private Const GridActiveColumnWidth As Integer = 72
+    Private Const GridPriceColumnWidth As Integer = 88
+    Private Const GridStockColumnWidth As Integer = 72
+    Private Const GridCategoryMinWidth As Integer = 100
+    Private Const GridProductFillWeight As Integer = 300
+    Private Const GridCategoryFillWeight As Integer = 140
+    Private Const GridProductMinWidth As Integer = 140
 
     Private Enum ProductFilterMode
         ActiveOnly = 0
@@ -338,6 +339,9 @@ Public Class ProductsForm
             UiTheme.ApplyDataGridViewChrome(dgvProducts)
         Catch
         End Try
+        AddHandler dgvProducts.Resize, AddressOf dgvProducts_Resize
+        AddHandler Me.Shown, AddressOf ProductsForm_Shown
+        AddHandler Me.Resize, AddressOf ProductsForm_Resize
 
         lblGridMessage = New Label() With {.Dock = DockStyle.Fill, .TextAlign = ContentAlignment.MiddleCenter, .ForeColor = Color.Gray, .Visible = False}
         lblProductsInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Padding = New Padding(0, 10, 0, 10)}
@@ -747,6 +751,18 @@ Public Class ProductsForm
         UpdateReactivateEnabled()
     End Sub
 
+    Private Sub ProductsForm_Shown(sender As Object, e As EventArgs)
+        ScheduleProductGridColumnLayout()
+    End Sub
+
+    Private Sub ProductsForm_Resize(sender As Object, e As EventArgs)
+        ScheduleProductGridColumnLayout()
+    End Sub
+
+    Private Sub dgvProducts_Resize(sender As Object, e As EventArgs)
+        ScheduleProductGridColumnLayout()
+    End Sub
+
     Private Sub dgvProducts_CellFormatting(sender As Object, e As DataGridViewCellFormattingEventArgs) Handles dgvProducts.CellFormatting
         If e.RowIndex < 0 Then
             Return
@@ -792,39 +808,26 @@ Public Class ProductsForm
 
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvProducts)
 
-        Dim sym As String = AppSettings.Current.CurrencySymbol
-        Dim priceHeader As String = "Price (" & sym & ")"
-        Dim priceColumnWidth As Integer = GetInventoryPriceColumnWidth(priceHeader)
-
         If dgvProducts.Columns.Contains("is_active") Then
-            Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
-            activeCol.HeaderText = "Active"
-            ConfigureInventoryGridFixedColumn(activeCol, GridActiveColumnWidth, DataGridViewContentAlignment.MiddleCenter, 0)
+            dgvProducts.Columns("is_active").HeaderText = "Active"
         End If
 
         If dgvProducts.Columns.Contains("product_name") Then
-            Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
-            productCol.HeaderText = "Product"
-            ConfigureInventoryGridFillColumn(productCol, GridProductFillWeight, GridProductMinWidth, DataGridViewContentAlignment.MiddleLeft, 1)
+            dgvProducts.Columns("product_name").HeaderText = "Product"
         End If
 
         If dgvProducts.Columns.Contains("price") Then
             Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
-            priceCol.HeaderText = priceHeader
+            priceCol.HeaderText = GetPriceColumnHeaderText()
             priceCol.DefaultCellStyle.Format = "N2"
-            ConfigureInventoryGridFixedColumn(priceCol, priceColumnWidth, DataGridViewContentAlignment.MiddleRight, 2)
         End If
 
         If dgvProducts.Columns.Contains("stock_quantity") Then
-            Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
-            stockCol.HeaderText = "Stock"
-            ConfigureInventoryGridFixedColumn(stockCol, GridStockColumnWidth, DataGridViewContentAlignment.MiddleCenter, 3)
+            dgvProducts.Columns("stock_quantity").HeaderText = "Stock"
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then
-            Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
-            categoryCol.HeaderText = "Category"
-            ConfigureInventoryGridFixedColumn(categoryCol, GridCategoryFixedWidth, DataGridViewContentAlignment.MiddleLeft, 4)
+            dgvProducts.Columns("category_name").HeaderText = "Category"
         End If
 
         If dgvProducts.Columns.Contains("image_path") Then
@@ -834,6 +837,8 @@ Public Class ProductsForm
         If dgvProducts.Columns.Contains("category_id") Then
             dgvProducts.Columns("category_id").Visible = False
         End If
+
+        ScheduleProductGridColumnLayout()
     End Sub
 
     ''' <summary>
@@ -870,8 +875,8 @@ Public Class ProductsForm
     End Sub
 
     ''' <summary>
-    ''' Keeps Active, Price, Stock, and Category at readable fixed widths; Product fills
-    ''' the rest so the grid never overflows horizontally (which clips header text).
+    ''' Keeps Active, Price, and Stock at header-sized fixed widths; Product and Category
+    ''' fill remaining space. Enables horizontal scroll only when minimum widths exceed the grid.
     ''' </summary>
     Private Sub ApplyProductGridColumnLayout()
         If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
@@ -889,77 +894,87 @@ Public Class ProductsForm
 
         dgvProducts.SuspendLayout()
         Try
-            dgvProducts.ScrollBars = ScrollBars.Vertical
-            dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
             dgvProducts.HorizontalScrollingOffset = 0
-
-            ' Tighter header padding so labels like "Active" and "Category" fit narrow columns.
-            dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 0, 6, 0)
+            dgvProducts.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(8, 0, 8, 0)
 
             Dim activeWidth As Integer = GetRequiredHeaderWidth("is_active", GridActiveColumnWidth)
             Dim priceWidth As Integer = GetRequiredHeaderWidth("price", GridPriceColumnWidth)
             Dim stockWidth As Integer = GetRequiredHeaderWidth("stock_quantity", GridStockColumnWidth)
-            Dim categoryWidth As Integer = GetRequiredHeaderWidth("category_name", GridCategoryFixedWidth)
+            Dim categoryHeaderWidth As Integer = GetRequiredHeaderWidth("category_name", GridCategoryMinWidth)
 
-            If dgvProducts.Columns.Contains("is_active") Then
-                Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
-                activeCol.DisplayIndex = 0
-                activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                activeCol.Width = activeWidth
-                activeCol.MinimumWidth = 68
-                activeCol.SortMode = DataGridViewColumnSortMode.NotSortable
-            End If
+            ApplyProductGridFixedColumn("is_active", activeWidth, DataGridViewContentAlignment.MiddleCenter, 0)
+            ApplyProductGridFixedColumn("price", priceWidth, DataGridViewContentAlignment.MiddleRight, 2)
+            ApplyProductGridFixedColumn("stock_quantity", stockWidth, DataGridViewContentAlignment.MiddleCenter, 3)
 
-            If dgvProducts.Columns.Contains("product_name") Then
-                Dim productCol As DataGridViewColumn = dgvProducts.Columns("product_name")
-                productCol.DisplayIndex = 1
-                productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
-                productCol.FillWeight = 200
-                productCol.MinimumWidth = 80
-            End If
+            Dim categoryMinWidth As Integer = Math.Max(GridCategoryMinWidth, categoryHeaderWidth)
+            Dim fixedWidth As Integer = activeWidth + priceWidth + stockWidth
+            Dim fillMinWidth As Integer = GridProductMinWidth + categoryMinWidth
+            Dim needsHorizontalScroll As Boolean = fixedWidth + fillMinWidth > available
 
-            If dgvProducts.Columns.Contains("price") Then
-                Dim priceCol As DataGridViewColumn = dgvProducts.Columns("price")
-                priceCol.DisplayIndex = 2
-                priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                priceCol.Width = priceWidth
-                priceCol.MinimumWidth = 92
-                priceCol.SortMode = DataGridViewColumnSortMode.NotSortable
-            End If
-
-            If dgvProducts.Columns.Contains("stock_quantity") Then
-                Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
-                stockCol.DisplayIndex = 3
-                stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                stockCol.Width = stockWidth
-                stockCol.MinimumWidth = 64
-                stockCol.SortMode = DataGridViewColumnSortMode.NotSortable
-            End If
-
-            If dgvProducts.Columns.Contains("category_name") Then
-                Dim categoryCol As DataGridViewColumn = dgvProducts.Columns("category_name")
-                categoryCol.DisplayIndex = 4
-                categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                categoryCol.Width = categoryWidth
-                categoryCol.MinimumWidth = 96
-                categoryCol.SortMode = DataGridViewColumnSortMode.NotSortable
-            End If
-
-            Dim usedWidth As Integer = 0
-            For Each col As DataGridViewColumn In dgvProducts.Columns
-                If col.Visible Then
-                    usedWidth += col.Width
-                End If
-            Next
-
-            If dgvProducts.Columns.Contains("product_name") AndAlso usedWidth < available Then
-                dgvProducts.Columns("product_name").Width += available - usedWidth
-            End If
+            ApplyProductGridFillColumn("product_name", GridProductFillWeight, GridProductMinWidth, DataGridViewContentAlignment.MiddleLeft, 1)
+            ApplyProductGridFillColumn("category_name", GridCategoryFillWeight, categoryMinWidth, DataGridViewContentAlignment.MiddleLeft, 4)
+            dgvProducts.ScrollBars = If(needsHorizontalScroll, ScrollBars.Both, ScrollBars.Vertical)
         Finally
             dgvProducts.ResumeLayout(True)
             dgvProducts.HorizontalScrollingOffset = 0
         End Try
     End Sub
+
+    Private Sub ApplyProductGridFixedColumn(
+        columnName As String,
+        width As Integer,
+        alignment As DataGridViewContentAlignment,
+        displayIndex As Integer)
+
+        If Not dgvProducts.Columns.Contains(columnName) Then
+            Return
+        End If
+
+        Dim col As DataGridViewColumn = dgvProducts.Columns(columnName)
+        col.DisplayIndex = displayIndex
+        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        col.Width = width
+        col.MinimumWidth = width
+        col.SortMode = DataGridViewColumnSortMode.Automatic
+        col.DefaultCellStyle.Alignment = alignment
+        col.HeaderCell.Style.Alignment = alignment
+        col.HeaderCell.Style.WrapMode = DataGridViewTriState.False
+    End Sub
+
+    Private Sub ApplyProductGridFillColumn(
+        columnName As String,
+        fillWeight As Integer,
+        minimumWidth As Integer,
+        alignment As DataGridViewContentAlignment,
+        displayIndex As Integer)
+
+        If Not dgvProducts.Columns.Contains(columnName) Then
+            Return
+        End If
+
+        Dim col As DataGridViewColumn = dgvProducts.Columns(columnName)
+        col.DisplayIndex = displayIndex
+        col.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+        col.FillWeight = fillWeight
+        col.MinimumWidth = minimumWidth
+        col.SortMode = DataGridViewColumnSortMode.Automatic
+        col.DefaultCellStyle.Alignment = alignment
+        col.HeaderCell.Style.Alignment = alignment
+        col.HeaderCell.Style.WrapMode = DataGridViewTriState.False
+    End Sub
+
+    ''' <summary>
+    ''' Price column header including the configured store currency symbol.
+    ''' </summary>
+    Private Shared Function GetPriceColumnHeaderText() As String
+        Dim sym As String = AppSettings.Current.CurrencySymbol
+        If String.IsNullOrWhiteSpace(sym) Then
+            sym = "₱"
+        End If
+
+        Return "Price (" & sym.Trim() & ")"
+    End Function
 
     ''' <summary>
     ''' Returns a safe width for a fixed column based on header text and padding.
@@ -987,49 +1002,6 @@ Public Class ProductsForm
         Dim required As Integer = measured.Width + horizontalPadding + 20
         Return Math.Max(fallbackWidth, required)
     End Function
-
-    Private Shared Function GetInventoryPriceColumnWidth(headerText As String) As Integer
-        Dim measured As Integer = TextRenderer.MeasureText(
-            headerText,
-            UiTheme.FontHeading3,
-            New Size(Integer.MaxValue, Integer.MaxValue),
-            TextFormatFlags.SingleLine).Width + UiTheme.SpaceLg
-
-        Return Math.Max(GridPriceColumnWidth, measured)
-    End Function
-
-    Private Shared Sub ConfigureInventoryGridFixedColumn(
-        column As DataGridViewColumn,
-        width As Integer,
-        alignment As DataGridViewContentAlignment,
-        displayIndex As Integer)
-
-        column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-        column.Width = width
-        column.MinimumWidth = width
-        column.DisplayIndex = displayIndex
-        column.SortMode = DataGridViewColumnSortMode.Automatic
-        column.DefaultCellStyle.Alignment = alignment
-        column.HeaderCell.Style.Alignment = alignment
-        column.HeaderCell.Style.WrapMode = DataGridViewTriState.False
-    End Sub
-
-    Private Shared Sub ConfigureInventoryGridFillColumn(
-        column As DataGridViewColumn,
-        fillWeight As Integer,
-        minimumWidth As Integer,
-        alignment As DataGridViewContentAlignment,
-        displayIndex As Integer)
-
-        column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
-        column.FillWeight = fillWeight
-        column.MinimumWidth = minimumWidth
-        column.DisplayIndex = displayIndex
-        column.SortMode = DataGridViewColumnSortMode.Automatic
-        column.DefaultCellStyle.Alignment = alignment
-        column.HeaderCell.Style.Alignment = alignment
-        column.HeaderCell.Style.WrapMode = DataGridViewTriState.False
-    End Sub
 
     Private Shared Function CreateFieldLabel(text As String, Optional isFirst As Boolean = False) As Label
         Return New Label() With {
