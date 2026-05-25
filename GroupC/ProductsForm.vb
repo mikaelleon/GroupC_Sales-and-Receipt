@@ -233,19 +233,19 @@ Public Class ProductsForm
             .Cursor = Cursors.Hand
         }
         btnImportCsv = New Button() With {
-            .Text = "Import CSV",
+            .Text = "Export to CSV",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
         btnImportPdf = New Button() With {
-            .Text = "Import to PDF",
+            .Text = "Export to PDF",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
         }
         btnImportTxt = New Button() With {
-            .Text = "Import to txt file",
+            .Text = "Export to txt file",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
