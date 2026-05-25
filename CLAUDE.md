@@ -848,6 +848,10 @@ Visual Studio: open `GroupC.slnx`, press **F5**.
 **Last updated:** 2026-05-23 (after complete UI/UX redesign)
 **Repository:** GroupC_Sales-and-Receipt
 
+## Form Documentation
+
+See FORMS.md for a detailed breakdown of every form's structure, appearance, controls, and behavior.
+
 ## Feature Audit
 
 | Feature | Status | Location |
@@ -866,3 +870,8 @@ Visual Studio: open `GroupC.slnx`, press **F5**.
 ### Partial / missing notes
 
 None — all audited features are implemented. Restart the app once so `DatabaseInitializer.EnsureProductStockQuantity` adds `stock_quantity` to existing databases (default 100). Set stock in **Manage Products** or CSV import (optional third column).
+
+## Project Documentation Files
+
+- `FORMS.md` — detailed structure, appearance, controls, and behavior of every form
+- `RECOMMENDATIONS.md` — possible improvements and recommendations covering features, functionality, and aesthetics
