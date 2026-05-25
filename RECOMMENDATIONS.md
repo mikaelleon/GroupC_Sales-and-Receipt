@@ -52,7 +52,7 @@ Actionable improvements for the International Bookstore POS (VB.NET WinForms, SQ
 
 ## 2. Functionality
 
-### BackupRestoreForm missing
+### BackupRestoreForm missing (Implemented)
 - **Current:** `MainMenuForm` instantiates `BackupRestoreForm`; no class in repo — project cannot fully compile or button crashes.
 - **Should:** Add minimal form with backup path picker and documented restore steps, or remove menu item until ready.
 - **File:** `MainMenuForm.vb` / new `BackupRestoreForm.vb`
