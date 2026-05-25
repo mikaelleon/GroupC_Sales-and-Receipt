@@ -747,6 +747,44 @@ Public Class ProductsForm
         UpdateReactivateEnabled()
     End Sub
 
+    Private Sub dgvProducts_CellFormatting(sender As Object, e As DataGridViewCellFormattingEventArgs) Handles dgvProducts.CellFormatting
+        If e.RowIndex < 0 Then
+            Return
+        End If
+
+        Dim dgv As DataGridView = TryCast(sender, DataGridView)
+        If dgv Is Nothing OrElse dgv.Columns.Count = 0 Then
+            Return
+        End If
+
+        Dim col As DataGridViewColumn = dgv.Columns(e.ColumnIndex)
+        If col Is Nothing OrElse Not String.Equals(col.Name, "stock_quantity", StringComparison.OrdinalIgnoreCase) Then
+            Return
+        End If
+
+        If e.Value Is Nothing OrElse e.Value Is DBNull.Value Then
+            Return
+        End If
+
+        Try
+            Dim stock As Integer = Convert.ToInt32(e.Value)
+
+            ' Check if stock is less than or equal to 5
+            If stock <= 5 Then
+                ' You can use Color.Red directly, or keep using UiTheme.Danger if it is already red
+                e.CellStyle.ForeColor = Color.Red
+
+                ' Optional: Keep it red even if the user clicks/selects the row
+                e.CellStyle.SelectionForeColor = Color.Red
+            Else
+                ' CRITICAL: Reset the color for stocks > 5 so scrolling doesn't glitch the colors
+                e.CellStyle.ForeColor = dgv.DefaultCellStyle.ForeColor
+                e.CellStyle.SelectionForeColor = dgv.DefaultCellStyle.SelectionForeColor
+            End If
+        Catch
+        End Try
+    End Sub
+
     Private Sub FormatProductColumns()
         If dgvProducts.Columns.Count = 0 Then
             Return

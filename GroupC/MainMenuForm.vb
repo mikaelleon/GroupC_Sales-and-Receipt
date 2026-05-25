@@ -42,6 +42,7 @@ Public Class MainMenuForm
     Private lblDashSalesToday As Label
     Private lblDashLastSale As Label
     Private lblDashSevenDay As Label
+    Private lblDashLowStock As Label
     Private WithEvents pnlSalesChart As Panel
     Private WithEvents dtpChartFrom As DateTimePicker
     Private WithEvents dtpChartTo As DateTimePicker
@@ -152,6 +153,7 @@ Public Class MainMenuForm
         lblDashSalesToday = CreateDashValueLabel("—")
         lblDashLastSale = CreateDashValueLabel("—")
         lblDashSevenDay = CreateDashValueLabel("—")
+        lblDashLowStock = CreateDashValueLabel("—")
 
         lastSaleTooltip = New ToolTip()
 
@@ -373,11 +375,11 @@ Public Class MainMenuForm
         headerLayout.Controls.Add(lblDbHealth, 0, 1)
         dashLayout.Controls.Add(headerLayout, 0, 0)
 
-        ' --- Metric Cards Section (2×2 KPI grid) ---
+        ' --- Metric Cards Section (2×3 KPI grid) ---
         Dim cardsLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
-            .RowCount = 2,
+            .RowCount = 3,
             .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
             .AutoSize = True
         }
@@ -385,11 +387,13 @@ Public Class MainMenuForm
         cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
         cardsLayout.Controls.Add(CreateDashCard("Today's sales", lblDashSalesToday), 1, 0)
         cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 0, 1)
         cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 1, 1)
+        cardsLayout.Controls.Add(CreateDashCard("Low stock alert", lblDashLowStock), 0, 2)
 
         dashLayout.Controls.Add(cardsLayout, 0, 1)
 
@@ -544,6 +548,15 @@ Public Class MainMenuForm
                     End Using
                 End Using
 
+                Dim lowStockSql As String = "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_quantity <= @threshold;"
+                Dim lowStockCount As Integer = 0
+                Using cmd As New SqlCommand(lowStockSql, connection)
+                    cmd.Parameters.AddWithValue("@threshold", AppSettings.Current.StockThreshold)
+                    lowStockCount = Convert.ToInt32(cmd.ExecuteScalar())
+                End Using
+                lblDashLowStock.Text = lowStockCount.ToString(CultureInfo.CurrentCulture)
+                lblDashLowStock.ForeColor = If(lowStockCount > 0, UiTheme.Danger, UiTheme.Success)
+
                 LoadChartDataForRange(connection, sym, chartRangeStart, chartRangeEnd)
                 chartLoadFailed = False
             End Using
@@ -564,6 +577,8 @@ Public Class MainMenuForm
             lblDashSalesToday.Text = "—"
             lblDashLastSale.Text = "—"
             lblDashSevenDay.Text = "—"
+            lblDashLowStock.Text = "—"
+            lblDashLowStock.ForeColor = UiTheme.TextPrimary
             chartDataLoaded = False
             chartLoadFailed = True
             chartPeriodTotal = 0D
