@@ -46,15 +46,15 @@ Public Class SalesForm
     Private Const DiscountPwdPercent As Decimal = 20D
     Private Const DiscountSeniorPercent As Decimal = 20D
     Private Const DiscountMembershipPercent As Decimal = 10D
-    Private Const ProductCardWidth As Integer = 156
-    Private Const ProductCardHeight As Integer = 218
-    Private Const ProductCardImageHeight As Integer = 96
+    Private Const ProductCardWidth As Integer = 150
+    Private Const ProductCardHeight As Integer = 180
+    Private Const ProductCardImageHeight As Integer = 90
     Private Const CartRemoveColumnName As String = "Remove"
     Private Const CartColIndexWidth As Integer = 40
-    Private Const CartColPriceWidth As Integer = 96
-    Private Const CartColQtyWidth As Integer = 52
-    Private Const CartColSubtotalWidth As Integer = 108
-    Private Const CartColRemoveWidth As Integer = 84
+    Private Const CartColPriceWidth As Integer = 80
+    Private Const CartColQtyWidth As Integer = 50
+    Private Const CartColSubtotalWidth As Integer = 90
+    Private Const CartColRemoveWidth As Integer = 40
     Private Const CartColProductMinWidth As Integer = 100
 
     Private Enum PosDiscountType
@@ -65,6 +65,7 @@ Public Class SalesForm
     End Enum
 
     Private WithEvents cmbSalesCategory As ComboBox
+    Private WithEvents txtProductSearch As TextBox
     Private productCardHost As FlowLayoutPanel
     Private productCardScrollPanel As Panel
     Private lblSelectedProduct As Label
@@ -76,6 +77,7 @@ Public Class SalesForm
     Private WithEvents dgvProducts As DataGridView
     Private lblTotal As Label
     Private lblEmptyHint As Label
+    Private lblCartEmpty As Label
     Private WithEvents btnOpenProducts As Button
 
     Private WithEvents btnAdd As Button
@@ -136,27 +138,35 @@ Public Class SalesForm
 
     Private Sub SetupForm()
         Me.Text = AppBranding.WindowTitle("Point of Sale")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 1000, 650)
     End Sub
 
     Private Sub CreateControls()
         suppressSalesSummary = True
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = UiTheme.FormBackground
+        Me.BackColor = UiTheme.ColBackground
 
         ' -----------------------------------------------------------
         ' 1. INITIALIZE CONTROLS
         ' -----------------------------------------------------------
+        txtProductSearch = New TextBox() With {
+            .PlaceholderText = "Search products...",
+            .Width = 180,
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        }
+        UiTheme.ApplyInputStyle(txtProductSearch)
+
         cmbSalesCategory = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
-            .Font = UiTheme.FontBody,
-            .Dock = DockStyle.Fill
+            .Width = 160,
+            .Margin = New Padding(0)
         }
+        UiTheme.ApplyInputStyle(cmbSalesCategory)
         productCardScrollPanel = New Panel() With {
             .Dock = DockStyle.Fill,
             .AutoScroll = True,
-            .BackColor = UiTheme.FormBackground
+            .BackColor = UiTheme.ColBackground
         }
         productCardHost = New FlowLayoutPanel() With {
             .AutoSize = True,
@@ -164,8 +174,8 @@ Public Class SalesForm
             .FlowDirection = FlowDirection.LeftToRight,
             .WrapContents = True,
             .Dock = DockStyle.Top,
-            .Padding = New Padding(UiTheme.SpaceXs),
-            .BackColor = UiTheme.FormBackground
+            .Padding = New Padding(UiTheme.PadTight),
+            .BackColor = UiTheme.ColBackground
         }
         productCardScrollPanel.Controls.Add(productCardHost)
         AddHandler productCardScrollPanel.Resize, AddressOf ProductCardScrollPanel_Resize
@@ -174,36 +184,32 @@ Public Class SalesForm
             .Text = "No products available for this category.",
             .Dock = DockStyle.Fill,
             .TextAlign = ContentAlignment.MiddleCenter,
-            .ForeColor = UiTheme.TextSecondary,
+            .ForeColor = UiTheme.ColTextSecondary,
             .Font = UiTheme.FontBody,
             .Visible = False
         }
         lblSelectedProduct = New Label() With {
             .AutoSize = True,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .Font = UiTheme.FontBody,
-            .Text = "Selected: none",
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Font = UiTheme.FontBodyBold,
+            .Text = "No product selected",
+            .Margin = New Padding(0)
         }
         numQuantity = New NumericUpDown() With {
             .Minimum = MinLineQty,
             .Maximum = MaxLineQty,
             .TextAlign = HorizontalAlignment.Right,
-            .Font = UiTheme.FontBody,
-            .Dock = DockStyle.Fill
+            .Width = 60
         }
-
-        Try
-            UiTheme.ApplyTableLayoutDropDown(cmbSalesCategory)
-        Catch
-        End Try
+        UiTheme.ApplyInputStyle(numQuantity)
 
         btnAdd = New Button() With {
             .Text = "&Add to cart",
-            .Height = UiTheme.ButtonHeightMd,
             .AutoSize = True,
+            .MinimumSize = New Size(0, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
+        UiTheme.ApplyDisabledButton(btnAdd)
         btnRemove = New Button() With {
             .Text = "&Remove item",
             .Height = UiTheme.ButtonHeightMd,
@@ -234,38 +240,37 @@ Public Class SalesForm
 
         lblDiscountHeading = CreateCheckoutSummaryCaption("Discount:")
         lblCustomerDiscount = New Label() With {
-            .Text = "Customer discount",
+            .Text = "Discount",
             .AutoSize = True,
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = UiTheme.FontBodySmall,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = UiTheme.FontCaption,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
 
-        btnDiscPwd = CreatePosDiscountToggle("PWD (20%)", PosDiscountType.Pwd)
-        btnDiscSenior = CreatePosDiscountToggle("Senior (20%)", PosDiscountType.Senior)
-        btnDiscMembership = CreatePosDiscountToggle("Member (10%)", PosDiscountType.Membership)
+        btnDiscPwd = CreatePosDiscountToggle("PWD  20%", PosDiscountType.Pwd)
+        btnDiscSenior = CreatePosDiscountToggle("Senior  20%", PosDiscountType.Senior)
+        btnDiscMembership = CreatePosDiscountToggle("Member  10%", PosDiscountType.Membership)
 
         btnTaxToggle = New Button() With {
             .Text = "VAT / Tax",
             .AutoSize = False,
-            .Height = UiTheme.ButtonHeightSm,
-            .Dock = DockStyle.Fill,
+            .Height = UiTheme.ButtonHeight,
+            .Dock = DockStyle.Top,
             .Font = UiTheme.FontBody,
             .Cursor = Cursors.Hand,
-            .FlatStyle = FlatStyle.Flat,
-            .Margin = Padding.Empty
+            .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadTight)
         }
-        btnTaxToggle.FlatAppearance.BorderColor = UiTheme.CardBorder
+        UiTheme.ApplySecondaryButton(btnTaxToggle)
         numTaxPercent = New NumericUpDown() With {
             .DecimalPlaces = 2,
             .Minimum = 0D,
             .Maximum = 100D,
             .Increment = 0.5D,
             .Enabled = False,
-            .Font = UiTheme.FontBody,
-            .Dock = DockStyle.Fill,
+            .Width = 70,
             .TextAlign = HorizontalAlignment.Right
         }
+        UiTheme.ApplyInputStyle(numTaxPercent)
 
         txtAmountTendered = New TextBox() With {
             .TextAlign = HorizontalAlignment.Right,
@@ -283,34 +288,42 @@ Public Class SalesForm
         lblChangeValue = CreateCheckoutSummaryValueLabel(bold:=True, successColor:=True)
         lblTotal = New Label() With {
             .Text = FormatMoney(0D),
-            .Dock = DockStyle.Top,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .AutoSize = False,
-            .Height = 52,
-            .Font = UiTheme.FontHeading1,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .Margin = New Padding(0, UiTheme.SpaceXs, 0, UiTheme.SpaceSm)
+            .AutoSize = True,
+            .Font = UiTheme.FontHeading,
+            .ForeColor = UiTheme.ColPrimary,
+            .TextAlign = ContentAlignment.MiddleRight,
+            .Margin = Padding.Empty
         }
 
         btnFinalize = New Button() With {
             .Text = "FINALIZE SALE",
             .Dock = DockStyle.Top,
             .AutoSize = False,
-            .Height = UiTheme.ButtonHeightLg,
-            .Font = UiTheme.FontHeading3,
+            .Height = 44,
+            .Font = UiTheme.FontSubheading,
             .Cursor = Cursors.Hand,
-            .Margin = Padding.Empty
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
+        UiTheme.ApplyDisabledButton(btnFinalize)
 
-        lblSalesInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Padding = New Padding(0, 5, 0, 10)}
+        lblSalesInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.ColDanger, .Font = UiTheme.FontCaption, .Visible = False}
         lblStockOnHand = New Label() With {
             .AutoSize = True,
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = UiTheme.FontBodySmall,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = UiTheme.FontCaption,
+            .Margin = New Padding(0),
             .Text = "Available: —"
         }
-        lblEmptyHint = New Label() With {.Text = "No products in catalog. Open Manage Products.", .AutoSize = True, .ForeColor = UiTheme.TextSecondary, .Visible = False}
+        lblEmptyHint = New Label() With {.Text = "No products in catalog. Open Manage Products.", .AutoSize = True, .ForeColor = UiTheme.ColTextSecondary, .Visible = False}
+        lblCartEmpty = New Label() With {
+            .Text = "Cart is empty",
+            .Dock = DockStyle.Fill,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = New Font(UiTheme.FontBody, FontStyle.Italic),
+            .BackColor = Color.Transparent,
+            .Visible = True
+        }
 
         dgvProducts = New DataGridView() With {
             .Dock = DockStyle.Fill,
@@ -321,7 +334,7 @@ Public Class SalesForm
             .MultiSelect = False,
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
             .AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,
-            .BackgroundColor = Color.White,
+            .BackgroundColor = UiTheme.ColSurface,
             .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Vertical
         }
@@ -340,7 +353,7 @@ Public Class SalesForm
         Dim removeCol As New DataGridViewButtonColumn() With {
             .Name = CartRemoveColumnName,
             .HeaderText = "",
-            .Text = "Remove",
+            .Text = "×",
             .UseColumnTextForButtonValue = True,
             .AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
             .Width = CartColRemoveWidth,
@@ -352,13 +365,11 @@ Public Class SalesForm
         dgvProducts.Columns.Add(removeCol)
 
         Try
-            UiTheme.ApplyPrimaryButton(btnAdd)
-            UiTheme.ApplySecondaryAccentButton(btnRemove)
-            UiTheme.ApplyWarningButton(btnClear)
+            UiTheme.ApplySecondaryButton(btnRemove)
+            UiTheme.ApplySecondaryButton(btnClear)
             UiTheme.ApplySecondaryButton(btnOpenProducts)
-            UiTheme.ApplySecondaryButton(btnBack)
-            UiTheme.ApplySuccessButton(btnFinalize)
-            UiTheme.ApplyDataGridViewChrome(dgvProducts)
+            UiTheme.ApplyGhostButton(btnBack)
+            UiTheme.ApplyGridStyle(dgvProducts)
         Catch
         End Try
 
@@ -373,302 +384,414 @@ Public Class SalesForm
         End Try
 
         ' -----------------------------------------------------------
-        ' 2. BUILD THE RESPONSIVE LAYOUT (Side-by-Side POS)
+        ' 2. SHARED SHELL + POS SPLIT LAYOUT
         ' -----------------------------------------------------------
         Dim rootTable As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
             .RowCount = 1,
-            .Margin = New Padding(0),
-            .BackColor = UiTheme.FormBackground
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
         }
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        ' --- LEFT: Product catalog cards ---
-        Dim leftSidebar As New Panel() With {
+        Dim sidebar As Panel = UiTheme.BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = UiTheme.ColPrimary
+        }
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim lblSidebarStore As New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextOnDark,
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
 
+        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        Dim navItems As (Text As String, Active As Boolean)() = {
+            ("Manage Products", False),
+            ("Manage Categories", False),
+            ("Manage Cashiers", False),
+            ("Point of Sale", True),
+            ("Receipt Preview", False),
+            ("Reports", False)
+        }
+        For i As Integer = navItems.Length - 1 To 0 Step -1
+            Dim item = navItems(i)
+            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
+            navBtn.Dock = DockStyle.Top
+            If item.Active Then
+                UiTheme.SetSidebarButtonActive(navBtn, True)
+            Else
+                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
+            End If
+            navMain.Controls.Add(navBtn)
+        Next
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
+        }
+        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
+        Dim btnBackNav As Button = UiTheme.CreateSidebarNavButton("← Back to Menu")
+        btnBackNav.Dock = DockStyle.Top
+        AddHandler btnBackNav.Click, Sub(s, ev) Me.Close()
+        navBottom.Controls.Add(btnBackNav)
+
+        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblSidebarStore)
+
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
+
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+
+        Dim topBar As New Panel() With {
+            .Height = 60,
+            .Dock = DockStyle.Top,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadPage, UiTheme.PadControl, UiTheme.PadPage, UiTheme.PadControl)
+        }
+        Dim lblPageTitle As New Label() With {
+            .Text = "Point of Sale",
+            .Font = UiTheme.FontDisplay,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .AutoSize = True,
+            .Location = New Point(UiTheme.PadPage, UiTheme.PadControl)
+        }
+        Dim subtitleText As String = AppSession.GetReceiptOperatorName()
+        Dim lblPageSubtitle As New Label() With {
+            .Text = subtitleText,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .AutoSize = True,
+            .Location = New Point(UiTheme.PadPage, lblPageTitle.Bottom + UiTheme.PadTight)
+        }
+        topBar.Controls.Add(lblPageTitle)
+        topBar.Controls.Add(lblPageSubtitle)
+        topBar.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Bottom, .BackColor = UiTheme.ColBorder})
+
+        Dim contentArea As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColBackground,
+            .Padding = New Padding(UiTheme.PadPage)
+        }
+
+        Dim posSplit As New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Vertical,
+            .SplitterWidth = 6,
+            .BackColor = UiTheme.ColBorder,
+            .Panel1MinSize = 320,
+            .Panel2MinSize = 280
+        }
+
+        ' --- LEFT: product browser ---
+        Dim leftPanel As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
         Dim leftLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
-            .RowCount = 5
+            .RowCount = 4
         }
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Dim lblTitleLeft As New Label() With {
-            .Text = "Point of Sale",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
+        Dim productsHeaderHost As Panel = UiTheme.CreateSectionHeader("Products")
+        productsHeaderHost.Dock = DockStyle.Top
+
+        Dim filterRow As New FlowLayoutPanel() With {
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
+            .WrapContents = False,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Width = 400
         }
-        leftLayout.Controls.Add(lblTitleLeft, 0, 0)
+        filterRow.Controls.Add(txtProductSearch)
+        filterRow.Controls.Add(cmbSalesCategory)
 
-        Dim filterPanel As New TableLayoutPanel() With {
+        Dim catalogHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        catalogHost.Controls.Add(lblNoProductCards)
+        catalogHost.Controls.Add(productCardScrollPanel)
+
+        Dim selectionBar As New Panel() With {
+            .Dock = DockStyle.Top,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadCard),
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink
+        }
+        Dim selectionLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .ColumnCount = 1,
-            .RowCount = 3
-        }
-        Dim lblCategoryFilter As New Label() With {
-            .Text = "Category Filter",
-            .AutoSize = True,
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        }
-        filterPanel.Controls.Add(lblCategoryFilter, 0, 0)
-        filterPanel.Controls.Add(cmbSalesCategory, 0, 1)
-        lblSalesInputError.Dock = DockStyle.Top
-        filterPanel.Controls.Add(lblSalesInputError, 0, 2)
-        leftLayout.Controls.Add(filterPanel, 0, 1)
-
-        Dim catalogHost As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.FormBackground,
-            .Padding = New Padding(0, UiTheme.SpaceSm, 0, UiTheme.SpaceSm)
-        }
-        Dim catalogCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceSm))
-        catalogCard.Dock = DockStyle.Fill
-        Dim catalogCardHost As Panel = UiTheme.GetCardContentHost(catalogCard)
-        catalogCardHost.Controls.Add(lblNoProductCards)
-        catalogCardHost.Controls.Add(productCardScrollPanel)
-        catalogHost.Controls.Add(catalogCard)
-        leftLayout.Controls.Add(catalogHost, 0, 2)
-
-        Dim checkoutBar As New TableLayoutPanel() With {
-            .Dock = DockStyle.Top,
-            .AutoSize = True,
-            .ColumnCount = 1,
-            .RowCount = 5,
-            .Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
-        }
-        checkoutBar.Controls.Add(lblSelectedProduct, 0, 0)
-        checkoutBar.Controls.Add(lblStockOnHand, 0, 1)
-        Dim lblQty As New Label() With {
-            .Text = "Quantity",
-            .AutoSize = True,
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm)
-        }
-        checkoutBar.Controls.Add(lblQty, 0, 2)
-        checkoutBar.Controls.Add(numQuantity, 0, 3)
-        Dim pnlAdd As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .Margin = New Padding(0, UiTheme.SpaceMd, 0, 0)
-        }
-        pnlAdd.Controls.Add(btnAdd)
-        checkoutBar.Controls.Add(pnlAdd, 0, 4)
-        leftLayout.Controls.Add(checkoutBar, 0, 3)
-
-        Dim pnlUtility As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
-            .AutoSize = True,
-            .FlowDirection = FlowDirection.TopDown,
-            .Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
-        }
-        pnlUtility.Controls.Add(btnOpenProducts)
-        btnBack.Margin = New Padding(0, UiTheme.SpaceLg, 0, 0)
-        pnlUtility.Controls.Add(btnBack)
-        leftLayout.Controls.Add(pnlUtility, 0, 4)
-        leftSidebar.Controls.Add(leftLayout)
-
-
-        ' --- RIGHT CARD (Cart & Checkout) ---
-        Dim rightCard As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .Padding = New Padding(UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.SpaceLg)
-        }
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))        ' Header
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 62.0F))  ' Cart grid
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 38.0F))  ' Checkout
-
-        Dim headerPanel As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top}
-        Dim lblTitleRight As New Label() With {
-            .Text = "Shopping Cart",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .AutoSize = True,
-            .Dock = DockStyle.Left
-        }
-
-        Dim pnlCartActions As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .Dock = DockStyle.Right,
-            .FlowDirection = FlowDirection.RightToLeft, ' Right aligns the buttons perfectly
-            .WrapContents = False
-        }
-        pnlCartActions.Controls.Add(btnClear)
-        pnlCartActions.Controls.Add(btnRemove)
-
-        headerPanel.Controls.Add(pnlCartActions)
-        headerPanel.Controls.Add(lblTitleRight)
-        rightCard.Controls.Add(headerPanel, 0, 0)
-
-        Dim gridContainer As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm),
-            .MinimumSize = New Size(0, 180)
-        }
-        lblEmptyHint.Dock = DockStyle.Top
-        lblEmptyHint.Padding = New Padding(4, 0, 0, 6)
-        Dim gridCard As Panel = UiTheme.CreateCardPanel(Padding.Empty)
-        gridCard.Dock = DockStyle.Fill
-        Dim gridHost As Panel = UiTheme.GetCardContentHost(gridCard)
-        gridHost.Controls.Add(dgvProducts)
-        gridContainer.Controls.Add(gridCard)
-        gridContainer.Controls.Add(lblEmptyHint)
-        rightCard.Controls.Add(gridContainer, 0, 1)
-
-        ' --- CHECKOUT PANEL (Bottom Right Dashboard) ---
-        Dim checkoutPanel As New TableLayoutPanel() With {
-            .ColumnCount = 5,
-            .RowCount = 1,
-            .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .Margin = Padding.Empty,
-            .MinimumSize = New Size(0, 248)
-        }
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, CheckoutDiscountColumnWidth))
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 1.0F))
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 1.0F))
-        checkoutPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, CheckoutFinalizeColumnWidth))
-
-        Dim settingsLayout As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceSm, UiTheme.SpaceMd),
-            .BackColor = Color.Transparent
-        }
-        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        settingsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        settingsLayout.Controls.Add(lblCustomerDiscount, 0, 0)
-
-        Dim discountLayout As New TableLayoutPanel() With {
-            .Dock = DockStyle.Top,
-            .AutoSize = True,
-            .ColumnCount = 1,
-            .RowCount = 3,
+            .ColumnCount = 2,
             .Margin = Padding.Empty
         }
-        discountLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.ButtonHeightSm + UiTheme.SpaceXs))
-        discountLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.ButtonHeightSm + UiTheme.SpaceXs))
-        discountLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.ButtonHeightSm))
-        discountLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        ConfigureCheckoutDiscountButton(btnDiscPwd)
-        ConfigureCheckoutDiscountButton(btnDiscSenior)
-        ConfigureCheckoutDiscountButton(btnDiscMembership)
-        discountLayout.Controls.Add(btnDiscPwd, 0, 0)
-        discountLayout.Controls.Add(btnDiscSenior, 0, 1)
-        discountLayout.Controls.Add(btnDiscMembership, 0, 2)
-        settingsLayout.Controls.Add(discountLayout, 0, 1)
+        selectionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
+        selectionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
 
-        Dim taxLayout As New TableLayoutPanel() With {
+        Dim selectionLeft As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .WrapContents = False,
+            .Dock = DockStyle.Fill
+        }
+        selectionLeft.Controls.Add(lblSelectedProduct)
+        selectionLeft.Controls.Add(lblStockOnHand)
+
+        Dim selectionRight As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.LeftToRight,
+            .AutoSize = True,
+            .WrapContents = False,
+            .Dock = DockStyle.Fill,
+            .Anchor = AnchorStyles.Right
+        }
+        selectionRight.Controls.Add(New Label() With {
+            .Text = "Qty",
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 6, UiTheme.PadTight, 0)
+        })
+        selectionRight.Controls.Add(numQuantity)
+        selectionRight.Controls.Add(btnAdd)
+
+        selectionLayout.Controls.Add(selectionLeft, 0, 0)
+        selectionLayout.Controls.Add(selectionRight, 1, 0)
+        selectionBar.Controls.Add(selectionLayout)
+
+        Dim utilityRow As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        }
+        utilityRow.Controls.Add(btnOpenProducts)
+        utilityRow.Controls.Add(btnBack)
+
+        leftLayout.Controls.Add(productsHeaderHost, 0, 0)
+        leftLayout.Controls.Add(filterRow, 0, 1)
+        leftLayout.Controls.Add(catalogHost, 0, 2)
+        leftLayout.Controls.Add(selectionBar, 0, 3)
+        leftPanel.Controls.Add(leftLayout)
+        lblSalesInputError.Dock = DockStyle.Bottom
+        leftPanel.Controls.Add(lblSalesInputError)
+        leftPanel.Controls.Add(utilityRow)
+
+        ' --- RIGHT: cart + checkout ---
+        Dim rightSplit As New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Horizontal,
+            .SplitterWidth = 6,
+            .BackColor = UiTheme.ColBorder,
+            .Panel1MinSize = 120,
+            .Panel2MinSize = 220
+        }
+
+        Dim cartPanel As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim cartHeader As New FlowLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .ColumnCount = 1,
-            .RowCount = 2,
-            .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
+            .FlowDirection = FlowDirection.LeftToRight,
+            .WrapContents = False,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        taxLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.ButtonHeightSm))
-        taxLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.InputHeight))
-        taxLayout.Controls.Add(btnTaxToggle, 0, 0)
-        taxLayout.Controls.Add(numTaxPercent, 0, 1)
-        settingsLayout.Controls.Add(taxLayout, 0, 2)
+        cartHeader.Controls.Add(New Label() With {
+            .Text = "Shopping Cart",
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, UiTheme.PadSection, 0)
+        })
+        cartHeader.Controls.Add(btnRemove)
+        cartHeader.Controls.Add(btnClear)
+
+        Dim cartGridHost As New Panel() With {.Dock = DockStyle.Fill, .MinimumSize = New Size(0, 160)}
+        cartGridHost.Controls.Add(dgvProducts)
+        cartGridHost.Controls.Add(lblCartEmpty)
+        cartGridHost.Controls.Add(lblEmptyHint)
+
+        cartPanel.Controls.Add(cartGridHost)
+        cartPanel.Controls.Add(cartHeader)
 
         RefreshPosDiscountToggleUi()
         RefreshTaxToggleUi()
 
-        Dim detailsLayout As New TableLayoutPanel() With {
+        Dim totalsPanel As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadCard)
+        }
+        Dim totalsTopBorder As New Panel() With {
+            .Height = 1,
+            .Dock = DockStyle.Top,
+            .BackColor = UiTheme.ColBorder
+        }
+
+        Dim checkoutSplit As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
-            .RowCount = 5,
-            .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceMd),
-            .BackColor = Color.Transparent
+            .RowCount = 1
         }
-        detailsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, CheckoutSummaryLabelWidth))
-        detailsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryRowHeight))
-        detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryRowHeight))
-        detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryRowHeight))
-        detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryTenderedRowHeight))
-        detailsLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryRowHeight))
+        checkoutSplit.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
+        checkoutSplit.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
 
-        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Subtotal:"), 0, 0)
-        detailsLayout.Controls.Add(lblSubtotalValue, 1, 0)
-        detailsLayout.Controls.Add(lblDiscountHeading, 0, 1)
-        detailsLayout.Controls.Add(lblDiscountValue, 1, 1)
-        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Tax:"), 0, 2)
-        detailsLayout.Controls.Add(lblTaxValue, 1, 2)
-        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Tendered:"), 0, 3)
-        detailsLayout.Controls.Add(CreateTenderedInputShell(), 1, 3)
-        detailsLayout.Controls.Add(CreateCheckoutSummaryCaption("Change:"), 0, 4)
-        detailsLayout.Controls.Add(lblChangeValue, 1, 4)
-
-        Dim finalizeLayout As New TableLayoutPanel() With {
+        Dim discountColumn As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
             .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceMd, UiTheme.SpaceMd),
-            .BackColor = Color.Transparent
+            .WrapContents = False,
+            .AutoScroll = True
         }
-        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        finalizeLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Dim lblAmountDueTitle As New Label() With {
-            .Text = "AMOUNT DUE",
-            .Dock = DockStyle.Top,
-            .AutoSize = False,
-            .Height = 22,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = UiTheme.FontBodySmall,
-            .Margin = Padding.Empty
+        discountColumn.Controls.Add(lblCustomerDiscount)
+        ConfigureCheckoutDiscountButton(btnDiscPwd)
+        ConfigureCheckoutDiscountButton(btnDiscSenior)
+        ConfigureCheckoutDiscountButton(btnDiscMembership)
+        discountColumn.Controls.Add(btnDiscPwd)
+        discountColumn.Controls.Add(btnDiscSenior)
+        discountColumn.Controls.Add(btnDiscMembership)
+        discountColumn.Controls.Add(btnTaxToggle)
+        discountColumn.Controls.Add(numTaxPercent)
+        discountColumn.Controls.Add(New Label() With {
+            .Text = "Custom tax rate",
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        })
+
+        Dim totalsColumn As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 9
         }
-        finalizeLayout.Controls.Add(lblAmountDueTitle, 0, 0)
-        finalizeLayout.Controls.Add(lblTotal, 0, 1)
-        finalizeLayout.Controls.Add(btnFinalize, 0, 2)
+        totalsColumn.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
+        totalsColumn.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
+        For r As Integer = 0 To 8
+            totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Next
 
-        checkoutPanel.Controls.Add(settingsLayout, 0, 0)
-        checkoutPanel.Controls.Add(CreateCheckoutColumnSeparator(), 1, 0)
-        checkoutPanel.Controls.Add(detailsLayout, 2, 0)
-        checkoutPanel.Controls.Add(CreateCheckoutColumnSeparator(), 3, 0)
-        checkoutPanel.Controls.Add(finalizeLayout, 4, 0)
+        Dim lblAmountDueCaption As New Label() With {
+            .Text = "Amount Due",
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .AutoSize = True
+        }
 
-        Dim checkoutCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceSm))
-        checkoutCard.Dock = DockStyle.Fill
-        checkoutCard.Margin = New Padding(0, UiTheme.SpaceXs, 0, 0)
-        checkoutCard.MinimumSize = New Size(0, 260)
-        UiTheme.PopulateCardContent(checkoutCard, checkoutPanel)
+        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Subtotal"), 0, 0)
+        totalsColumn.Controls.Add(lblSubtotalValue, 1, 0)
+        totalsColumn.Controls.Add(lblDiscountHeading, 0, 1)
+        totalsColumn.Controls.Add(lblDiscountValue, 1, 1)
+        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Tax"), 0, 2)
+        totalsColumn.Controls.Add(lblTaxValue, 1, 2)
+        totalsColumn.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder, .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)}, 0, 3)
+        totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
+        totalsColumn.Controls.Add(lblAmountDueCaption, 0, 4)
+        totalsColumn.Controls.Add(lblTotal, 1, 4)
+        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Tendered"), 0, 5)
+        totalsColumn.Controls.Add(CreateTenderedInputShell(), 1, 5)
+        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Change"), 0, 6)
+        totalsColumn.Controls.Add(lblChangeValue, 1, 6)
+        totalsColumn.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder, .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)}, 0, 7)
+        totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
+        totalsColumn.Controls.Add(btnFinalize, 0, 8)
+        totalsColumn.SetColumnSpan(btnFinalize, 2)
 
-        Dim checkoutHost As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .Padding = Padding.Empty}
-        checkoutHost.Controls.Add(checkoutCard)
+        checkoutSplit.Controls.Add(discountColumn, 0, 0)
+        checkoutSplit.Controls.Add(totalsColumn, 1, 0)
+        totalsPanel.Controls.Add(checkoutSplit)
+        totalsPanel.Controls.Add(totalsTopBorder)
 
-        rightCard.Controls.Add(checkoutHost, 0, 2)
+        rightSplit.Panel1.Controls.Add(cartPanel)
+        rightSplit.Panel2.Controls.Add(totalsPanel)
 
-        ' 3. ASSEMBLE ALL
-        rootTable.Controls.Add(leftSidebar, 0, 0)
-        rootTable.Controls.Add(rightCard, 1, 0)
+        posSplit.Panel1.Controls.Add(leftPanel)
+        posSplit.Panel2.Controls.Add(rightSplit)
+
+        contentArea.Controls.Add(posSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
 
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
 
+        ConfigurePosSplitters(posSplit, rightSplit)
+
         suppressSalesSummary = False
         Me.ResumeLayout(True)
+        UpdateAddButtonState()
+        UpdateFinalizeButtonState()
+        UpdateCartEmptyState()
+    End Sub
+
+    Private Sub ConfigurePosSplitters(horizontalSplit As SplitContainer, verticalSplit As SplitContainer)
+        If horizontalSplit Is Nothing OrElse horizontalSplit.Width <= 0 Then
+            Return
+        End If
+
+        horizontalSplit.SplitterDistance = CInt(Math.Max(horizontalSplit.Panel1MinSize, horizontalSplit.Width * 0.6R))
+        If verticalSplit IsNot Nothing AndAlso verticalSplit.Height > 0 Then
+            verticalSplit.SplitterDistance = CInt(Math.Max(verticalSplit.Panel1MinSize, verticalSplit.Height * 0.62R))
+        End If
+    End Sub
+
+    Private Sub txtProductSearch_TextChanged(sender As Object, e As EventArgs) Handles txtProductSearch.TextChanged
+        RefreshProductCards()
+    End Sub
+
+    Private Sub UpdateAddButtonState()
+        If btnAdd Is Nothing Then
+            Return
+        End If
+
+        If String.IsNullOrWhiteSpace(selectedProductName) Then
+            UiTheme.ApplyDisabledButton(btnAdd)
+        Else
+            UiTheme.ApplyPrimaryButton(btnAdd)
+        End If
+    End Sub
+
+    Private Sub UpdateFinalizeButtonState()
+        If btnFinalize Is Nothing OrElse Not IsSalesCartGridReady() Then
+            Return
+        End If
+
+        If dgvProducts.Rows.Count > 0 Then
+            btnFinalize.Enabled = True
+            UiTheme.ApplySuccessButton(btnFinalize)
+            btnFinalize.Height = 44
+            btnFinalize.Font = UiTheme.FontSubheading
+        Else
+            UiTheme.ApplyDisabledButton(btnFinalize)
+        End If
+    End Sub
+
+    Private Sub UpdateCartEmptyState()
+        If lblCartEmpty Is Nothing OrElse Not IsSalesCartGridReady() Then
+            Return
+        End If
+
+        lblCartEmpty.Visible = dgvProducts.Rows.Count = 0
+        lblCartEmpty.BringToFront()
     End Sub
 
     Private Sub ShowStatus(message As String, isError As Boolean)
@@ -773,10 +896,7 @@ Public Class SalesForm
             e.Graphics.FillRectangle(brush, buttonBounds)
         End Using
 
-        Dim caption As String = Convert.ToString(e.FormattedValue)
-        If String.IsNullOrWhiteSpace(caption) Then
-            caption = "Remove"
-        End If
+        Dim caption As String = "×"
 
         TextRenderer.DrawText(
             e.Graphics,
@@ -982,9 +1102,13 @@ Public Class SalesForm
         Dim othersLocked As Boolean = selectedPosDiscount <> PosDiscountType.None AndAlso Not isSelected
 
         btn.Enabled = Not othersLocked
-        btn.BackColor = If(isSelected, UiTheme.PrimaryAccent, UiTheme.CardSurface)
-        btn.ForeColor = If(isSelected, UiTheme.TextOnAccent, UiTheme.TextPrimary)
-        btn.FlatAppearance.BorderColor = If(isSelected, UiTheme.PrimaryAccent, UiTheme.CardBorder)
+        If isSelected Then
+            UiTheme.ApplyPrimaryButton(btn)
+        ElseIf othersLocked Then
+            UiTheme.ApplyDisabledButton(btn)
+        Else
+            UiTheme.ApplySecondaryButton(btn)
+        End If
     End Sub
 
     Private Sub RefreshTaxToggleUi()
@@ -993,9 +1117,11 @@ Public Class SalesForm
         End If
 
         numTaxPercent.Enabled = taxToggleOn
-        btnTaxToggle.BackColor = If(taxToggleOn, UiTheme.PrimaryAccent, UiTheme.CardSurface)
-        btnTaxToggle.ForeColor = If(taxToggleOn, UiTheme.TextOnAccent, UiTheme.TextPrimary)
-        btnTaxToggle.FlatAppearance.BorderColor = If(taxToggleOn, UiTheme.PrimaryAccent, UiTheme.CardBorder)
+        If taxToggleOn Then
+            UiTheme.ApplyPrimaryButton(btnTaxToggle)
+        Else
+            UiTheme.ApplySecondaryButton(btnTaxToggle)
+        End If
     End Sub
 
     Private Sub ResetPosCheckoutOptions()
@@ -1091,18 +1217,20 @@ Public Class SalesForm
             entry.UnitPrice)
         UpdateStockHintForProduct(entry.ProductId, productName)
         UpdateProductCardSelectionVisuals()
+        UpdateAddButtonState()
     End Sub
 
     Private Sub ClearProductSelection()
         selectedProductName = Nothing
         selectedProductCard = Nothing
-        lblSelectedProduct.Text = "Selected: none"
+        lblSelectedProduct.Text = "No product selected"
         If lblStockOnHand IsNot Nothing Then
             lblStockOnHand.Text = "Available: —"
             lblStockOnHand.ForeColor = UiTheme.TextSecondary
         End If
         numQuantity.Maximum = MaxLineQty
         UpdateProductCardSelectionVisuals()
+        UpdateAddButtonState()
     End Sub
 
     Private Sub UpdateProductCardSelectionVisuals()
@@ -1128,7 +1256,28 @@ Public Class SalesForm
     End Sub
 
     Private Shared Sub ApplyProductCardSelectionStyle(card As Panel, selected As Boolean)
-        card.BackColor = If(selected, Color.FromArgb(224, 228, 245), UiTheme.CardSurface)
+        card.BackColor = If(selected, UiTheme.InfoBackground, UiTheme.ColSurface)
+    End Sub
+
+    Private Sub ProductCard_MouseEnter(sender As Object, e As EventArgs)
+        Dim card As Panel = FindProductCardPanel(TryCast(sender, Control))
+        If card Is Nothing OrElse Object.ReferenceEquals(card, selectedProductCard) Then
+            Return
+        End If
+
+        card.BackColor = UiTheme.SurfaceVariant
+    End Sub
+
+    Private Sub ProductCard_MouseLeave(sender As Object, e As EventArgs)
+        Dim card As Panel = FindProductCardPanel(TryCast(sender, Control))
+        If card Is Nothing Then
+            Return
+        End If
+
+        Dim productName As String = TryCast(card.Tag, String)
+        Dim isSelected As Boolean = Not String.IsNullOrWhiteSpace(selectedProductName) AndAlso
+            String.Equals(productName, selectedProductName, StringComparison.OrdinalIgnoreCase)
+        ApplyProductCardSelectionStyle(card, isSelected)
     End Sub
 
     Private Sub ProductCard_Click(sender As Object, e As EventArgs)
@@ -1161,6 +1310,8 @@ Public Class SalesForm
 
     Private Sub WireProductCardClickEvents(root As Control)
         AddHandler root.Click, AddressOf ProductCard_Click
+        AddHandler root.MouseEnter, AddressOf ProductCard_MouseEnter
+        AddHandler root.MouseLeave, AddressOf ProductCard_MouseLeave
         For Each child As Control In root.Controls
             WireProductCardClickEvents(child)
         Next
@@ -1209,21 +1360,31 @@ Public Class SalesForm
             .Size = New Size(ProductCardWidth - 16, ProductCardImageHeight),
             .Location = New Point(8, 8),
             .SizeMode = PictureBoxSizeMode.Zoom,
-            .BackColor = Color.White,
+            .BackColor = UiTheme.ColSurface,
             .BorderStyle = BorderStyle.FixedSingle
         }
         Dim cardImage As Image = ProductImageHelper.TryLoadProductImage(entry.ImagePath)
         If cardImage IsNot Nothing Then
             pic.Image = cardImage
             productCardImages.Add(cardImage)
+        Else
+            Dim lblPlaceholder As New Label() With {
+                .Text = "📦",
+                .Dock = DockStyle.Fill,
+                .TextAlign = ContentAlignment.MiddleCenter,
+                .Font = New Font(UiTheme.FontBody.FontFamily, 24.0F, FontStyle.Regular),
+                .ForeColor = UiTheme.ColTextSecondary,
+                .BackColor = UiTheme.SurfaceVariant
+            }
+            pic.Controls.Add(lblPlaceholder)
         End If
 
         Dim lblName As New Label() With {
             .Text = productName,
             .Location = New Point(8, pic.Bottom + 6),
             .Size = New Size(ProductCardWidth - 16, 34),
-            .Font = New Font(UiTheme.FontBody.FontFamily, 9.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColTextPrimary
         }
 
         Dim lblPrice As New Label() With {
@@ -1231,7 +1392,7 @@ Public Class SalesForm
             .Location = New Point(8, lblName.Bottom + 2),
             .AutoSize = True,
             .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.PrimaryAccent
+            .ForeColor = UiTheme.ColPrimary
         }
 
         Dim lblStock As New Label() With {
@@ -2169,7 +2330,7 @@ Public Class SalesForm
 
             Dim hasCatalogProducts As Boolean = productCatalog.Count > 0
             Dim hasVisibleCards As Boolean = productCardHost IsNot Nothing AndAlso productCardHost.Controls.Count > 0
-            btnAdd.Enabled = hasVisibleCards
+            UpdateAddButtonState()
             numQuantity.Enabled = hasVisibleCards
             lblEmptyHint.Visible = Not hasCatalogProducts
             lblNoProductCards.Visible = hasCatalogProducts AndAlso Not hasVisibleCards
@@ -2184,7 +2345,7 @@ Public Class SalesForm
             suppressSalesCategoryEvent = False
             ShowDatabaseError("Error loading products", ex)
             ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(LoadProducts))
-            btnAdd.Enabled = False
+            UpdateAddButtonState()
             numQuantity.Enabled = False
             lblEmptyHint.Visible = True
             lblNoProductCards.Visible = False
@@ -2211,6 +2372,11 @@ Public Class SalesForm
         Dim names As New List(Of String)(productCatalog.Keys)
         names.Sort(StringComparer.OrdinalIgnoreCase)
 
+        Dim searchText As String = String.Empty
+        If txtProductSearch IsNot Nothing Then
+            searchText = txtProductSearch.Text.Trim()
+        End If
+
         For Each productName As String In names
             Dim entry As ProductCatalogEntry = productCatalog(productName)
             If entry.StockQuantity <= 0 Then
@@ -2218,6 +2384,10 @@ Public Class SalesForm
             End If
 
             If Not CategoryFilterMatches(sel, entry.CategoryId) Then
+                Continue For
+            End If
+
+            If searchText.Length > 0 AndAlso productName.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) < 0 Then
                 Continue For
             End If
 
@@ -2342,8 +2512,21 @@ Public Class SalesForm
 
         lblDiscountValue.Text = FormatMoney(GetDiscountAmount())
         lblTaxValue.Text = FormatMoney(GetTaxAmount())
-        lblTotal.Text = FormatMoney(GetGrandTotal())
+        Dim grandTotal As Decimal = GetGrandTotal()
+        lblTotal.Text = FormatMoney(grandTotal)
         lblChangeValue.Text = FormatMoney(GetChangeDue())
+
+        Dim tendered As Decimal
+        If dgvProducts.Rows.Count > 0 AndAlso
+            Decimal.TryParse(txtAmountTendered.Text.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, tendered) AndAlso
+            tendered < grandTotal Then
+            lblChangeValue.ForeColor = UiTheme.ColDanger
+        Else
+            lblChangeValue.ForeColor = UiTheme.ColAccent
+        End If
+
+        UpdateCartEmptyState()
+        UpdateFinalizeButtonState()
     End Sub
 
     Private Sub ReindexRows()
