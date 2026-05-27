@@ -184,13 +184,16 @@ Public Class ReceiptForm
 
         If snapshot IsNot Nothing Then
             FillLineGrid(snapshot)
+            Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+                If(snapshot.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, snapshot.SaleDateTime))
+            receiptText = ReceiptBranding.AlignReceiptDateLine(receiptText, saleWhen)
             ApplyReceiptContent(receiptText, False)
             UpdateSaleMetadataFromSnapshot(snapshot, saleIdForMeta)
             suppressHistoryEvent = False
 
         ElseIf receiptText.Trim().Length > 0 Then
             ApplyReceiptContent(receiptText, False)
-            UpdateSaleMetadataFromText(saleIdForMeta, DateTime.Now, receiptText, Nothing)
+            UpdateSaleMetadataFromText(saleIdForMeta, DateTime.MinValue, receiptText, Nothing)
             suppressHistoryEvent = False
 
         Else
@@ -848,7 +851,31 @@ Public Class ReceiptForm
         Dim sym As String = If(detail.CurrencySymbol, AppSettings.Current.CurrencySymbol)
         Dim cashier As String = If(String.IsNullOrWhiteSpace(detail.CashierName), "—", detail.CashierName.Trim())
         Dim saleLabel As String = If(saleId >= 0, "Sale #" & saleId.ToString(CultureInfo.InvariantCulture), "Current sale")
-        ApplySaleMetadata(saleLabel, DateTime.Now, detail.GrandTotal, sym, cashier)
+        Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+            If(detail.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, detail.SaleDateTime))
+        ApplySaleMetadata(saleLabel, saleWhen, detail.GrandTotal, sym, cashier)
+    End Sub
+
+    Private Shared Function ReadStoredSaleDate(raw As Object) As DateTime
+        If raw Is Nothing OrElse raw Is DBNull.Value Then
+            Return DateTime.MinValue
+        End If
+
+        Return ReceiptBranding.NormalizeStoredSaleDate(Convert.ToDateTime(raw, CultureInfo.InvariantCulture))
+    End Function
+
+    Private Sub ApplyLoadedReceipt(saleId As Integer, storedSaleDate As Object, storedReceiptText As Object, totalAmount As Object)
+        Dim sdt As DateTime = ReadStoredSaleDate(storedSaleDate)
+        Dim total As Decimal = If(totalAmount Is Nothing OrElse totalAmount Is DBNull.Value,
+            0D,
+            Convert.ToDecimal(totalAmount, CultureInfo.InvariantCulture))
+        receiptText = Convert.ToString(storedReceiptText)
+        If sdt <> DateTime.MinValue Then
+            receiptText = ReceiptBranding.AlignReceiptDateLine(receiptText, sdt)
+        End If
+
+        ApplyReceiptContent(receiptText, False)
+        UpdateSaleMetadataFromText(saleId, sdt, receiptText, total)
     End Sub
 
     Private Sub UpdateSaleMetadataFromText(saleId As Integer, saleDate As DateTime, receiptText As String, totalAmount As Decimal?)
@@ -930,7 +957,7 @@ Public Class ReceiptForm
                             Dim receiptSnippet As String = reader("receipt_text").ToString()
                             allHistoryItems.Add(New SaleListItem With {
                                 .SaleId = Convert.ToInt32(reader("sale_id")),
-                                .SaleDate = Convert.ToDateTime(reader("sale_date")),
+                                .SaleDate = ReadStoredSaleDate(reader("sale_date")),
                                 .TotalAmount = Convert.ToDecimal(reader("total_amount")),
                                 .CashierHint = TryParseCashierFromReceipt(receiptSnippet)
                             })
@@ -1111,11 +1138,7 @@ Public Class ReceiptForm
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
                             Dim sid As Integer = Convert.ToInt32(reader("sale_id"))
-                            Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
-                            Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
-                            receiptText = reader("receipt_text").ToString()
-                            ApplyReceiptContent(receiptText, False)
-                            UpdateSaleMetadataFromText(sid, sdt, receiptText, total)
+                            ApplyLoadedReceipt(sid, reader("sale_date"), reader("receipt_text"), reader("total_amount"))
                             LoadSaleLinesIntoGrid(connection, sid)
                         Else
                             dgvLines.Rows.Clear()
@@ -1143,11 +1166,11 @@ Public Class ReceiptForm
                     command.Parameters.AddWithValue("@id", saleId)
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
-                            Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
-                            Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
-                            receiptText = reader("receipt_text").ToString()
-                            ApplyReceiptContent(receiptText, False)
-                            UpdateSaleMetadataFromText(saleId, sdt, receiptText, total)
+                            ApplyLoadedReceipt(
+                                Convert.ToInt32(reader("sale_id")),
+                                reader("sale_date"),
+                                reader("receipt_text"),
+                                reader("total_amount"))
                         Else
                             dgvLines.Rows.Clear()
                             ApplyReceiptContent("Receipt not found for this sale id.", True)

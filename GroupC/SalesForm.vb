@@ -1930,7 +1930,6 @@ Public Class SalesForm
         End If
 
         Dim snapshot As ReceiptSnapshot = BuildReceiptSnapshot()
-        snapshot.SaleDateTime = DateTime.Now
         snapshot.PaymentMethod = "Cash"
         snapshot.ReceiptText = String.Empty
         Dim newSaleId As Integer = -1
@@ -1939,6 +1938,7 @@ Public Class SalesForm
         End If
 
         snapshot.SaleId = newSaleId
+        snapshot.SaleDateTime = ReadSaleDateFromDb(newSaleId)
         snapshot.ReceiptNumber = ReceiptBranding.FormatReceiptNumber(newSaleId)
         snapshot.TransactionReference = ReceiptBranding.FormatTransactionReference(newSaleId, snapshot.SaleDateTime)
         snapshot.ReceiptText = ReceiptBranding.BuildReceiptText(snapshot)
@@ -1991,6 +1991,27 @@ Public Class SalesForm
         Next
 
         Return snap
+    End Function
+
+    Private Shared Function ReadSaleDateFromDb(saleId As Integer) As DateTime
+        Try
+            Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                connection.Open()
+                Using command As New SqlCommand("SELECT sale_date FROM sales WHERE sale_id = @id;", connection)
+                    command.Parameters.AddWithValue("@id", saleId)
+                    Dim raw As Object = command.ExecuteScalar()
+                    If raw Is Nothing OrElse raw Is DBNull.Value Then
+                        Return DateTime.Now
+                    End If
+
+                    Return ReceiptBranding.NormalizeStoredSaleDate(
+                        Convert.ToDateTime(raw, CultureInfo.InvariantCulture))
+                End Using
+            End Using
+        Catch ex As Exception
+            ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(ReadSaleDateFromDb))
+            Return DateTime.Now
+        End Try
     End Function
 
     Private Sub UpdateSaleReceiptText(saleId As Integer, receiptText As String)

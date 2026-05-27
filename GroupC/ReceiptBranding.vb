@@ -142,7 +142,8 @@ Public NotInheritable Class ReceiptBranding
 
         Dim settings As AppSettingsData = AppSettings.Current
         Dim sym As String = If(snapshot.CurrencySymbol, settings.CurrencySymbol)
-        Dim whenPrinted As DateTime = If(snapshot.SaleDateTime = DateTime.MinValue, DateTime.Now, snapshot.SaleDateTime)
+        Dim whenPrinted As DateTime = NormalizeStoredSaleDate(
+            If(snapshot.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, snapshot.SaleDateTime))
         Dim receipt As New StringBuilder()
 
         AppendBlank(receipt)
@@ -166,7 +167,7 @@ Public NotInheritable Class ReceiptBranding
         AppendBlank(receipt)
         AppendSectionRule(receipt, "TRANSACTION DETAILS")
         AppendBlank(receipt)
-        AppendCentered(receipt, "Date & Time: " & whenPrinted.ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture))
+        AppendCentered(receipt, "Date & Time: " & FormatReceiptDateTime(whenPrinted))
 
         If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
             AppendCentered(receipt, "Cashier: " & snapshot.CashierName.Trim())
@@ -403,6 +404,52 @@ Public NotInheritable Class ReceiptBranding
 
             Return DirectCast(cachedLogo.Clone(), Image)
         End SyncLock
+    End Function
+
+    ''' <summary>
+    ''' Converts a sale_date value from SQL Server (UTC via SYSUTCDATETIME) to local display time.
+    ''' </summary>
+    Public Shared Function NormalizeStoredSaleDate(stored As DateTime) As DateTime
+        If stored = DateTime.MinValue Then
+            Return stored
+        End If
+
+        Select Case stored.Kind
+            Case DateTimeKind.Utc
+                Return stored.ToLocalTime()
+            Case DateTimeKind.Local
+                Return stored
+            Case Else
+                Return DateTime.SpecifyKind(stored, DateTimeKind.Utc).ToLocalTime()
+        End Select
+    End Function
+
+    Public Shared Function FormatReceiptDateTime(saleWhen As DateTime) As String
+        Return NormalizeStoredSaleDate(saleWhen).ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture)
+    End Function
+
+    ''' <summary>
+    ''' Replaces the receipt's date/time line so it matches the authoritative sale_date from the database.
+    ''' </summary>
+    Public Shared Function AlignReceiptDateLine(receiptText As String, saleDate As DateTime) As String
+        If String.IsNullOrWhiteSpace(receiptText) OrElse saleDate = DateTime.MinValue Then
+            Return receiptText
+        End If
+
+        Dim normalized As String = receiptText.Replace(vbCrLf, vbLf).Replace(vbCr, vbLf)
+        Dim lines As String() = normalized.Split(ChrW(10))
+        Dim dateLine As String = CenterText("Date & Time: " & FormatReceiptDateTime(saleDate))
+
+        For i As Integer = 0 To lines.Length - 1
+            Dim trimmed As String = lines(i).Trim()
+            If trimmed.StartsWith("Date & Time:", StringComparison.OrdinalIgnoreCase) OrElse
+               trimmed.StartsWith("Date:", StringComparison.OrdinalIgnoreCase) Then
+                lines(i) = dateLine
+                Return String.Join(Environment.NewLine, lines)
+            End If
+        Next
+
+        Return receiptText
     End Function
 
     ''' <summary>
