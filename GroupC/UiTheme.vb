@@ -1,3 +1,4 @@
+Imports System.Collections.Generic
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
 Imports System.Windows.Forms
@@ -15,6 +16,7 @@ Public NotInheritable Class UiTheme
     Public Const PadControl As Integer = 8
     Public Const PadTight As Integer = 4
     Public Const SidebarWidth As Integer = 220
+    Public Const TopBarMinHeight As Integer = 72
 
     ' Legacy spacing aliases (8px grid)
     Public Const SpaceXs As Integer = PadTight
@@ -355,42 +357,161 @@ Public NotInheritable Class UiTheme
         }
     End Function
 
-    ''' <summary>Top bar: 60px, ColSurface, bottom ColBorder border.</summary>
-    Public Shared Function CreateTopBar(pageTitle As String, Optional subtitle As String = Nothing) As Panel
-        Dim bar As New Panel() With {
-            .Height = 60,
+    ''' <summary>
+    ''' Builds the standard workspace sidebar (store name, nav, back button) with cross-screen navigation.
+    ''' </summary>
+    Public Shared Function BuildWorkspaceSidebarShell(
+        activeTarget As WorkspaceNavigation.Target,
+        hostForm As Form,
+        ByRef backButton As Button) As Panel
+
+        Dim sidebar As Panel = BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = ColPrimary,
+            .Padding = Padding.Empty
+        }
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim lblStore As New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = FontSubheading,
+            .ForeColor = ColTextOnDark,
+            .AutoSize = True,
             .Dock = DockStyle.Top,
+            .Padding = New Padding(PadCard),
+            .Margin = New Padding(0, 0, 0, PadControl)
+        }
+
+        Dim navMain As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent
+        }
+
+        Dim navEntries As New List(Of (Target As WorkspaceNavigation.Target, Text As String)) From {
+            (WorkspaceNavigation.Target.Reports, "Reports"),
+            (WorkspaceNavigation.Target.Receipt, "Receipt Preview"),
+            (WorkspaceNavigation.Target.Sales, "Point of Sale"),
+            (WorkspaceNavigation.Target.Cashiers, "Manage Cashiers"),
+            (WorkspaceNavigation.Target.Categories, "Manage Categories"),
+            (WorkspaceNavigation.Target.Products, "Manage Products")
+        }
+
+        For i As Integer = navEntries.Count - 1 To 0 Step -1
+            Dim entry = navEntries(i)
+            If Not WorkspaceNavigation.CanAccess(entry.Target) Then
+                Continue For
+            End If
+
+            Dim navBtn As Button = CreateSidebarNavButton(entry.Text)
+            navBtn.Dock = DockStyle.Top
+
+            If entry.Target = activeTarget Then
+                SetSidebarButtonActive(navBtn, True)
+            Else
+                Dim target As WorkspaceNavigation.Target = entry.Target
+                AddHandler navBtn.Click, Sub(s, ev) WorkspaceNavigation.NavigateFromSidebar(hostForm, target)
+            End If
+
+            navMain.Controls.Add(navBtn)
+        Next
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, PadControl, 0, PadCard)
+        }
+        navBottom.Controls.Add(CreateSidebarSeparator())
+
+        backButton = CreateSidebarNavButton("← Back to Menu")
+        backButton.Dock = DockStyle.Top
+        navBottom.Controls.Add(backButton)
+
+        Dim sidebarTop As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent
+        }
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblStore)
+
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
+
+        Return sidebar
+    End Function
+
+    ''' <summary>Top bar with page title and optional subtitle; grows to fit content.</summary>
+    Public Shared Function CreateTopBar(pageTitle As String, Optional subtitle As String = Nothing) As Panel
+        Dim hasSubtitle As Boolean = Not String.IsNullOrEmpty(subtitle)
+        Dim textRows As Integer = If(hasSubtitle, 2, 1)
+
+        Dim bar As New Panel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .BackColor = ColSurface,
+            .MinimumSize = New Size(0, If(hasSubtitle, TopBarMinHeight, 56)),
             .Padding = New Padding(PadPage, PadControl, PadPage, PadControl)
         }
+
+        Dim stack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = textRows + 1,
+            .Margin = Padding.Empty,
+            .BackColor = Color.Transparent
+        }
+        stack.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        For i As Integer = 0 To textRows - 1
+            stack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Next
+        stack.RowStyles.Add(New RowStyle(SizeType.Absolute, 1))
 
         Dim title As New Label() With {
             .Text = pageTitle,
             .Font = FontDisplay,
             .ForeColor = ColTextPrimary,
             .AutoSize = True,
-            .Location = New Point(PadPage, PadControl)
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty
         }
-        bar.Controls.Add(title)
+        stack.Controls.Add(title, 0, 0)
 
-        If Not String.IsNullOrEmpty(subtitle) Then
+        If hasSubtitle Then
             Dim subLbl As New Label() With {
                 .Text = subtitle,
-                .Font = FontCaption,
+                .Font = FontBodySmall,
                 .ForeColor = ColTextSecondary,
                 .AutoSize = True,
-                .Location = New Point(PadPage, title.Bottom + PadTight)
+                .Dock = DockStyle.Fill,
+                .Margin = New Padding(0, PadTight, 0, 0)
             }
-            bar.Controls.Add(subLbl)
+            stack.Controls.Add(subLbl, 0, 1)
         End If
 
         Dim bottomRule As New Panel() With {
             .Height = 1,
-            .Dock = DockStyle.Bottom,
-            .BackColor = ColBorder
+            .Dock = DockStyle.Fill,
+            .BackColor = ColBorder,
+            .Margin = New Padding(0, PadControl, 0, 0)
         }
-        bar.Controls.Add(bottomRule)
-        bottomRule.SendToBack()
+        stack.Controls.Add(bottomRule, 0, textRows)
+
+        bar.Controls.Add(stack)
         Return bar
     End Function
 
@@ -439,31 +560,56 @@ Public NotInheritable Class UiTheme
 
     ''' <summary>Section header with ColBorder bottom rule.</summary>
     Public Shared Function CreateSectionHeader(text As String) As Panel
-        Dim host As New Panel() With {
+        Dim host As New TableLayoutPanel() With {
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 2,
             .Margin = New Padding(0, 0, 0, PadControl),
-            .BackColor = Color.Transparent
+            .BackColor = Color.Transparent,
+            .Dock = DockStyle.Top
         }
+        host.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        host.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        host.RowStyles.Add(New RowStyle(SizeType.Absolute, 1))
 
         Dim lbl As New Label() With {
             .Text = text,
             .Font = FontSubheading,
             .ForeColor = ColTextSecondary,
             .AutoSize = True,
-            .Dock = DockStyle.Top,
+            .Dock = DockStyle.Fill,
             .Margin = New Padding(0, 0, 0, PadControl)
         }
-        host.Controls.Add(lbl)
+        host.Controls.Add(lbl, 0, 0)
 
         Dim rule As New Panel() With {
             .Height = 1,
-            .Dock = DockStyle.Bottom,
-            .BackColor = ColBorder
+            .Dock = DockStyle.Fill,
+            .BackColor = ColBorder,
+            .Margin = Padding.Empty
         }
-        host.Controls.Add(rule)
+        host.Controls.Add(rule, 0, 1)
         Return host
     End Function
+
+    ''' <summary>Ensures each row in a TableLayoutPanel sizes to its content.</summary>
+    Public Shared Sub ConfigureAutoSizeRows(layout As TableLayoutPanel, rowCount As Integer, Optional percentRowIndex As Integer = -1)
+        If layout Is Nothing OrElse rowCount <= 0 Then
+            Return
+        End If
+
+        layout.RowCount = rowCount
+        layout.RowStyles.Clear()
+
+        For i As Integer = 0 To rowCount - 1
+            If i = percentRowIndex Then
+                layout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+            Else
+                layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            End If
+        Next
+    End Sub
 
     Public Shared Function CreateDivider() As Panel
         Return New Panel() With {

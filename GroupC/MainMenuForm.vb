@@ -398,27 +398,42 @@ Public Class MainMenuForm
         }
 
         Dim topBar As New Panel() With {
-            .Height = 60,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .MinimumSize = New Size(0, UiTheme.TopBarMinHeight),
             .Dock = DockStyle.Top,
             .BackColor = UiTheme.ColSurface,
             .Padding = New Padding(UiTheme.PadPage, UiTheme.PadControl, UiTheme.PadPage, UiTheme.PadControl)
         }
+        Dim topBarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty,
+            .BackColor = Color.Transparent
+        }
+        topBarStack.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.Absolute, 1))
+
         Dim lblPageTitle As New Label() With {
             .Text = "Dashboard",
             .Font = UiTheme.FontDisplay,
             .ForeColor = UiTheme.ColTextPrimary,
             .AutoSize = True,
-            .Location = New Point(UiTheme.PadPage, UiTheme.PadControl)
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty
         }
-        pnlSystemStatus.Location = New Point(UiTheme.PadPage, lblPageTitle.Bottom + UiTheme.PadTight)
-        topBar.Controls.Add(lblPageTitle)
-        topBar.Controls.Add(pnlSystemStatus)
-        Dim topBarRule As New Panel() With {
-            .Height = 1,
-            .Dock = DockStyle.Bottom,
-            .BackColor = UiTheme.ColBorder
-        }
-        topBar.Controls.Add(topBarRule)
+        pnlSystemStatus.Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        pnlSystemStatus.Dock = DockStyle.Fill
+
+        topBarStack.Controls.Add(lblPageTitle, 0, 0)
+        topBarStack.Controls.Add(pnlSystemStatus, 0, 1)
+        topBarStack.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder}, 0, 2)
+        topBar.Controls.Add(topBarStack)
 
         Dim contentArea As New Panel() With {
             .Dock = DockStyle.Fill,
@@ -1148,11 +1163,43 @@ Public Class MainMenuForm
             If Not Me.IsDisposed Then
                 Me.Show()
                 Me.ShowInTaskbar = True
-                If refreshDashboard Then
-                    RefreshHealthAndDashboard()
-                End If
             End If
         End Try
+
+        If Me.IsDisposed Then
+            Return
+        End If
+
+        Dim pending As WorkspaceNavigation.Target = WorkspaceNavigation.TryConsumePending()
+        If pending <> WorkspaceNavigation.Target.None Then
+            OpenWorkspaceTarget(pending)
+            Return
+        End If
+
+        If refreshDashboard Then
+            RefreshHealthAndDashboard()
+        End If
+    End Sub
+
+    Private Sub OpenWorkspaceTarget(target As WorkspaceNavigation.Target)
+        Select Case target
+            Case WorkspaceNavigation.Target.Products
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New ProductsForm())
+            Case WorkspaceNavigation.Target.Categories
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New CategoriesForm())
+            Case WorkspaceNavigation.Target.Cashiers
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New CashierAccountsForm())
+            Case WorkspaceNavigation.Target.Sales
+                ShowWorkspaceDialog(Function() New SalesForm())
+            Case WorkspaceNavigation.Target.Receipt
+                ShowWorkspaceDialog(Function() New ReceiptForm(), refreshDashboard:=False)
+            Case WorkspaceNavigation.Target.Reports
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New ReportsForm(), refreshDashboard:=False)
+        End Select
     End Sub
 
     Private Sub btnProducts_Click(sender As Object, e As EventArgs) Handles btnProducts.Click

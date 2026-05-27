@@ -197,67 +197,7 @@ Public Class ReportsForm
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim sidebar As Panel = UiTheme.BuildSidebar()
-        Dim sidebarStack As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .BackColor = UiTheme.ColPrimary
-        }
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim lblSidebarStore As New Label() With {
-            .Text = AppSettings.Current.StoreName,
-            .Font = UiTheme.FontSubheading,
-            .ForeColor = UiTheme.ColTextOnDark,
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .Padding = New Padding(UiTheme.PadCard),
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
-        }
-
-        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
-        Dim navItems As (Text As String, Active As Boolean)() = {
-            ("Manage Products", False),
-            ("Manage Categories", False),
-            ("Manage Cashiers", False),
-            ("Point of Sale", False),
-            ("Receipt Preview", False),
-            ("Reports", True)
-        }
-        For i As Integer = navItems.Length - 1 To 0 Step -1
-            Dim item = navItems(i)
-            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
-            navBtn.Dock = DockStyle.Top
-            If item.Active Then
-                UiTheme.SetSidebarButtonActive(navBtn, True)
-            Else
-                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
-            End If
-            navMain.Controls.Add(navBtn)
-        Next
-
-        Dim navBottom As New Panel() With {
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .BackColor = Color.Transparent,
-            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
-        }
-        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
-        btnBack = UiTheme.CreateSidebarNavButton("← Back to Menu")
-        btnBack.Dock = DockStyle.Top
-        navBottom.Controls.Add(btnBack)
-
-        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
-        sidebarTop.Controls.Add(navMain)
-        sidebarTop.Controls.Add(lblSidebarStore)
-
-        sidebarStack.Controls.Add(sidebarTop, 0, 0)
-        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
-        sidebarStack.Controls.Add(navBottom, 0, 2)
-        sidebar.Controls.Add(sidebarStack)
+        Dim sidebar As Panel = UiTheme.BuildWorkspaceSidebarShell(WorkspaceNavigation.Target.Reports, Me, btnBack)
 
         Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
         Dim topBar As Panel = UiTheme.CreateTopBar("Reports", AppSession.GetAuditIdentity())

@@ -79,6 +79,7 @@ Public Class SalesForm
     Private lblEmptyHint As Label
     Private lblCartEmpty As Label
     Private WithEvents btnOpenProducts As Button
+    Private WithEvents btnBack As Button
 
     Private WithEvents btnAdd As Button
     Private WithEvents btnRemove As Button
@@ -230,15 +231,6 @@ Public Class SalesForm
             .Cursor = Cursors.Hand
         }
 
-        ' Dynamic Back Button logic directly injected
-        Dim btnBack As New Button() With {
-            .Text = "← Back to Menu",
-            .Height = UiTheme.ButtonHeightMd,
-            .AutoSize = True,
-            .Cursor = Cursors.Hand
-        }
-        AddHandler btnBack.Click, Sub(s, ev) Me.Close()
-
         lblDiscountHeading = CreateCheckoutSummaryCaption("Discount:")
         lblCustomerDiscount = New Label() With {
             .Text = "Discount",
@@ -369,7 +361,6 @@ Public Class SalesForm
             UiTheme.ApplySecondaryButton(btnRemove)
             UiTheme.ApplySecondaryButton(btnClear)
             UiTheme.ApplySecondaryButton(btnOpenProducts)
-            UiTheme.ApplyGhostButton(btnBack)
             UiTheme.ApplyGridStyle(dgvProducts)
         Catch
         End Try
@@ -397,95 +388,11 @@ Public Class SalesForm
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim sidebar As Panel = UiTheme.BuildSidebar()
-        Dim sidebarStack As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .BackColor = UiTheme.ColPrimary
-        }
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim lblSidebarStore As New Label() With {
-            .Text = AppSettings.Current.StoreName,
-            .Font = UiTheme.FontSubheading,
-            .ForeColor = UiTheme.ColTextOnDark,
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .Padding = New Padding(UiTheme.PadCard),
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
-        }
-
-        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
-        Dim navItems As (Text As String, Active As Boolean)() = {
-            ("Manage Products", False),
-            ("Manage Categories", False),
-            ("Manage Cashiers", False),
-            ("Point of Sale", True),
-            ("Receipt Preview", False),
-            ("Reports", False)
-        }
-        For i As Integer = navItems.Length - 1 To 0 Step -1
-            Dim item = navItems(i)
-            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
-            navBtn.Dock = DockStyle.Top
-            If item.Active Then
-                UiTheme.SetSidebarButtonActive(navBtn, True)
-            Else
-                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
-            End If
-            navMain.Controls.Add(navBtn)
-        Next
-
-        Dim navBottom As New Panel() With {
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .BackColor = Color.Transparent,
-            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
-        }
-        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
-        Dim btnBackNav As Button = UiTheme.CreateSidebarNavButton("← Back to Menu")
-        btnBackNav.Dock = DockStyle.Top
-        AddHandler btnBackNav.Click, Sub(s, ev) Me.Close()
-        navBottom.Controls.Add(btnBackNav)
-
-        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
-        sidebarTop.Controls.Add(navMain)
-        sidebarTop.Controls.Add(lblSidebarStore)
-
-        sidebarStack.Controls.Add(sidebarTop, 0, 0)
-        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
-        sidebarStack.Controls.Add(navBottom, 0, 2)
-        sidebar.Controls.Add(sidebarStack)
+        Dim sidebar As Panel = UiTheme.BuildWorkspaceSidebarShell(WorkspaceNavigation.Target.Sales, Me, btnBack)
 
         Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
 
-        Dim topBar As New Panel() With {
-            .Height = 60,
-            .Dock = DockStyle.Top,
-            .BackColor = UiTheme.ColSurface,
-            .Padding = New Padding(UiTheme.PadPage, UiTheme.PadControl, UiTheme.PadPage, UiTheme.PadControl)
-        }
-        Dim lblPageTitle As New Label() With {
-            .Text = "Point of Sale",
-            .Font = UiTheme.FontDisplay,
-            .ForeColor = UiTheme.ColTextPrimary,
-            .AutoSize = True,
-            .Location = New Point(UiTheme.PadPage, UiTheme.PadControl)
-        }
-        Dim subtitleText As String = AppSession.GetReceiptOperatorName()
-        Dim lblPageSubtitle As New Label() With {
-            .Text = subtitleText,
-            .Font = UiTheme.FontCaption,
-            .ForeColor = UiTheme.ColTextSecondary,
-            .AutoSize = True,
-            .Location = New Point(UiTheme.PadPage, lblPageTitle.Bottom + UiTheme.PadTight)
-        }
-        topBar.Controls.Add(lblPageTitle)
-        topBar.Controls.Add(lblPageSubtitle)
-        topBar.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Bottom, .BackColor = UiTheme.ColBorder})
+        Dim topBar As Panel = UiTheme.CreateTopBar("Point of Sale", AppSession.GetReceiptOperatorName())
 
         Dim contentArea As New Panel() With {
             .Dock = DockStyle.Fill,
@@ -578,7 +485,6 @@ Public Class SalesForm
             .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
         utilityRow.Controls.Add(btnOpenProducts)
-        utilityRow.Controls.Add(btnBack)
 
         leftLayout.Controls.Add(productsHeaderHost, 0, 0)
         leftLayout.Controls.Add(filterRow, 0, 1)
@@ -1201,6 +1107,10 @@ Public Class SalesForm
             form.ShowDialog()
         End Using
         LoadProducts()
+    End Sub
+
+    Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
+        Me.Close()
     End Sub
 
     Private Sub ProductCardScrollPanel_Resize(sender As Object, e As EventArgs)
