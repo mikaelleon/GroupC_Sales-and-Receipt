@@ -90,6 +90,8 @@ Public Class ReceiptForm
     Private lblChipDate As Label
     Private lblChipTotal As Label
     Private lblChipCashier As Label
+    Private lblHistoryEmpty As Label
+    Private formToolTips As ToolTip
     Private pnlEmptyPreview As Panel
     Private pnlReceiptScroll As Panel
     Private pnlReceiptPaper As Panel
@@ -534,7 +536,14 @@ Public Class ReceiptForm
         cmbSort.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         leftLayout.Controls.Add(cmbSort, 0, 6)
         leftLayout.Controls.Add(UiTheme.CreateSectionHeader("Receipt history"), 0, 7)
-        leftLayout.Controls.Add(lstHistory, 0, 8)
+
+        lblHistoryEmpty = UiTheme.CreateEmptyStateLabel("No receipts match the current filters.")
+        lblHistoryEmpty.Visible = False
+        Dim historyListHost As New Panel() With {.Dock = DockStyle.Fill}
+        historyListHost.Controls.Add(lstHistory)
+        lblHistoryEmpty.Dock = DockStyle.Fill
+        historyListHost.Controls.Add(lblHistoryEmpty)
+        leftLayout.Controls.Add(historyListHost, 0, 8)
         Dim pnlListActions As New FlowLayoutPanel() With {
             .AutoSize = True,
             .WrapContents = False,
@@ -611,6 +620,34 @@ Public Class ReceiptForm
         AddHandler receiptSplit.SplitterMoved, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
         AddHandler Me.Resize, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
         AddHandler pnlReceiptScroll.Resize, AddressOf LayoutReceiptPaper
+
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnEmail, "Open your email client with this receipt (may fail for very long receipts)")
+        formToolTips.SetToolTip(btnZoomIn, "Zoom in on the receipt preview")
+        formToolTips.SetToolTip(btnZoomOut, "Zoom out on the receipt preview")
+        formToolTips.SetToolTip(btnExportBatch, "Export multiple receipts at once")
+        formToolTips.SetToolTip(btnLoadList, "Reload receipt history from the database")
+
+        UiTheme.AssignTabOrder(
+            txtHistorySearch,
+            cmbDateFilter,
+            dtpFilterFrom,
+            dtpFilterTo,
+            cmbSort,
+            lstHistory,
+            btnLoadList,
+            btnExportBatch,
+            btnPrint,
+            btnPrintPreview,
+            btnSavePdf,
+            btnSave,
+            btnCopy,
+            btnEmail,
+            btnDetails,
+            btnDuplicate,
+            btnZoomOut,
+            btnZoomIn,
+            chkSimulatePage)
 
         Me.ResumeLayout(True)
         ConfigureReceiptSplit(receiptSplit)
@@ -1031,6 +1068,17 @@ Public Class ReceiptForm
         End If
 
         suppressHistoryEvent = False
+        UpdateHistoryEmptyState()
+    End Sub
+
+    Private Sub UpdateHistoryEmptyState()
+        If lstHistory Is Nothing OrElse lblHistoryEmpty Is Nothing Then
+            Return
+        End If
+
+        Dim isEmpty As Boolean = lstHistory.Items.Count = 0
+        lblHistoryEmpty.Visible = isEmpty
+        lstHistory.Visible = Not isEmpty
     End Sub
 
     Private Function GetHistorySearchTerm() As String

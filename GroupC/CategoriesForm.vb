@@ -27,6 +27,8 @@ Public Class CategoriesForm
     Private WithEvents btnBack As Button
 
     Private lblInputError As Label
+    Private lblCategoriesEmpty As Label
+    Private formToolTips As ToolTip
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
@@ -37,7 +39,7 @@ Public Class CategoriesForm
 
     Private Sub CategoriesForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Categories")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 880, 560)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 760, 520)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
@@ -85,6 +87,10 @@ Public Class CategoriesForm
         UiTheme.ApplyWarningButton(btnDeactivate)
         UiTheme.ApplySuccessButton(btnReactivate)
 
+        UiTheme.SetSelectionButtonState(btnUpdate, False, AddressOf UiTheme.ApplyPrimaryButton)
+        UiTheme.SetSelectionButtonState(btnDeactivate, False, AddressOf UiTheme.ApplyWarningButton)
+        UiTheme.SetSelectionButtonState(btnReactivate, False, AddressOf UiTheme.ApplySuccessButton)
+
         btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeight), .Cursor = Cursors.Hand}
         UiTheme.ApplySecondaryButton(btnRefresh)
 
@@ -100,7 +106,9 @@ Public Class CategoriesForm
             .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Both
         }
-        UiTheme.ApplyGridStyle(dgvCategories)
+        UiTheme.ApplyReadOnlyGridTheme(dgvCategories)
+        lblCategoriesEmpty = UiTheme.CreateEmptyStateLabel("No categories match the current filter.")
+        lblCategoriesEmpty.Visible = False
         AddHandler dgvCategories.DataBindingComplete, AddressOf dgvCategories_DataBindingComplete
         AddHandler dgvCategories.Resize, AddressOf dgvCategories_Resize
         AddHandler Me.Shown, AddressOf CategoriesForm_Shown
@@ -200,7 +208,11 @@ Public Class CategoriesForm
             gridCardHost = UiTheme.GetCardContentHost(gridCard)
         Catch
         End Try
-        gridCardHost.Controls.Add(dgvCategories)
+        Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill}
+        gridContainer.Controls.Add(dgvCategories)
+        lblCategoriesEmpty.Dock = DockStyle.Fill
+        gridContainer.Controls.Add(lblCategoriesEmpty)
+        gridCardHost.Controls.Add(gridContainer)
 
         Dim gridPanel As New Panel() With {.Dock = DockStyle.Fill}
         gridPanel.Controls.Add(gridCard)
@@ -333,6 +345,23 @@ Public Class CategoriesForm
         suppressFilterEvents = True
         cmbFilter.SelectedIndex = 0
         suppressFilterEvents = False
+
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnUpdate, "Rename the selected category")
+        formToolTips.SetToolTip(btnDeactivate, "Hide this category from pick lists")
+        formToolTips.SetToolTip(btnReactivate, "Show this category in pick lists again")
+        formToolTips.SetToolTip(btnRefresh, "Reload categories from the database")
+
+        UiTheme.AssignTabOrder(
+            txtCategoryName,
+            btnAdd,
+            btnUpdate,
+            btnDeactivate,
+            btnReactivate,
+            cmbFilter,
+            btnRefresh,
+            dgvCategories,
+            btnBack)
     End Sub
 
     Private Sub ConfigureCategoriesSplit(categoriesSplit As SplitContainer)
@@ -384,10 +413,28 @@ Public Class CategoriesForm
 
         dgvCategories.DataSource = view
         ConfigureCategoryGridColumns()
+        UpdateCategoriesEmptyState()
+    End Sub
+
+    Private Sub UpdateCategoriesEmptyState()
+        If dgvCategories Is Nothing OrElse lblCategoriesEmpty Is Nothing Then
+            Return
+        End If
+
+        Dim isEmpty As Boolean = dgvCategories.Rows.Count = 0
+        lblCategoriesEmpty.Visible = isEmpty
+        dgvCategories.Visible = Not isEmpty
+    End Sub
+
+    Private Sub RefreshCategoryActionButtons(hasSelection As Boolean, isActive As Boolean)
+        UiTheme.SetSelectionButtonState(btnUpdate, hasSelection, AddressOf UiTheme.ApplyPrimaryButton)
+        UiTheme.SetSelectionButtonState(btnDeactivate, hasSelection AndAlso isActive, AddressOf UiTheme.ApplyWarningButton)
+        UiTheme.SetSelectionButtonState(btnReactivate, hasSelection AndAlso Not isActive, AddressOf UiTheme.ApplySuccessButton)
     End Sub
 
     Private Sub dgvCategories_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs)
         ConfigureCategoryGridColumns()
+        UpdateCategoriesEmptyState()
     End Sub
 
     Private Sub CategoriesForm_Shown(sender As Object, e As EventArgs)
@@ -565,9 +612,9 @@ Public Class CategoriesForm
 
     Private Sub dgvCategories_SelectionChanged(sender As Object, e As EventArgs) Handles dgvCategories.SelectionChanged
         ClearInputError()
-        btnReactivate.Enabled = False
 
         If dgvCategories.CurrentRow Is Nothing Then
+            RefreshCategoryActionButtons(False, True)
             Return
         End If
 
@@ -579,9 +626,7 @@ Public Class CategoriesForm
             isActive = Convert.ToBoolean(row.Cells("is_active").Value)
         End If
 
-        btnDeactivate.Enabled = isActive
-        btnUpdate.Enabled = True
-        btnReactivate.Enabled = Not isActive
+        RefreshCategoryActionButtons(True, isActive)
     End Sub
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
@@ -659,12 +704,7 @@ Public Class CategoriesForm
             Return
         End If
 
-        Dim result As DialogResult = MessageBox.Show(
-            "Deactivate this category? Products will keep the link but the category will be hidden from pick lists.",
-            AppBranding.ApplicationName,
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question)
-        If result <> DialogResult.Yes Then
+        If Not UiTheme.ConfirmAction("Deactivate this category? Products will keep the link but the category will be hidden from pick lists.") Then
             Return
         End If
 
@@ -691,6 +731,10 @@ Public Class CategoriesForm
         Dim id As Integer? = GetSelectedCategoryId()
         If Not id.HasValue Then
             ShowInputError("Select an inactive category to reactivate.")
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction("Reactivate this category? It will appear in category pick lists again.") Then
             Return
         End If
 

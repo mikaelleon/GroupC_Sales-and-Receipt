@@ -107,6 +107,7 @@ Public Class SalesForm
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
+    Private formToolTips As ToolTip
 
     Private ReadOnly productCatalog As New Dictionary(Of String, ProductCatalogEntry)(StringComparer.OrdinalIgnoreCase)
     Private suppressSalesCategoryEvent As Boolean
@@ -737,6 +738,32 @@ Public Class SalesForm
         ConfigurePosSplitters(posSplit, rightSplit)
 
         suppressSalesSummary = False
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(txtProductSearch, "Filter products by name")
+        formToolTips.SetToolTip(cmbSalesCategory, "Show products in this category only")
+        formToolTips.SetToolTip(numQuantity, "Quantity to add to the cart")
+        formToolTips.SetToolTip(btnAdd, "Add the selected product to the cart")
+        formToolTips.SetToolTip(btnRemove, "Remove the selected line from the cart")
+        formToolTips.SetToolTip(btnClear, "Clear the entire cart")
+        formToolTips.SetToolTip(btnFinalize, "Save this sale and open the receipt")
+        formToolTips.SetToolTip(txtAmountTendered, "Cash amount received from the customer")
+
+        UiTheme.AssignTabOrder(
+            txtProductSearch,
+            cmbSalesCategory,
+            numQuantity,
+            btnAdd,
+            dgvProducts,
+            btnDiscPwd,
+            btnDiscSenior,
+            btnDiscMembership,
+            btnTaxToggle,
+            numTaxPercent,
+            txtAmountTendered,
+            btnFinalize,
+            btnRemove,
+            btnClear)
+
         Me.ResumeLayout(True)
         UpdateAddButtonState()
         UpdateFinalizeButtonState()
@@ -1384,8 +1411,13 @@ Public Class SalesForm
             .Location = New Point(8, pic.Bottom + 6),
             .Size = New Size(ProductCardWidth - 16, 34),
             .Font = UiTheme.FontBodyBold,
-            .ForeColor = UiTheme.ColTextPrimary
+            .ForeColor = UiTheme.ColTextPrimary,
+            .AutoEllipsis = True
         }
+        If formToolTips IsNot Nothing Then
+            formToolTips.SetToolTip(lblName, productName)
+            formToolTips.SetToolTip(card, productName)
+        End If
 
         Dim lblPrice As New Label() With {
             .Text = sym & entry.UnitPrice.ToString("N2", CultureInfo.CurrentCulture),
@@ -1812,12 +1844,7 @@ Public Class SalesForm
             Return
         End If
 
-        If MessageBox.Show(
-            "Clear the entire cart and reset tendered amount, discount, and tax?",
-            "Confirm clear cart",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Warning,
-            MessageBoxDefaultButton.Button2) <> DialogResult.OK Then
+        If Not UiTheme.ConfirmAction("Clear the entire cart and reset tendered amount, discount, and tax?") Then
             Return
         End If
 
@@ -2002,12 +2029,7 @@ Public Class SalesForm
             Return
         End If
 
-        If MessageBox.Show(
-            "Finalize and save this sale to the database? This cannot be undone from this screen.",
-            "Confirm sale",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Warning,
-            MessageBoxDefaultButton.Button2) <> DialogResult.OK Then
+        If Not UiTheme.ConfirmAction("Finalize and save this sale to the database? This cannot be undone from this screen.") Then
             Return
         End If
 

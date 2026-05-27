@@ -35,11 +35,12 @@ Public Class ReportsForm
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
     Private WithEvents btnBack As Button
+    Private formToolTips As ToolTip
 
     Private Sub ReportsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP
         Me.Text = AppBranding.WindowTitle("Reports")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 860, 580)
         Me.StartPosition = FormStartPosition.CenterParent
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
@@ -272,6 +273,13 @@ Public Class ReportsForm
 
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
+
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnRun, "Generate the sales report for the selected date range")
+        formToolTips.SetToolTip(btnExport, "Export the current report data to CSV")
+        formToolTips.SetToolTip(btnAuditRefresh, "Load audit log entries for the selected date range")
+
+        UiTheme.AssignTabOrder(dtpFrom, dtpTo, btnRun, btnExport, dgvDaily, dtpAuditFrom, dtpAuditTo, btnAuditRefresh, dgvAudit, btnBack)
 
         Me.ResumeLayout(True)
     End Sub

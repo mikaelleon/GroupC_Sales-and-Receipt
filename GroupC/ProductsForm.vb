@@ -64,6 +64,7 @@ Public Class ProductsForm
     Private WithEvents txtSearch As TextBox
     Private WithEvents dgvProducts As DataGridView
     Private lblGridMessage As Label
+    Private formToolTips As ToolTip
 
     Private WithEvents cmbFilter As ComboBox
     Private WithEvents btnReactivate As Button
@@ -106,7 +107,7 @@ Public Class ProductsForm
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Products")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 860, 580)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
@@ -326,7 +327,7 @@ Public Class ProductsForm
             .ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
         }
         Try
-            UiTheme.ApplyGridStyle(dgvProducts)
+            UiTheme.ApplyReadOnlyGridTheme(dgvProducts)
         Catch
         End Try
 
@@ -667,6 +668,30 @@ Public Class ProductsForm
         cmbFilter.SelectedIndex = 0
         suppressProductFilterEvents = False
         RefreshReactivateButtonAppearance()
+
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnUpdate, "Save changes to the selected product")
+        formToolTips.SetToolTip(btnDeactivate, "Hide this product from active lists")
+        formToolTips.SetToolTip(btnReactivate, "Show this product in active lists again")
+        formToolTips.SetToolTip(txtSearch, "Filter the product list by name")
+        formToolTips.SetToolTip(btnRefresh, "Reload products from the database")
+
+        UiTheme.AssignTabOrder(
+            txtProductName,
+            cmbCategory,
+            numPrice,
+            numStock,
+            btnAdd,
+            btnUpdate,
+            btnDeactivate,
+            btnReactivate,
+            txtSearch,
+            cmbGridCategoryFilter,
+            cmbFilter,
+            btnRefresh,
+            dgvProducts,
+            btnBack)
+
         Me.ResumeLayout(True)
         ConfigureProductsSplit(productsSplit)
         inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
@@ -700,42 +725,25 @@ Public Class ProductsForm
     End Sub
 
     Private Sub UpdateReactivateEnabled()
-        btnReactivate.Enabled = False
-        btnDeactivate.Enabled = False
-        If dgvProducts.SelectedRows.Count = 0 Then
-            Return
+        Dim hasSelection As Boolean = dgvProducts IsNot Nothing AndAlso dgvProducts.SelectedRows.Count > 0
+        Dim isActive As Boolean = True
+
+        If hasSelection AndAlso dgvProducts.Columns.Contains("is_active") Then
+            Dim activeVal As Object = dgvProducts.SelectedRows(0).Cells("is_active").Value
+            If activeVal IsNot Nothing AndAlso activeVal IsNot DBNull.Value Then
+                isActive = Convert.ToBoolean(activeVal)
+            End If
+        Else
+            hasSelection = False
         End If
 
-        If Not dgvProducts.Columns.Contains("is_active") Then
-            Return
-        End If
-
-        Dim activeVal As Object = dgvProducts.SelectedRows(0).Cells("is_active").Value
-        If activeVal Is Nothing OrElse activeVal Is DBNull.Value Then
-            Return
-        End If
-
-        Dim isActive As Boolean = Convert.ToBoolean(activeVal)
-        btnDeactivate.Enabled = isActive
-        btnReactivate.Enabled = Not isActive
-        RefreshReactivateButtonAppearance()
+        UiTheme.SetSelectionButtonState(btnUpdate, hasSelection, AddressOf UiTheme.ApplyPrimaryButton)
+        UiTheme.SetSelectionButtonState(btnDeactivate, hasSelection AndAlso isActive, AddressOf UiTheme.ApplyWarningButton)
+        UiTheme.SetSelectionButtonState(btnReactivate, hasSelection AndAlso Not isActive, AddressOf UiTheme.ApplySuccessButton)
     End Sub
 
     Private Sub RefreshReactivateButtonAppearance()
-        If btnReactivate Is Nothing Then
-            Return
-        End If
-
-        If btnReactivate.Enabled Then
-            UiTheme.ApplySuccessButton(btnReactivate)
-        Else
-            btnReactivate.BackColor = UiTheme.SuccessLight
-            btnReactivate.ForeColor = UiTheme.TextSecondary
-            btnReactivate.FlatStyle = FlatStyle.Flat
-            btnReactivate.FlatAppearance.BorderSize = 1
-            btnReactivate.FlatAppearance.BorderColor = UiTheme.CardBorder
-            btnReactivate.Cursor = Cursors.Default
-        End If
+        UpdateReactivateEnabled()
     End Sub
 
     Private Sub dgvProducts_RowPrePaint(sender As Object, e As DataGridViewRowPrePaintEventArgs) Handles dgvProducts.RowPrePaint
@@ -1668,12 +1676,7 @@ Public Class ProductsForm
             Return
         End If
 
-        If MessageBox.Show(
-            "Deactivate this product? It will be hidden from active lists.",
-            "Confirm deactivate",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Warning,
-            MessageBoxDefaultButton.Button2) <> DialogResult.OK Then
+        If Not UiTheme.ConfirmAction("Deactivate this product? It will be hidden from active lists.") Then
             Return
         End If
 
@@ -1711,6 +1714,10 @@ Public Class ProductsForm
 
     Private Sub btnReactivate_Click(sender As Object, e As EventArgs) Handles btnReactivate.Click
         If dgvProducts.SelectedRows.Count = 0 Then
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction("Reactivate this product? It will appear in active catalog lists again.") Then
             Return
         End If
 

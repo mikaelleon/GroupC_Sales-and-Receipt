@@ -396,7 +396,7 @@ Public NotInheritable Class UiTheme
             .Dock = DockStyle.Fill,
             .TextAlign = ContentAlignment.MiddleCenter,
             .ForeColor = ColTextSecondary,
-            .Font = FontBody,
+            .Font = New Font(FontBody.FontFamily, FontBody.Size, FontStyle.Italic),
             .BackColor = ColSurface
         }
     End Function
@@ -1024,6 +1024,56 @@ Public NotInheritable Class UiTheme
                 StyleControlsRecursively(ctrl.Controls)
             End If
         Next
+    End Sub
+
+    ' ========== GLOBAL UX POLISH ==========
+
+    Public Shared Function CreateStandardToolTip() As ToolTip
+        Return New ToolTip() With {
+            .AutoPopDelay = 8000,
+            .InitialDelay = 400,
+            .ReshowDelay = 200,
+            .ShowAlways = True
+        }
+    End Function
+
+    Public Shared Function ConfirmAction(message As String, Optional owner As IWin32Window = Nothing) As Boolean
+        Return MessageBox.Show(
+            owner,
+            message,
+            "Confirm action",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2) = DialogResult.Yes
+    End Function
+
+    Public Shared Sub AssignTabOrder(ParamArray controls() As Control)
+        If controls Is Nothing Then
+            Return
+        End If
+
+        For i As Integer = 0 To controls.Length - 1
+            If controls(i) IsNot Nothing Then
+                controls(i).TabIndex = i
+                controls(i).TabStop = True
+            End If
+        Next
+    End Sub
+
+    Public Shared Sub SetSelectionButtonState(button As Button, enabled As Boolean, enabledStyle As Action(Of Button))
+        If button Is Nothing Then
+            Return
+        End If
+
+        If enabled Then
+            button.Enabled = True
+            If enabledStyle IsNot Nothing Then
+                enabledStyle(button)
+            End If
+            button.Cursor = Cursors.Hand
+        Else
+            ApplyDisabledButton(button)
+        End If
     End Sub
 
     ' ========== PRIVATE SUPPORT TYPES ==========

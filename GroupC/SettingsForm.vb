@@ -182,6 +182,9 @@ Public Class SettingsForm
         Me.Controls.Add(root)
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
+
+        UiTheme.AssignTabOrder(txtStoreName, txtFooter, txtCurrency, btnOk, btnCancel)
+
         Me.ResumeLayout(True)
     End Sub
 

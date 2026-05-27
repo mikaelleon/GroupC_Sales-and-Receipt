@@ -1386,6 +1386,10 @@ Public Class MainMenuForm
     End Sub
 
     Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+        If Not UiTheme.ConfirmAction("Sign out and return to the login screen?") Then
+            Return
+        End If
+
         Try
             AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.GetAuditIdentity())
         Catch

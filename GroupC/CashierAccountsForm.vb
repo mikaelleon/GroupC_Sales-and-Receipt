@@ -65,7 +65,7 @@ Public Class CashierAccountsForm
 
     Private Sub CashierAccountsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Cashiers")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 800, 560)
         Me.BackColor = UiTheme.ColBackground
         Me.Font = UiTheme.StandardUiFont
         Me.AcceptButton = Nothing
@@ -80,7 +80,7 @@ Public Class CashierAccountsForm
         statusClearTimer = New Timer() With {.Interval = StatusClearMs}
         fieldHighlightTimer = New Timer() With {.Interval = 3000}
         highlightRestore = New Dictionary(Of TextBox, Color)()
-        toolTips = New ToolTip() With {.AutoPopDelay = 8000, .InitialDelay = 400, .ReshowDelay = 200, .ShowAlways = True}
+        toolTips = UiTheme.CreateStandardToolTip()
 
         Try
             DatabaseInitializer.EnsureDatabase()
@@ -493,6 +493,22 @@ Public Class CashierAccountsForm
 
         SetNewAccountMode()
         UpdateSelectionUi()
+
+        UiTheme.AssignTabOrder(
+            txtUsername,
+            txtDisplayName,
+            txtPassword,
+            txtConfirmPassword,
+            btnRegister,
+            btnUpdateDisplay,
+            btnResetPassword,
+            btnDeactivate,
+            btnReactivate,
+            cmbFilter,
+            btnRefresh,
+            dgvCashiers,
+            btnBack)
+
         Me.ResumeLayout(True)
         ConfigureCashiersSplit(cashiersSplit)
         SyncLeftPanelLayout()
@@ -1224,12 +1240,7 @@ Public Class CashierAccountsForm
         End If
 
         Dim username As String = If(String.IsNullOrEmpty(selectedUsername), "this cashier", selectedUsername)
-        Dim result As DialogResult = MessageBox.Show(
-            "Deactivate '" & username & "'? They will no longer be able to sign in.",
-            "Confirm deactivation",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Warning)
-        If result <> DialogResult.OK Then
+        If Not UiTheme.ConfirmAction("Deactivate '" & username & "'? They will no longer be able to sign in.") Then
             Return
         End If
 
@@ -1248,6 +1259,10 @@ Public Class CashierAccountsForm
         Dim id As Integer? = GetSelectedCashierId()
         If Not id.HasValue Then
             ShowInputError("Select an inactive cashier to reactivate.")
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction("Reactivate this cashier account? They will be able to sign in again.") Then
             Return
         End If
 

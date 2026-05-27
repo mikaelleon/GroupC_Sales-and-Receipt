@@ -875,3 +875,26 @@ None — all audited features are implemented. Restart the app once so `Database
 
 - `FORMS.md` — detailed structure, appearance, controls, and behavior of every form
 - `RECOMMENDATIONS.md` — possible improvements and recommendations covering features, functionality, and aesthetics
+
+## UI/UX Overhaul Log
+
+A complete design system overhaul was applied to the entire application. All forms now follow a unified design language defined in `UiTheme.vb`.
+
+Changes summary:
+
+- **UiTheme.vb:** Rebuilt with full color palette, typography scale, spacing constants, button variants, card helpers, badge helpers, grid chrome helpers, sidebar builder, and Phase 3 polish helpers (`ConfirmAction`, `CreateStandardToolTip`, `AssignTabOrder`, `SetSelectionButtonState`, italic empty-state labels)
+- **All forms:** Shared sidebar layout shell applied; top bar with page title and subtitle; `ColBackground` content area with `PadPage` padding
+- **LoginForm:** Centered card layout, dynamic role fields, error state, Enter key support, logical tab order
+- **MainMenuForm:** Consistent sidebar, stat cards, grouped sales chart with filters, logout confirmation
+- **SalesForm:** Product search, card grid with placeholders and name tooltips, cart empty state, discount toggle states, FINALIZE SALE guard, clear-cart confirmation, tab order and tooltips
+- **ReceiptForm:** Consolidated action buttons, receipt history empty state, standardized preview, zoom tooltips, email tooltip
+- **ProductsForm:** Full CRUD panel, search + filter, status badges, selection-based disabled buttons, empty grid state, confirmations for deactivate/reactivate
+- **CategoriesForm:** Status badges, context-sensitive disabled buttons, grid empty state, deactivate/reactivate confirmations
+- **CashierAccountsForm:** Conditional Account Actions panel, avatar chip, empty roster state, tooltips, deactivate/reactivate confirmations
+- **ReportsForm:** Tabbed sales/audit layout, empty states on grids, preset filter chips, tooltips and tab order
+- **SettingsForm:** Restyled modal dialog, Save button, stacked field hints, inline validation, tab order
+- **Backup / Restore dialog:** Inline in `MainMenuForm` — structured steps, path customization, consistent buttons
+
+Phase 3 global polish: standardized `Confirm action` Yes/No dialogs for logout, clear cart, finalize sale, deactivate, and reactivate; minimum sizes on workspace forms; tooltips on key controls; logical tab order on data-entry forms; `ApplyDisabledButton` enforcement for selection-dependent actions; italic empty-state labels on grids and lists.
+
+No business logic, SQL queries, database calls, service methods, or protected files (`DatabaseConfig.vb`, `DatabaseInitializer.vb`, `AppSession.vb`, `AppSettings.vb`, audit/error/password/cashier services, `GroupC/scripts/`) were modified.
