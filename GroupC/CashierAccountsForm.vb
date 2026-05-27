@@ -443,14 +443,7 @@ Public Class CashierAccountsForm
         Dim topBar As Panel = UiTheme.CreateTopBar("Manage Cashiers", AppSession.GetAuditIdentity())
         Dim contentArea As Panel = UiTheme.CreateContentArea()
 
-        Dim cashiersSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 320,
-            .Panel2MinSize = 420
-        }
+        Dim cashiersSplit As SplitContainer = UiTheme.CreateVerticalSplit()
 
         Dim editorCard As Panel = UiTheme.CreateCard()
         editorCard.Dock = DockStyle.Fill
@@ -510,20 +503,13 @@ Public Class CashierAccountsForm
             btnBack)
 
         Me.ResumeLayout(True)
-        ConfigureCashiersSplit(cashiersSplit)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureCashiersSplit(cashiersSplit)
         SyncLeftPanelLayout()
         AddHandler pnlLeftBody.Resize, AddressOf SyncLeftPanelLayout
     End Sub
 
     Private Sub ConfigureCashiersSplit(cashiersSplit As SplitContainer)
-        If cashiersSplit Is Nothing OrElse cashiersSplit.Width <= 0 Then
-            Return
-        End If
-
-        Dim target As Integer = Math.Max(cashiersSplit.Panel1MinSize, CInt(cashiersSplit.Width * 0.36R))
-        If target <> cashiersSplit.SplitterDistance Then
-            cashiersSplit.SplitterDistance = target
-        End If
+        UiTheme.ConfigureSplitDistance(cashiersSplit, 0.36R, 260, 300)
     End Sub
 
     Private Sub SyncLeftPanelLayout()

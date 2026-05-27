@@ -489,14 +489,7 @@ Public Class ReceiptForm
         Dim topBar As Panel = UiTheme.CreateTopBar("Receipt Preview", AppSession.GetReceiptOperatorName())
         Dim contentArea As Panel = UiTheme.CreateContentArea()
 
-        Dim receiptSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 300,
-            .Panel2MinSize = 360
-        }
+        Dim receiptSplit As SplitContainer = UiTheme.CreateVerticalSplit()
 
         ' --- LEFT: filters + history ---
         Dim leftCard As Panel = UiTheme.CreateCard()
@@ -650,20 +643,13 @@ Public Class ReceiptForm
             chkSimulatePage)
 
         Me.ResumeLayout(True)
-        ConfigureReceiptSplit(receiptSplit)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
         UpdatePreviewVisibility(True)
         ClearSaleMetadata()
     End Sub
 
     Private Sub ConfigureReceiptSplit(receiptSplit As SplitContainer)
-        If receiptSplit Is Nothing OrElse receiptSplit.Width <= 0 Then
-            Return
-        End If
-
-        Dim target As Integer = Math.Max(receiptSplit.Panel1MinSize, CInt(receiptSplit.Width * 0.32R))
-        If target <> receiptSplit.SplitterDistance Then
-            receiptSplit.SplitterDistance = target
-        End If
+        UiTheme.ConfigureSplitDistance(receiptSplit, 0.32R, 240, 300)
     End Sub
 
     Private Sub BuildSaleChipPanel()

@@ -493,14 +493,7 @@ Public Class SalesForm
             .Padding = New Padding(UiTheme.PadPage)
         }
 
-        Dim posSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 320,
-            .Panel2MinSize = 280
-        }
+        Dim posSplit As SplitContainer = UiTheme.CreateVerticalSplit()
 
         ' --- LEFT: product browser ---
         Dim leftPanel As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
@@ -597,14 +590,7 @@ Public Class SalesForm
         leftPanel.Controls.Add(utilityRow)
 
         ' --- RIGHT: cart + checkout ---
-        Dim rightSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Horizontal,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 120,
-            .Panel2MinSize = 220
-        }
+        Dim rightSplit As SplitContainer = UiTheme.CreateHorizontalSplit()
 
         Dim cartPanel As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
         Dim cartHeader As New FlowLayoutPanel() With {
@@ -735,9 +721,6 @@ Public Class SalesForm
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
 
-        ConfigurePosSplitters(posSplit, rightSplit)
-
-        suppressSalesSummary = False
         formToolTips = UiTheme.CreateStandardToolTip()
         formToolTips.SetToolTip(txtProductSearch, "Filter products by name")
         formToolTips.SetToolTip(cmbSalesCategory, "Show products in this category only")
@@ -764,6 +747,10 @@ Public Class SalesForm
             btnRemove,
             btnClear)
 
+        AddHandler Me.Shown, Sub(s, ev) ConfigurePosSplitters(posSplit, rightSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigurePosSplitters(posSplit, rightSplit)
+
+        suppressSalesSummary = False
         Me.ResumeLayout(True)
         UpdateAddButtonState()
         UpdateFinalizeButtonState()
@@ -771,13 +758,12 @@ Public Class SalesForm
     End Sub
 
     Private Sub ConfigurePosSplitters(horizontalSplit As SplitContainer, verticalSplit As SplitContainer)
-        If horizontalSplit Is Nothing OrElse horizontalSplit.Width <= 0 Then
-            Return
+        If horizontalSplit IsNot Nothing Then
+            UiTheme.ConfigureSplitDistance(horizontalSplit, 0.6R, 280, 260)
         End If
 
-        horizontalSplit.SplitterDistance = CInt(Math.Max(horizontalSplit.Panel1MinSize, horizontalSplit.Width * 0.6R))
-        If verticalSplit IsNot Nothing AndAlso verticalSplit.Height > 0 Then
-            verticalSplit.SplitterDistance = CInt(Math.Max(verticalSplit.Panel1MinSize, verticalSplit.Height * 0.62R))
+        If verticalSplit IsNot Nothing Then
+            UiTheme.ConfigureHorizontalSplitDistance(verticalSplit, 0.62R, 120, 200)
         End If
     End Sub
 

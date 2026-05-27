@@ -177,6 +177,91 @@ Public NotInheritable Class UiTheme
         Next
     End Sub
 
+    ' ========== SPLIT CONTAINER LAYOUT ==========
+
+    ''' <summary>Vertical split (left/right panels). Min sizes are applied later via ConfigureSplitDistance.</summary>
+    Public Shared Function CreateVerticalSplit() As SplitContainer
+        Return New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Vertical,
+            .SplitterWidth = 6,
+            .BackColor = ColBorder
+        }
+    End Function
+
+    ''' <summary>Horizontal split (top/bottom panels). Min sizes are applied later via ConfigureHorizontalSplitDistance.</summary>
+    Public Shared Function CreateHorizontalSplit() As SplitContainer
+        Return New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Horizontal,
+            .SplitterWidth = 6,
+            .BackColor = ColBorder
+        }
+    End Function
+
+    ''' <summary>Clamps panel min sizes and splitter distance for a vertical split once width is known.</summary>
+    Public Shared Sub ConfigureSplitDistance(
+        split As SplitContainer,
+        panel1Ratio As Double,
+        requestedPanel1Min As Integer,
+        requestedPanel2Min As Integer)
+        ApplySplitMetrics(split, split.Width, panel1Ratio, requestedPanel1Min, requestedPanel2Min)
+    End Sub
+
+    ''' <summary>Clamps panel min sizes and splitter distance for a horizontal split once height is known.</summary>
+    Public Shared Sub ConfigureHorizontalSplitDistance(
+        split As SplitContainer,
+        panel1Ratio As Double,
+        requestedPanel1Min As Integer,
+        requestedPanel2Min As Integer)
+        ApplySplitMetrics(split, split.Height, panel1Ratio, requestedPanel1Min, requestedPanel2Min)
+    End Sub
+
+    Private Shared Sub ApplySplitMetrics(
+        split As SplitContainer,
+        axisLength As Integer,
+        panel1Ratio As Double,
+        requestedPanel1Min As Integer,
+        requestedPanel2Min As Integer)
+
+        If split Is Nothing OrElse axisLength <= split.SplitterWidth + 80 Then
+            Return
+        End If
+
+        Dim available As Integer = axisLength - split.SplitterWidth
+        Dim min1 As Integer = Math.Max(80, Math.Min(requestedPanel1Min, available \ 2))
+        Dim min2 As Integer = Math.Max(80, Math.Min(requestedPanel2Min, available - min1))
+
+        If min1 + min2 > available Then
+            min1 = Math.Max(80, available \ 2)
+            min2 = Math.Max(80, available - min1)
+        End If
+
+        Try
+            split.Panel1MinSize = min1
+            split.Panel2MinSize = min2
+        Catch
+            Return
+        End Try
+
+        Dim minDist As Integer = split.Panel1MinSize
+        Dim maxDist As Integer = available - split.Panel2MinSize
+        If maxDist < minDist Then
+            Return
+        End If
+
+        Dim ratio As Double = Math.Max(0.15R, Math.Min(0.85R, panel1Ratio))
+        Dim target As Integer = CInt(Math.Max(minDist, Math.Min(maxDist, available * ratio)))
+        If target = split.SplitterDistance Then
+            Return
+        End If
+
+        Try
+            split.SplitterDistance = target
+        Catch
+        End Try
+    End Sub
+
     ' ========== LAYOUT SHELL HELPERS ==========
 
     ''' <summary>Shared left navigation panel (220px, ColPrimary).</summary>

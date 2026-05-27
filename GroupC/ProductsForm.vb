@@ -608,14 +608,7 @@ Public Class ProductsForm
         Dim topBar As Panel = UiTheme.CreateTopBar("Manage Products", AppSession.GetAuditIdentity())
         Dim contentArea As Panel = UiTheme.CreateContentArea()
 
-        Dim productsSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 340,
-            .Panel2MinSize = 420
-        }
+        Dim productsSplit As SplitContainer = UiTheme.CreateVerticalSplit()
 
         Dim editorCard As Panel = UiTheme.CreateCard()
         editorCard.Dock = DockStyle.Fill
@@ -693,19 +686,12 @@ Public Class ProductsForm
             btnBack)
 
         Me.ResumeLayout(True)
-        ConfigureProductsSplit(productsSplit)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureProductsSplit(productsSplit)
         inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
     End Sub
 
     Private Sub ConfigureProductsSplit(productsSplit As SplitContainer)
-        If productsSplit Is Nothing OrElse productsSplit.Width <= 0 Then
-            Return
-        End If
-
-        Dim target As Integer = Math.Max(productsSplit.Panel1MinSize, CInt(productsSplit.Width * 0.38R))
-        If target <> productsSplit.SplitterDistance Then
-            productsSplit.SplitterDistance = target
-        End If
+        UiTheme.ConfigureSplitDistance(productsSplit, 0.38R, 280, 320)
     End Sub
 
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged

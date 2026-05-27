@@ -297,14 +297,7 @@ Public Class CategoriesForm
         Dim topBar As Panel = UiTheme.CreateTopBar("Manage Categories", AppSession.GetAuditIdentity())
         Dim contentArea As Panel = UiTheme.CreateContentArea()
 
-        Dim categoriesSplit As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6,
-            .BackColor = UiTheme.ColBorder,
-            .Panel1MinSize = 300,
-            .Panel2MinSize = 360
-        }
+        Dim categoriesSplit As SplitContainer = UiTheme.CreateVerticalSplit()
 
         Dim editorCard As Panel = UiTheme.CreateCard()
         editorCard.Dock = DockStyle.Fill
@@ -339,9 +332,6 @@ Public Class CategoriesForm
         AddHandler categoriesSplit.SplitterMoved, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
         AddHandler Me.Resize, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
 
-        Me.ResumeLayout(True)
-        ConfigureCategoriesSplit(categoriesSplit)
-
         suppressFilterEvents = True
         cmbFilter.SelectedIndex = 0
         suppressFilterEvents = False
@@ -362,17 +352,13 @@ Public Class CategoriesForm
             btnRefresh,
             dgvCategories,
             btnBack)
+
+        Me.ResumeLayout(True)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
     End Sub
 
     Private Sub ConfigureCategoriesSplit(categoriesSplit As SplitContainer)
-        If categoriesSplit Is Nothing OrElse categoriesSplit.Width <= 0 Then
-            Return
-        End If
-
-        Dim target As Integer = Math.Max(categoriesSplit.Panel1MinSize, CInt(categoriesSplit.Width * 0.34R))
-        If target <> categoriesSplit.SplitterDistance Then
-            categoriesSplit.SplitterDistance = target
-        End If
+        UiTheme.ConfigureSplitDistance(categoriesSplit, 0.34R, 260, 280)
     End Sub
 
     Private Sub LoadCategories()

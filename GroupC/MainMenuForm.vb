@@ -1126,47 +1126,46 @@ Public Class MainMenuForm
     ' -----------------------------------------------------------
     ' BUTTON CLICK HANDLERS
     ' -----------------------------------------------------------
+
+    Private Sub ShowWorkspaceDialog(factory As Func(Of Form), Optional refreshDashboard As Boolean = True)
+        If Me.IsDisposed Then
+            Return
+        End If
+
+        Me.Hide()
+        Try
+            Using form As Form = factory()
+                form.ShowDialog()
+            End Using
+        Catch ex As Exception
+            ErrorLogger.Log(ex, NameOf(MainMenuForm) & "." & NameOf(ShowWorkspaceDialog))
+            MessageBox.Show(
+                "Could not open this screen." & Environment.NewLine & ex.Message,
+                AppBranding.ApplicationName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error)
+        Finally
+            If Not Me.IsDisposed Then
+                Me.Show()
+                Me.ShowInTaskbar = True
+                If refreshDashboard Then
+                    RefreshHealthAndDashboard()
+                End If
+            End If
+        End Try
+    End Sub
+
     Private Sub btnProducts_Click(sender As Object, e As EventArgs) Handles btnProducts.Click
         If Not AppSession.RequireAdmin(Me) Then Return
-
-        Me.Hide() ' <-- Hides the Main Menu
-
-        Using form As New ProductsForm()
-            form.ShowDialog() ' <-- Opens the Products Form
-        End Using
-
-        Me.Show() ' <-- Instantly brings the Main Menu back when Products closes
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New ProductsForm())
     End Sub
 
     Private Sub btnSales_Click(sender As Object, e As EventArgs) Handles btnSales.Click
-        ' 1. Hide the Main Menu so ONLY the Sales Form is visible
-        Me.Hide()
-
-        ' 2. Open the Sales Form
-        Using form As New SalesForm()
-            form.ShowDialog()
-        End Using
-
-        ' 3. The Sales Form has closed (user clicked "← Back to Menu").
-        ' Show the Main Menu again!
-        Me.Show()
-
-        ' Refresh dashboard stats in case they made a sale
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New SalesForm())
     End Sub
 
     Private Sub btnReceipt_Click(sender As Object, e As EventArgs) Handles btnReceipt.Click
-        Me.Hide()
-
-        Using form As New ReceiptForm()
-            form.ShowDialog()
-        End Using
-
-        ' Safely show the menu only if it hasn't been destroyed
-        If Not Me.IsDisposed Then
-            Me.Show()
-        End If
+        ShowWorkspaceDialog(Function() New ReceiptForm(), refreshDashboard:=False)
     End Sub
 
     Private Sub btnSettings_Click(sender As Object, e As EventArgs) Handles btnSettings.Click
@@ -1180,19 +1179,7 @@ Public Class MainMenuForm
 
     Private Sub btnReports_Click(sender As Object, e As EventArgs) Handles btnReports.Click
         If Not AppSession.RequireAdmin(Me) Then Return
-
-        ' 1. Hide Main Menu
-        Me.Hide()
-
-        ' 2. Open Reports Full Screen
-        Using form As New ReportsForm()
-            form.ShowDialog()
-        End Using
-
-        ' 3. Safely Show Main Menu again when back is clicked
-        If Not Me.IsDisposed Then
-            Me.Show()
-        End If
+        ShowWorkspaceDialog(Function() New ReportsForm(), refreshDashboard:=False)
     End Sub
 
     Private Sub btnBackup_Click(sender As Object, e As EventArgs) Handles btnBackup.Click
@@ -1360,14 +1347,7 @@ Public Class MainMenuForm
             Return
         End If
 
-        Me.Hide()
-
-        Using form As New CategoriesForm()
-            form.ShowDialog()
-        End Using
-
-        Me.Show()
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New CategoriesForm())
     End Sub
 
     Private Sub btnCashierAccounts_Click(sender As Object, e As EventArgs) Handles btnCashierAccounts.Click
@@ -1375,14 +1355,7 @@ Public Class MainMenuForm
             Return
         End If
 
-        Me.Hide()
-
-        Using form As New CashierAccountsForm()
-            form.ShowDialog()
-        End Using
-
-        Me.Show()
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New CashierAccountsForm())
     End Sub
 
     Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
