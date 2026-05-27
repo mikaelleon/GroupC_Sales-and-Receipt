@@ -58,28 +58,35 @@ Public Class CategoriesForm
     Private Sub BuildLayout()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = UiTheme.FormBackground
+        Me.BackColor = UiTheme.ColBackground
 
-        txtCategoryName = New TextBox() With {.MaxLength = MaxCategoryNameLength, .Font = UiTheme.FontBody}
-        UiTheme.ApplyFilledTextInputVisual(txtCategoryName)
+        txtCategoryName = New TextBox() With {
+            .MaxLength = MaxCategoryNameLength,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
+        UiTheme.ApplyInputStyle(txtCategoryName)
 
-        cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 180}
+        cmbFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 180,
+            .Font = UiTheme.FontBody
+        }
         cmbFilter.Items.AddRange(New Object() {"Active categories", "All categories", "Inactive only"})
-        UiTheme.ApplyTableLayoutDropDown(cmbFilter)
+        UiTheme.ApplyInputStyle(cmbFilter)
 
-        btnAdd = New Button() With {.Text = "&Add category", .AutoSize = True, .MinimumSize = New Size(120, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update name", .AutoSize = True, .MinimumSize = New Size(110, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnDeactivate = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeightSm), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .AutoSize = True, .MinimumSize = New Size(140, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {.Text = "&Add category", .AutoSize = True, .MinimumSize = New Size(120, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnUpdate = New Button() With {.Text = "&Update name", .AutoSize = True, .MinimumSize = New Size(110, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnDeactivate = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeight), .Enabled = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = Padding.Empty}
 
         UiTheme.ApplyPrimaryButton(btnAdd)
         UiTheme.ApplyPrimaryButton(btnUpdate)
         UiTheme.ApplyWarningButton(btnDeactivate)
         UiTheme.ApplySuccessButton(btnReactivate)
+
+        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeight), .Cursor = Cursors.Hand}
         UiTheme.ApplySecondaryButton(btnRefresh)
-        UiTheme.ApplySecondaryButton(btnBack)
 
         dgvCategories = New DataGridView() With {
             .Dock = DockStyle.Fill,
@@ -89,120 +96,254 @@ Public Class CategoriesForm
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            .BackgroundColor = UiTheme.ColSurface,
+            .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Both
         }
-        UiTheme.ApplyDataGridViewChrome(dgvCategories)
+        UiTheme.ApplyGridStyle(dgvCategories)
         AddHandler dgvCategories.DataBindingComplete, AddressOf dgvCategories_DataBindingComplete
         AddHandler dgvCategories.Resize, AddressOf dgvCategories_Resize
         AddHandler Me.Shown, AddressOf CategoriesForm_Shown
         AddHandler Me.Resize, AddressOf CategoriesForm_Resize
 
-        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False}
+        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.ColDanger, .Visible = False, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
 
         statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True}
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
         statusStrip.Items.Add(statusLabel)
         UiTheme.ApplyStatusStripTheme(statusStrip)
 
-        Dim root As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 2, .RowCount = 1, .Margin = Padding.Empty}
-        root.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 360.0F))
-        root.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-
-        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.CardSurface, .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)}
-        Dim sideStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4}
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim hdr As New Label() With {
-            .Text = "Book categories",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
+        Dim actionStack As New TableLayoutPanel() With {
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = New Padding(0, UiTheme.PadSection, 0, 0)
         }
-        Dim hint As New Label() With {
-            .Text = "Assign categories to products on the Products screen.",
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.TextSecondary,
-            .AutoSize = True,
-            .MaximumSize = New Size(300, 0),
-            .Margin = New Padding(0, 0, 0, 16)
+        actionStack.Controls.Add(btnAdd, 0, 0)
+        actionStack.Controls.Add(btnUpdate, 0, 1)
+        actionStack.Controls.Add(btnDeactivate, 0, 2)
+        actionStack.Controls.Add(btnReactivate, 0, 3)
+
+        Dim editorLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = Padding.Empty
         }
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        editorLayout.Controls.Add(UiTheme.CreateSectionHeader("Category editor"), 0, 0)
+        editorLayout.Controls.Add(UiTheme.CreateSecondaryLabel("Assign categories to products on the Products screen."), 0, 1)
+        editorLayout.Controls.Add(lblInputError, 0, 2)
 
-        Dim lblName As Label = UiTheme.CreateSecondaryLabel("Category name")
-        txtCategoryName.Margin = New Padding(0, 0, 0, 12)
-        txtCategoryName.Dock = DockStyle.Fill
-
-        Dim actionFlow As New FlowLayoutPanel() With {.AutoSize = True, .FlowDirection = FlowDirection.TopDown, .WrapContents = False}
-        actionFlow.Controls.Add(btnAdd)
-        actionFlow.Controls.Add(btnUpdate)
-        actionFlow.Controls.Add(btnDeactivate)
-        actionFlow.Controls.Add(btnReactivate)
-
-        Dim headerPanel As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1, .RowCount = 3}
-        headerPanel.Controls.Add(hdr, 0, 0)
-        headerPanel.Controls.Add(hint, 0, 1)
-        headerPanel.Controls.Add(lblInputError, 0, 2)
-
-        Dim inputLayout As New TableLayoutPanel() With {
+        Dim inputPanel As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 3,
-            .Margin = New Padding(0, 20, 0, 0)
+            .RowCount = 2,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
-        inputLayout.Controls.Add(lblName, 0, 0)
-        inputLayout.Controls.Add(txtCategoryName, 0, 1)
-        inputLayout.Controls.Add(actionFlow, 0, 2)
+        inputPanel.Controls.Add(UiTheme.CreateSecondaryLabel("Category name"), 0, 0)
+        txtCategoryName.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        inputPanel.Controls.Add(txtCategoryName, 0, 1)
 
-        Dim pnlFooter As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
+        Dim editorBody As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True}
+        Dim editorStack As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Top, .ColumnCount = 1, .RowCount = 2}
+        editorStack.Controls.Add(inputPanel, 0, 0)
+        editorStack.Controls.Add(actionStack, 0, 1)
+        editorBody.Controls.Add(editorStack)
+        editorLayout.Controls.Add(editorBody, 0, 3)
+
+        Dim toolbar As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
             .AutoSize = True,
-            .FlowDirection = FlowDirection.TopDown
+            .ColumnCount = 4,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        btnBack.Margin = New Padding(0, 30, 0, 0)
-        pnlFooter.Controls.Add(btnBack)
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.InputHeight + UiTheme.PadControl))
 
-        sideStack.Controls.Add(headerPanel, 0, 0)
-        sideStack.Controls.Add(inputLayout, 0, 1)
-        sideStack.Controls.Add(pnlFooter, 0, 3)
+        Dim lblShow As Label = UiTheme.CreateSecondaryLabel("Show")
+        lblShow.Margin = New Padding(0, UiTheme.PadTight, UiTheme.PadControl, 0)
+        lblShow.Anchor = AnchorStyles.Left
+        cmbFilter.Dock = DockStyle.Fill
+        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        btnRefresh.Dock = DockStyle.Fill
+        toolbar.Controls.Add(lblShow, 0, 0)
+        toolbar.Controls.Add(cmbFilter, 1, 0)
+        toolbar.Controls.Add(New Panel(), 2, 0)
+        toolbar.Controls.Add(btnRefresh, 3, 0)
 
-        sidebar.Controls.Add(sideStack)
+        Dim gridLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty
+        }
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        gridLayout.Controls.Add(UiTheme.CreateSectionHeader("Categories"), 0, 0)
+        gridLayout.Controls.Add(toolbar, 0, 1)
 
-        Dim gridHost As New Panel() With {.Dock = DockStyle.Fill, .Padding = New Padding(20, 24, 24, 16), .BackColor = UiTheme.FormBackground}
-        Dim gridStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        gridStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        gridStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-
-        Dim toolbar As New FlowLayoutPanel() With {.AutoSize = True, .WrapContents = False, .Margin = New Padding(0, 0, 0, 10)}
-        toolbar.Controls.Add(UiTheme.CreateSecondaryLabel("Show"))
-        toolbar.Controls.Add(cmbFilter)
-        toolbar.Controls.Add(btnRefresh)
-
-        Dim gridCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        Dim gridCard As Panel = UiTheme.CreateCard()
         gridCard.Dock = DockStyle.Fill
-        UiTheme.GetCardContentHost(gridCard).Controls.Add(dgvCategories)
+        Dim gridCardHost As Panel = gridCard
+        Try
+            gridCardHost = UiTheme.GetCardContentHost(gridCard)
+        Catch
+        End Try
+        gridCardHost.Controls.Add(dgvCategories)
 
-        gridStack.Controls.Add(toolbar, 0, 0)
-        gridStack.Controls.Add(gridCard, 0, 1)
-        gridHost.Controls.Add(gridStack)
+        Dim gridPanel As New Panel() With {.Dock = DockStyle.Fill}
+        gridPanel.Controls.Add(gridCard)
+        gridLayout.Controls.Add(gridPanel, 0, 2)
 
-        root.Controls.Add(sidebar, 0, 0)
-        root.Controls.Add(gridHost, 1, 0)
+        ' -----------------------------------------------------------
+        ' SHARED SHELL + CATEGORIES SPLIT LAYOUT
+        ' -----------------------------------------------------------
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim shell As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        shell.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        shell.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        shell.Controls.Add(root, 0, 0)
-        shell.Controls.Add(statusStrip, 0, 1)
+        Dim sidebar As Panel = UiTheme.BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = UiTheme.ColPrimary
+        }
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Me.Controls.Add(shell)
+        Dim lblSidebarStore As New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextOnDark,
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+
+        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        Dim navItems As (Text As String, Active As Boolean)() = {
+            ("Manage Products", False),
+            ("Manage Categories", True),
+            ("Manage Cashiers", False),
+            ("Point of Sale", False),
+            ("Receipt Preview", False),
+            ("Reports", False)
+        }
+        For i As Integer = navItems.Length - 1 To 0 Step -1
+            Dim item = navItems(i)
+            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
+            navBtn.Dock = DockStyle.Top
+            If item.Active Then
+                UiTheme.SetSidebarButtonActive(navBtn, True)
+            Else
+                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
+            End If
+            navMain.Controls.Add(navBtn)
+        Next
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
+        }
+        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
+        btnBack = UiTheme.CreateSidebarNavButton("← Back to Menu")
+        btnBack.Dock = DockStyle.Top
+        navBottom.Controls.Add(btnBack)
+
+        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblSidebarStore)
+
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
+
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Manage Categories", AppSession.GetAuditIdentity())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+
+        Dim categoriesSplit As New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Vertical,
+            .SplitterWidth = 6,
+            .BackColor = UiTheme.ColBorder,
+            .Panel1MinSize = 300,
+            .Panel2MinSize = 360
+        }
+
+        Dim editorCard As Panel = UiTheme.CreateCard()
+        editorCard.Dock = DockStyle.Fill
+        Dim editorCardHost As Panel = editorCard
+        Try
+            editorCardHost = UiTheme.GetCardContentHost(editorCard)
+        Catch
+        End Try
+        editorCardHost.Controls.Add(editorLayout)
+        categoriesSplit.Panel1.Controls.Add(editorCard)
+
+        Dim listCard As Panel = UiTheme.CreateCard()
+        listCard.Dock = DockStyle.Fill
+        Dim listCardHost As Panel = listCard
+        Try
+            listCardHost = UiTheme.GetCardContentHost(listCard)
+        Catch
+        End Try
+        listCardHost.Controls.Add(gridLayout)
+        categoriesSplit.Panel2.Controls.Add(listCard)
+
+        contentArea.Controls.Add(categoriesSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
+
+        AddHandler categoriesSplit.SplitterMoved, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
+
         Me.ResumeLayout(True)
+        ConfigureCategoriesSplit(categoriesSplit)
 
         suppressFilterEvents = True
         cmbFilter.SelectedIndex = 0
         suppressFilterEvents = False
+    End Sub
+
+    Private Sub ConfigureCategoriesSplit(categoriesSplit As SplitContainer)
+        If categoriesSplit Is Nothing OrElse categoriesSplit.Width <= 0 Then
+            Return
+        End If
+
+        Dim target As Integer = Math.Max(categoriesSplit.Panel1MinSize, CInt(categoriesSplit.Width * 0.34R))
+        If target <> categoriesSplit.SplitterDistance Then
+            categoriesSplit.SplitterDistance = target
+        End If
     End Sub
 
     Private Sub LoadCategories()

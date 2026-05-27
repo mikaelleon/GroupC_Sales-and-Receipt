@@ -40,7 +40,6 @@ Public Class ProductsForm
     Private Const MaxSearchLength As Integer = 100
     Private Const MaxStockQuantity As Integer = 999999
     Private Const DefaultStockQuantity As Integer = 100
-    Private Const SidebarWidth As Single = 420.0F
     Private Const SidebarButtonGap As Integer = 8
     Private Const ProductImageHeight As Integer = 180
     Private Const GridFilterComboWidth As Integer = 190
@@ -128,7 +127,7 @@ Public Class ProductsForm
     Private Sub CreateControls()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = UiTheme.FormBackground
+        Me.BackColor = UiTheme.ColBackground
 
         txtProductName = New TextBox() With {
             .Dock = DockStyle.Fill,
@@ -253,13 +252,7 @@ Public Class ProductsForm
         btnPrintCopy = New Button() With {
             .Text = "Print copy",
             .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
-            .Cursor = Cursors.Hand
-        }
-        btnBack = New Button() With {
-            .Text = "← Back to Menu",
-            .AutoSize = True,
-            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
         btnManageCategories = New Button() With {
@@ -298,7 +291,6 @@ Public Class ProductsForm
         ConfigureSidebarButton(btnImportTxt)
         ConfigureSidebarButton(btnPrintCopy)
         ConfigureSidebarButton(btnManageCategories)
-        ConfigureSidebarButton(btnBack)
         ConfigureSidebarSmallButton(btnRefresh)
         ConfigureSidebarSmallButton(btnChooseImage)
         ConfigureSidebarSmallButton(btnRemoveImage)
@@ -314,7 +306,6 @@ Public Class ProductsForm
             UiTheme.ApplySecondaryButton(btnImportPdf)
             UiTheme.ApplySecondaryButton(btnImportTxt)
             UiTheme.ApplySecondaryButton(btnPrintCopy)
-            UiTheme.ApplySecondaryButton(btnBack)
             UiTheme.ApplySecondaryAccentButton(btnManageCategories)
             UiTheme.ApplySecondaryButton(btnChooseImage)
             UiTheme.ApplySecondaryButton(btnRemoveImage)
@@ -329,17 +320,18 @@ Public Class ProductsForm
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
-            .BackgroundColor = Color.White,
+            .BackgroundColor = UiTheme.ColSurface,
             .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Both,
             .ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
         }
         Try
-            UiTheme.ApplyDataGridViewChrome(dgvProducts)
+            UiTheme.ApplyGridStyle(dgvProducts)
         Catch
         End Try
 
-        lblGridMessage = New Label() With {.Dock = DockStyle.Fill, .TextAlign = ContentAlignment.MiddleCenter, .ForeColor = Color.Gray, .Visible = False}
+        lblGridMessage = UiTheme.CreateEmptyStateLabel("No products match the current filters.")
+        lblGridMessage.Visible = False
         lblProductsInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False, .Padding = New Padding(0, 10, 0, 10)}
 
         statusStrip = New StatusStrip()
@@ -350,50 +342,11 @@ Public Class ProductsForm
         Catch
         End Try
 
-        Dim rootTable As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 2,
-            .RowCount = 1,
-            .Margin = New Padding(0),
-            .BackColor = UiTheme.FormBackground
-        }
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, SidebarWidth))
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-
-        Dim leftSidebar As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)
-        }
-
-        Dim leftLayout As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 2
-        }
-        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-
-        Dim headerPanel As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top}
-        Dim lblTitleLeft As New Label() With {
-            .Text = "Product Details",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        }
-        lblProductsInputError.Dock = DockStyle.Top
-
-        headerPanel.Controls.Add(lblProductsInputError)
-        headerPanel.Controls.Add(lblTitleLeft)
-        leftLayout.Controls.Add(headerPanel, 0, 0)
-
         Dim inputLayout As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 15,
-            .Margin = New Padding(0, UiTheme.SpaceLg, 0, UiTheme.SpaceMd),
+            .RowCount = 14,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl),
             .Dock = DockStyle.Top
         }
         inputLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
@@ -411,8 +364,8 @@ Public Class ProductsForm
 
         Dim picHost As New Panel() With {
             .Dock = DockStyle.Top,
-            .Height = 130,
-            .Margin = New Padding(0, 0, 0, 4),
+            .Height = ProductImageHeight,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight),
             .BackColor = UiTheme.SurfaceVariant
         }
         picHost.Controls.Add(picProductImage)
@@ -422,7 +375,7 @@ Public Class ProductsForm
             .AutoSize = True,
             .ColumnCount = 2,
             .RowCount = 1,
-            .Margin = New Padding(0, 4, 0, 16),
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadSection),
             .Dock = DockStyle.Top
         }
         pnlImageActions.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
@@ -432,8 +385,8 @@ Public Class ProductsForm
         btnChooseImage.Dock = DockStyle.Fill
         btnRemoveImage.Dock = DockStyle.Fill
 
-        btnChooseImage.Margin = New Padding(0, 0, 4, 0)
-        btnRemoveImage.Margin = New Padding(4, 0, 0, 0)
+        btnChooseImage.Margin = New Padding(0, 0, UiTheme.PadTight, 0)
+        btnRemoveImage.Margin = New Padding(UiTheme.PadTight, 0, 0, 0)
 
         pnlImageActions.Controls.Add(btnChooseImage, 0, 0)
         pnlImageActions.Controls.Add(btnRemoveImage, 1, 0)
@@ -443,7 +396,7 @@ Public Class ProductsForm
             .AutoSize = True,
             .ColumnCount = 2,
             .RowCount = 3,
-            .Margin = New Padding(0, 4, 0, 0),
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0),
             .Dock = DockStyle.Top
         }
         actionGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
@@ -459,11 +412,11 @@ Public Class ProductsForm
         btnDeactivate.Dock = DockStyle.Fill
         btnReactivate.Dock = DockStyle.Fill
 
-        btnAdd.Margin = New Padding(0, 0, 4, 8)
-        btnUpdate.Margin = New Padding(4, 0, 0, 8)
-        btnDelete.Margin = New Padding(0, 0, 0, 8)
-        btnDeactivate.Margin = New Padding(0, 0, 4, 0)
-        btnReactivate.Margin = New Padding(4, 0, 0, 0)
+        btnAdd.Margin = New Padding(0, 0, UiTheme.PadTight, UiTheme.PadControl)
+        btnUpdate.Margin = New Padding(UiTheme.PadTight, 0, 0, UiTheme.PadControl)
+        btnDelete.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        btnDeactivate.Margin = New Padding(0, 0, UiTheme.PadTight, 0)
+        btnReactivate.Margin = New Padding(UiTheme.PadTight, 0, 0, 0)
 
         actionGrid.Controls.Add(btnAdd, 0, 0)
         actionGrid.Controls.Add(btnUpdate, 1, 0)
@@ -473,20 +426,13 @@ Public Class ProductsForm
         actionGrid.Controls.Add(btnReactivate, 1, 2)
         inputLayout.Controls.Add(actionGrid, 0, 11)
 
-        Dim lblUtilities As New Label() With {
-            .Text = "Utility Tools",
-            .AutoSize = True,
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = UiTheme.FontBodySmall,
-            .Margin = New Padding(0, 24, 0, 4)
-        }
-        inputLayout.Controls.Add(lblUtilities, 0, 12)
+        inputLayout.Controls.Add(UiTheme.CreateSectionHeader("Utility tools"), 0, 12)
 
         Dim pnlUtilities As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 2,
             .RowCount = 3,
-            .Margin = New Padding(0, 0, 0, 48),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
             .Dock = DockStyle.Top
         }
         pnlUtilities.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
@@ -501,11 +447,11 @@ Public Class ProductsForm
         btnImportTxt.Dock = DockStyle.Fill
         btnPrintCopy.Dock = DockStyle.Fill
 
-        btnManageCategories.Margin = New Padding(0, 0, 4, 8)
-        btnImportCsv.Margin = New Padding(4, 0, 0, 8)
-        btnImportPdf.Margin = New Padding(0, 0, 4, 8)
-        btnImportTxt.Margin = New Padding(4, 0, 0, 8)
-        btnPrintCopy.Margin = New Padding(0, 0, 4, 0)
+        btnManageCategories.Margin = New Padding(0, 0, UiTheme.PadTight, UiTheme.PadControl)
+        btnImportCsv.Margin = New Padding(UiTheme.PadTight, 0, 0, UiTheme.PadControl)
+        btnImportPdf.Margin = New Padding(0, 0, UiTheme.PadTight, UiTheme.PadControl)
+        btnImportTxt.Margin = New Padding(UiTheme.PadTight, 0, 0, UiTheme.PadControl)
+        btnPrintCopy.Margin = New Padding(0, 0, UiTheme.PadTight, 0)
 
         pnlUtilities.Controls.Add(btnManageCategories, 0, 0)
         pnlUtilities.Controls.Add(btnImportCsv, 1, 0)
@@ -513,11 +459,6 @@ Public Class ProductsForm
         pnlUtilities.Controls.Add(btnImportTxt, 1, 1)
         pnlUtilities.Controls.Add(btnPrintCopy, 0, 2)
         inputLayout.Controls.Add(pnlUtilities, 0, 13)
-
-        btnBack.Dock = DockStyle.None
-        btnBack.Anchor = AnchorStyles.Left
-        btnBack.Margin = New Padding(0, 32, 0, 0)
-        inputLayout.Controls.Add(btnBack, 0, 14)
 
         Dim sidebarBody As New Panel() With {
             .Dock = DockStyle.Fill,
@@ -530,79 +471,216 @@ Public Class ProductsForm
                 inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
             End Sub
 
-        leftLayout.Controls.Add(sidebarBody, 0, 1)
-        leftSidebar.Controls.Add(leftLayout)
-
-        Dim rightCard As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .Padding = New Padding(30, 30, 30, 20)
-        }
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Title
-        rightCard.RowStyles.Add(New RowStyle(SizeType.AutoSize))       ' Toolbar
-        rightCard.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Grid
-
-        Dim lblTitleRight As New Label() With {
-            .Text = "Inventory Overview",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
-        }
-        rightCard.Controls.Add(lblTitleRight, 0, 0)
-
         Dim toolbar As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 5,
             .RowCount = 1,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 250.0F))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridFilterComboWidth))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, GridStatusFilterWidth))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 22.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 22.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 21.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
 
         txtSearch.Dock = DockStyle.Fill
         cmbGridCategoryFilter.Dock = DockStyle.Fill
         cmbFilter.Dock = DockStyle.Fill
-        btnRefresh.Dock = DockStyle.Right
+        btnRefresh.Dock = DockStyle.Fill
 
-        txtSearch.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
-        cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
-        cmbFilter.Margin = New Padding(0, 0, UiTheme.SpaceSm, 0)
+        txtSearch.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         btnRefresh.Margin = Padding.Empty
 
         toolbar.Controls.Add(txtSearch, 0, 0)
         toolbar.Controls.Add(cmbGridCategoryFilter, 1, 0)
         toolbar.Controls.Add(cmbFilter, 2, 0)
+        toolbar.Controls.Add(New Panel(), 3, 0)
         toolbar.Controls.Add(btnRefresh, 4, 0)
 
-        rightCard.Controls.Add(toolbar, 0, 1)
-
         Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill}
-        Dim gridCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceSm))
+        Dim gridCard As Panel = UiTheme.CreateCard()
         gridCard.Dock = DockStyle.Fill
-        UiTheme.GetCardContentHost(gridCard).Controls.Add(dgvProducts)
+        Dim gridCardHost As Panel = gridCard
+        Try
+            gridCardHost = UiTheme.GetCardContentHost(gridCard)
+        Catch
+        End Try
+        dgvProducts.Dock = DockStyle.Fill
+        gridCardHost.Controls.Add(dgvProducts)
         gridContainer.Controls.Add(gridCard)
+        lblGridMessage.Dock = DockStyle.Fill
         gridContainer.Controls.Add(lblGridMessage)
 
-        rightCard.Controls.Add(gridContainer, 0, 2)
+        Dim inventoryLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty
+        }
+        inventoryLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inventoryLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inventoryLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        inventoryLayout.Controls.Add(UiTheme.CreateSectionHeader("Inventory overview"), 0, 0)
+        inventoryLayout.Controls.Add(toolbar, 0, 1)
+        inventoryLayout.Controls.Add(gridContainer, 0, 2)
 
-        rootTable.Controls.Add(leftSidebar, 0, 0)
-        rootTable.Controls.Add(rightCard, 1, 0)
+        ' -----------------------------------------------------------
+        ' SHARED SHELL + PRODUCTS SPLIT LAYOUT
+        ' -----------------------------------------------------------
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+        Dim sidebar As Panel = UiTheme.BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = UiTheme.ColPrimary
+        }
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim lblSidebarStore As New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextOnDark,
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+
+        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        Dim navItems As (Text As String, Active As Boolean)() = {
+            ("Manage Products", True),
+            ("Manage Categories", False),
+            ("Manage Cashiers", False),
+            ("Point of Sale", False),
+            ("Receipt Preview", False),
+            ("Reports", False)
+        }
+        For i As Integer = navItems.Length - 1 To 0 Step -1
+            Dim item = navItems(i)
+            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
+            navBtn.Dock = DockStyle.Top
+            If item.Active Then
+                UiTheme.SetSidebarButtonActive(navBtn, True)
+            Else
+                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
+            End If
+            navMain.Controls.Add(navBtn)
+        Next
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
+        }
+        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
+        btnBack = UiTheme.CreateSidebarNavButton("← Back to Menu")
+        btnBack.Dock = DockStyle.Top
+        navBottom.Controls.Add(btnBack)
+
+        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblSidebarStore)
+
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
+
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Manage Products", AppSession.GetAuditIdentity())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+
+        Dim productsSplit As New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Vertical,
+            .SplitterWidth = 6,
+            .BackColor = UiTheme.ColBorder,
+            .Panel1MinSize = 340,
+            .Panel2MinSize = 420
+        }
+
+        Dim editorCard As Panel = UiTheme.CreateCard()
+        editorCard.Dock = DockStyle.Fill
+        Dim editorCardHost As Panel = editorCard
+        Try
+            editorCardHost = UiTheme.GetCardContentHost(editorCard)
+        Catch
+        End Try
+
+        Dim editorLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty
+        }
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        editorLayout.Controls.Add(UiTheme.CreateSectionHeader("Product editor"), 0, 0)
+        lblProductsInputError.Dock = DockStyle.Top
+        lblProductsInputError.Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        editorLayout.Controls.Add(lblProductsInputError, 0, 1)
+        editorLayout.Controls.Add(sidebarBody, 0, 2)
+        editorCardHost.Controls.Add(editorLayout)
+        productsSplit.Panel1.Controls.Add(editorCard)
+
+        Dim inventoryCard As Panel = UiTheme.CreateCard()
+        inventoryCard.Dock = DockStyle.Fill
+        Dim inventoryCardHost As Panel = inventoryCard
+        Try
+            inventoryCardHost = UiTheme.GetCardContentHost(inventoryCard)
+        Catch
+        End Try
+        inventoryCardHost.Controls.Add(inventoryLayout)
+        productsSplit.Panel2.Controls.Add(inventoryCard)
+
+        contentArea.Controls.Add(productsSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
 
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
+
+        AddHandler productsSplit.SplitterMoved, Sub(s, ev) ConfigureProductsSplit(productsSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigureProductsSplit(productsSplit)
 
         cmbFilter.SelectedIndex = 0
         suppressProductFilterEvents = False
         RefreshReactivateButtonAppearance()
         Me.ResumeLayout(True)
+        ConfigureProductsSplit(productsSplit)
         inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
+    End Sub
+
+    Private Sub ConfigureProductsSplit(productsSplit As SplitContainer)
+        If productsSplit Is Nothing OrElse productsSplit.Width <= 0 Then
+            Return
+        End If
+
+        Dim target As Integer = Math.Max(productsSplit.Panel1MinSize, CInt(productsSplit.Width * 0.38R))
+        If target <> productsSplit.SplitterDistance Then
+            productsSplit.SplitterDistance = target
+        End If
     End Sub
 
     Private Sub cmbFilter_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbFilter.SelectedIndexChanged
