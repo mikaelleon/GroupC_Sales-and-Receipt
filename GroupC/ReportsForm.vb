@@ -34,11 +34,12 @@ Public Class ReportsForm
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
+    Private WithEvents btnBack As Button
 
     Private Sub ReportsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP
         Me.Text = AppBranding.WindowTitle("Reports")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
         Me.StartPosition = FormStartPosition.CenterParent
 
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
@@ -74,7 +75,7 @@ Public Class ReportsForm
     Private Sub CreateControls()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = UiTheme.FormBackground
+        Me.BackColor = UiTheme.ColBackground
 
         ' -----------------------------------------------------------
         ' 1. INSTANTIATE ALL CONTROLS (The Missing Code!)
@@ -91,7 +92,7 @@ Public Class ReportsForm
         btnRun = New Button() With {
             .Text = "&Run report",
             .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
         lblSummary = New Label() With {
@@ -99,7 +100,7 @@ Public Class ReportsForm
             .AutoSize = False,
             .TextAlign = ContentAlignment.MiddleLeft,
             .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.TextPrimary,
+            .ForeColor = UiTheme.ColTextPrimary,
             .Margin = Padding.Empty
         }
         lblDailyEmpty = UiTheme.CreateEmptyStateLabel("No sales in this date range.")
@@ -114,13 +115,13 @@ Public Class ReportsForm
         btnAuditRefresh = New Button() With {
             .Text = "&Load log",
             .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
         btnExport = New Button() With {
             .Text = "Export &CSV",
             .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
         dgvAudit = CreateReportGrid()
@@ -134,48 +135,18 @@ Public Class ReportsForm
         Try
             UiTheme.ApplyPrimaryButton(btnRun)
             UiTheme.ApplyPrimaryButton(btnAuditRefresh)
-            UiTheme.ApplyDataGridViewChrome(dgvDaily)
-            UiTheme.ApplyDataGridViewChrome(dgvTop)
-            UiTheme.ApplyDataGridViewChrome(dgvAudit)
+            UiTheme.ApplySecondaryButton(btnExport)
+            UiTheme.ApplyGridStyle(dgvDaily)
+            UiTheme.ApplyGridStyle(dgvTop)
+            UiTheme.ApplyGridStyle(dgvAudit)
             UiTheme.ApplyStatusStripTheme(statusStrip)
         Catch
         End Try
 
         ' -----------------------------------------------------------
-        ' 2. BUILD THE RESPONSIVE LAYOUT
+        ' 2. SHARED SHELL + TAB CONTENT
         ' -----------------------------------------------------------
-        ' Top Header & Back Button
-        Dim btnBack As New Button() With {
-            .Text = "← Back to Menu",
-            .AutoSize = True,
-            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
-            .Cursor = Cursors.Hand,
-            .Margin = New Padding(0, 0, UiTheme.SpaceLg, 0)
-        }
-        AddHandler btnBack.Click, Sub(s, ev) Me.Close()
-        Try : UiTheme.ApplySecondaryButton(btnBack) : Catch : End Try
-
-        Dim headerPanel As New TableLayoutPanel() With {
-            .Dock = DockStyle.Top,
-            .Height = 76,
-            .ColumnCount = 2,
-            .RowCount = 1,
-            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.SpaceLg, UiTheme.SpaceXl, UiTheme.SpaceLg),
-            .BackColor = UiTheme.CardSurface
-        }
-        headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        headerPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-
-        Dim lblTitle As Label = UiTheme.CreateHeadingLabel("System Reports & Audit", 2)
-        lblTitle.ForeColor = UiTheme.PrimaryAccent
-        lblTitle.Margin = New Padding(0)
-        lblTitle.Dock = DockStyle.Fill
-        lblTitle.TextAlign = ContentAlignment.MiddleLeft
-        headerPanel.Controls.Add(btnBack, 0, 0)
-        headerPanel.Controls.Add(lblTitle, 1, 0)
-
-        ' Sales Tab Assembly
-        Dim tabSales As New TabPage("Sales & Revenue") With {.BackColor = UiTheme.FormBackground, .Padding = New Padding(24, 16, 24, 16)}
+        Dim tabSales As New TabPage("Sales & Revenue") With {.BackColor = UiTheme.ColBackground, .Padding = New Padding(UiTheme.PadPage, UiTheme.PadSection, UiTheme.PadPage, UiTheme.PadSection)}
         Dim salesLayout As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
         salesLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         salesLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
@@ -200,7 +171,7 @@ Public Class ReportsForm
 
         ' Audit Tab Assembly
         If AppSession.IsAdmin() Then
-            tabAuditPage = New TabPage("System Audit Logs") With {.BackColor = UiTheme.FormBackground, .Padding = New Padding(24, 16, 24, 16)}
+            tabAuditPage = New TabPage("System Audit Logs") With {.BackColor = UiTheme.ColBackground, .Padding = New Padding(UiTheme.PadPage, UiTheme.PadSection, UiTheme.PadPage, UiTheme.PadSection)}
             Dim auditLayout As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
             auditLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
             auditLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
@@ -215,20 +186,98 @@ Public Class ReportsForm
             tabReports.TabPages.Add(tabAuditPage)
         End If
 
-        ' Final App Assembly (fill first, then top header — correct dock stacking)
-        Dim mainContainer As New Panel() With {.Dock = DockStyle.Fill, .Padding = New Padding(0), .BackColor = UiTheme.FormBackground}
-        mainContainer.Controls.Add(tabReports)
-        mainContainer.Controls.Add(headerPanel)
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim shell As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        shell.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        shell.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        shell.Controls.Add(mainContainer, 0, 0)
-        shell.Controls.Add(statusStrip, 0, 1)
+        Dim sidebar As Panel = UiTheme.BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = UiTheme.ColPrimary
+        }
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Me.Controls.Add(shell)
+        Dim lblSidebarStore As New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextOnDark,
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+
+        Dim navMain As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        Dim navItems As (Text As String, Active As Boolean)() = {
+            ("Manage Products", False),
+            ("Manage Categories", False),
+            ("Manage Cashiers", False),
+            ("Point of Sale", False),
+            ("Receipt Preview", False),
+            ("Reports", True)
+        }
+        For i As Integer = navItems.Length - 1 To 0 Step -1
+            Dim item = navItems(i)
+            Dim navBtn As Button = UiTheme.CreateSidebarNavButton(item.Text)
+            navBtn.Dock = DockStyle.Top
+            If item.Active Then
+                UiTheme.SetSidebarButtonActive(navBtn, True)
+            Else
+                AddHandler navBtn.Click, Sub(s, ev) Me.Close()
+            End If
+            navMain.Controls.Add(navBtn)
+        Next
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
+        }
+        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
+        btnBack = UiTheme.CreateSidebarNavButton("← Back to Menu")
+        btnBack.Dock = DockStyle.Top
+        navBottom.Controls.Add(btnBack)
+
+        Dim sidebarTop As New Panel() With {.AutoSize = True, .Dock = DockStyle.Top, .BackColor = Color.Transparent}
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblSidebarStore)
+
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
+
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Reports", AppSession.GetAuditIdentity())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+        contentArea.Padding = New Padding(UiTheme.PadSection)
+        tabReports.Dock = DockStyle.Fill
+        contentArea.Controls.Add(tabReports)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
 
         Me.ResumeLayout(True)
+    End Sub
+
+    Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
+        Me.Close()
     End Sub
 
     Private Sub btnAuditRefresh_Click(sender As Object, e As EventArgs) Handles btnAuditRefresh.Click
@@ -468,7 +517,7 @@ Public Class ReportsForm
             .Dock = DockStyle.Fill,
             .ReadOnly = True,
             .AllowUserToAddRows = False,
-            .BackgroundColor = Color.White,
+            .BackgroundColor = UiTheme.ColSurface,
             .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Both,
             .ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
@@ -486,7 +535,7 @@ Public Class ReportsForm
         dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
         dgv.ColumnHeadersHeight = UiTheme.GridHeaderHeight
         dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False
-        dgv.ColumnHeadersDefaultCellStyle.Font = New Font(UiTheme.FontBody.FontFamily, UiTheme.FontBody.Size, FontStyle.Bold)
+        dgv.ColumnHeadersDefaultCellStyle.Font = UiTheme.FontBodyBold
     End Sub
 
     Private Shared Sub UpdateGridEmptyState(dgv As DataGridView, emptyLabel As Label, isEmpty As Boolean)
@@ -600,9 +649,9 @@ Public Class ReportsForm
     End Sub
 
     Private Function BuildSalesFilterPanel() As Control
-        Dim card As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceMd, UiTheme.SpaceSm, UiTheme.SpaceMd, UiTheme.SpaceSm))
+        Dim card As Panel = UiTheme.CreateCard()
         card.Dock = DockStyle.Top
-        card.Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
+        card.Margin = New Padding(0, 0, 0, UiTheme.PadSection)
 
         Dim layout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
@@ -670,7 +719,7 @@ Public Class ReportsForm
         button.Dock = DockStyle.None
         button.Anchor = AnchorStyles.None
         button.Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
-        button.MinimumSize = New Size(112, UiTheme.ButtonHeightSm)
+        button.MinimumSize = New Size(112, UiTheme.ButtonHeight)
     End Sub
 
     Private Function CreateRangePresetButton(caption As String, daysBack As Integer) As Button
@@ -678,7 +727,7 @@ Public Class ReportsForm
             .Text = caption,
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .MinimumSize = New Size(76, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(76, UiTheme.ButtonHeight),
             .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs),
             .Cursor = Cursors.Hand,
             .Tag = daysBack,
@@ -699,9 +748,9 @@ Public Class ReportsForm
 
         button.FlatStyle = FlatStyle.Flat
         button.FlatAppearance.BorderSize = 1
-        button.FlatAppearance.BorderColor = UiTheme.CardBorder
-        button.BackColor = UiTheme.CardSurface
-        button.ForeColor = UiTheme.TextPrimary
+        button.FlatAppearance.BorderColor = UiTheme.ColBorder
+        button.BackColor = UiTheme.ColSurface
+        button.ForeColor = UiTheme.ColTextPrimary
         button.Cursor = Cursors.Hand
         button.UseCompatibleTextRendering = False
         button.Font = UiTheme.FontBody
@@ -798,15 +847,9 @@ Public Class ReportsForm
         gridHost.Controls.Add(emptyLabel)
         emptyLabel.BringToFront()
 
-        Dim titleLabel As New Label() With {
-            .Text = title,
-            .Dock = DockStyle.Fill,
-            .AutoSize = False,
-            .Font = UiTheme.FontHeading3,
-            .ForeColor = UiTheme.TextPrimary,
-            .TextAlign = ContentAlignment.MiddleLeft,
-            .Margin = Padding.Empty
-        }
+        Dim titleHost As Panel = UiTheme.CreateSectionHeader(title)
+        titleHost.Dock = DockStyle.Fill
+        titleHost.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
 
         Dim cardLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
@@ -814,15 +857,20 @@ Public Class ReportsForm
             .RowCount = 2,
             .Margin = Padding.Empty
         }
-        cardLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
+        cardLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         cardLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        cardLayout.Controls.Add(titleLabel, 0, 0)
+        cardLayout.Controls.Add(titleHost, 0, 0)
         cardLayout.Controls.Add(gridHost, 0, 1)
 
-        Dim card As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceMd))
+        Dim card As Panel = UiTheme.CreateCard()
         card.Dock = DockStyle.Fill
         card.MinimumSize = New Size(0, 180)
-        UiTheme.PopulateCardContent(card, cardLayout)
+        Dim cardHost As Panel = card
+        Try
+            cardHost = UiTheme.GetCardContentHost(card)
+        Catch
+        End Try
+        cardHost.Controls.Add(cardLayout)
         Return card
     End Function
 

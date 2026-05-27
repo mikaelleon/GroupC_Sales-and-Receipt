@@ -12,6 +12,8 @@ Public Class SettingsForm
     Private Const MaxFooterLength As Integer = 500
     Private Const MinCurrencySymbolLength As Integer = 1
     Private Const MaxCurrencySymbolLength As Integer = 6
+    Private Const SettingsDialogWidth As Integer = 580
+    Private Const SettingsDialogHeight As Integer = 520
 
     Private WithEvents txtStoreName As TextBox
     Private WithEvents txtFooter As TextBox
@@ -26,112 +28,201 @@ Public Class SettingsForm
         Me.StartPosition = FormStartPosition.CenterParent
         Me.MinimizeBox = False
         Me.MaximizeBox = False
-        Me.MinimumSize = New Size(520, 400)
-        Me.Size = New Size(560, 440)
+        Me.MinimumSize = New Size(520, 460)
+        Me.Size = New Size(SettingsDialogWidth, SettingsDialogHeight)
+        Me.BackColor = UiTheme.ColBackground
         UiTheme.ApplyStandardWindowChrome(Me)
 
         AppSettings.Reload()
-        Dim s As AppSettingsData = AppSettings.Current
+        BuildLayout()
+    End Sub
 
-        Dim root As New TableLayoutPanel()
-        root.Dock = DockStyle.Fill
-        root.Padding = New Padding(UiTheme.SpaceLg)
-        root.ColumnCount = 1
-        root.RowCount = 1
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+    Private Sub BuildLayout()
+        Me.SuspendLayout()
+        Me.Controls.Clear()
 
-        Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceXl))
-        cardOuter.Dock = DockStyle.Fill
-        Dim cardInner As Panel = UiTheme.GetCardContentHost(cardOuter)
+        Dim settings As AppSettingsData = AppSettings.Current
 
-        Dim fields As New TableLayoutPanel()
-        fields.Dock = DockStyle.Fill
-        fields.ColumnCount = 2
-        fields.RowCount = 5
-        fields.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        fields.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        For r As Integer = 0 To 4
-            fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Next
-
-        Dim lblStore As New Label() With {
-            .Text = "Store name",
-            .AutoSize = True,
-            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
-            .ForeColor = UiTheme.TextSecondary
+        txtStoreName = New TextBox() With {
+            .Text = settings.StoreName,
+            .MaxLength = MaxStoreNameLength,
+            .Dock = DockStyle.Fill
         }
-        txtStoreName = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.StoreName, .MaxLength = MaxStoreNameLength}
-        Dim lblFoot As New Label() With {
-            .Text = "Receipt footer",
-            .AutoSize = True,
-            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
-            .ForeColor = UiTheme.TextSecondary
+        UiTheme.ApplyInputStyle(txtStoreName)
+
+        txtFooter = New TextBox() With {
+            .Text = settings.ReceiptFooter,
+            .MaxLength = MaxFooterLength,
+            .Multiline = True,
+            .ScrollBars = ScrollBars.Vertical,
+            .Height = 72,
+            .Dock = DockStyle.Fill
         }
-        txtFooter = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.ReceiptFooter, .MaxLength = MaxFooterLength}
-        Dim lblCur As New Label() With {
-            .Text = "Currency symbol",
-            .AutoSize = True,
-            .Margin = New Padding(0, UiTheme.SpaceSm, UiTheme.SpaceSm, UiTheme.SpaceSm),
-            .ForeColor = UiTheme.TextSecondary
+        UiTheme.ApplyInputStyle(txtFooter)
+
+        txtCurrency = New TextBox() With {
+            .Text = settings.CurrencySymbol,
+            .MaxLength = MaxCurrencySymbolLength,
+            .Dock = DockStyle.Fill
         }
-        txtCurrency = New TextBox() With {.Dock = DockStyle.Fill, .Text = s.CurrencySymbol, .MaxLength = MaxCurrencySymbolLength}
+        UiTheme.ApplyInputStyle(txtCurrency)
 
         btnOk = New Button() With {
-            .Text = "OK",
+            .Text = "&Save settings",
             .DialogResult = DialogResult.None,
             .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm)
+            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Hand
         }
         btnCancel = New Button() With {
             .Text = "Cancel",
             .DialogResult = DialogResult.Cancel,
             .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm)
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Hand
         }
         UiTheme.ApplyPrimaryButton(btnOk)
         UiTheme.ApplySecondaryButton(btnCancel)
 
-        Dim buttonRow As New FlowLayoutPanel() With {
+        lblSettingsError = New Label() With {
             .AutoSize = True,
-            .FlowDirection = FlowDirection.RightToLeft,
-            .Dock = DockStyle.Fill,
-            .Padding = New Padding(0, UiTheme.SpaceLg, 0, 0)
+            .ForeColor = UiTheme.ColDanger,
+            .Font = UiTheme.FontBodySmall,
+            .Visible = False,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0),
+            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
         }
+
+        Dim buttonRow As FlowLayoutPanel = UiTheme.CreateButtonRow(FlowDirection.RightToLeft)
+        buttonRow.Dock = DockStyle.Fill
         buttonRow.Controls.Add(btnCancel)
         buttonRow.Controls.Add(btnOk)
 
-        fields.Controls.Add(lblStore, 0, 0)
-        fields.Controls.Add(txtStoreName, 1, 0)
-        fields.Controls.Add(lblFoot, 0, 1)
-        fields.Controls.Add(txtFooter, 1, 1)
-        fields.Controls.Add(lblCur, 0, 2)
-        fields.Controls.Add(txtCurrency, 1, 2)
-
-        lblSettingsError = New Label() With {
-            .AutoSize = True,
-            .ForeColor = UiTheme.Danger,
-            .Visible = False,
-            .Margin = New Padding(0, 4, 0, 8),
-            .MaximumSize = New Size(420, 0)
+        Dim fields As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 9,
+            .BackColor = Color.Transparent
         }
-        fields.Controls.Add(lblSettingsError, 0, 3)
-        fields.SetColumnSpan(lblSettingsError, 2)
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        fields.SetColumnSpan(buttonRow, 2)
-        fields.Controls.Add(buttonRow, 0, 4)
+        Dim headerPanel As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
+            .BackColor = Color.Transparent
+        }
 
+        Dim lblTitle As New Label() With {
+            .Text = "Store settings",
+            .Font = UiTheme.FontHeading,
+            .ForeColor = UiTheme.ColPrimary,
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        }
+        Dim lblSubtitle As New Label() With {
+            .Text = "Update branding shown on receipts and across the application.",
+            .Font = UiTheme.FontBodySmall,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .AutoSize = True,
+            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0),
+            .Dock = DockStyle.Top
+        }
+        headerPanel.Controls.Add(lblSubtitle)
+        headerPanel.Controls.Add(lblTitle)
+
+        Dim sectionHeader As Panel = UiTheme.CreateSectionHeader("Receipt branding")
+
+        fields.Controls.Add(headerPanel, 0, 0)
+        fields.Controls.Add(sectionHeader, 0, 1)
+        fields.Controls.Add(CreateFieldBlock(
+            "Store name",
+            txtStoreName,
+            "Displayed on receipts, reports, and the sidebar."), 0, 2)
+        fields.Controls.Add(CreateFieldBlock(
+            "Receipt footer",
+            txtFooter,
+            "Closing message printed at the bottom of each receipt."), 0, 3)
+        fields.Controls.Add(CreateFieldBlock(
+            "Currency symbol",
+            txtCurrency,
+            "Prefix for prices and totals (for example ₱ or $)."), 0, 4)
+        fields.Controls.Add(lblSettingsError, 0, 5)
+        fields.Controls.Add(buttonRow, 0, 6)
+
+        Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.PadCard))
+        cardOuter.Dock = DockStyle.Fill
+        Dim cardInner As Panel = UiTheme.GetCardContentHost(cardOuter)
         If cardInner IsNot Nothing Then
             cardInner.Controls.Add(fields)
         Else
             cardOuter.Controls.Add(fields)
         End If
 
+        Dim root As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(UiTheme.PadPage),
+            .ColumnCount = 1,
+            .RowCount = 1,
+            .BackColor = UiTheme.ColBackground
+        }
+        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         root.Controls.Add(cardOuter, 0, 0)
 
         Me.Controls.Add(root)
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
+        Me.ResumeLayout(True)
     End Sub
+
+    Private Shared Function CreateFieldBlock(caption As String, input As Control, hint As String) As Panel
+        Dim block As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
+            .BackColor = Color.Transparent
+        }
+        block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim lblCaption As New Label() With {
+            .Text = caption,
+            .AutoSize = True,
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        }
+
+        input.Margin = New Padding(0)
+
+        Dim lblHint As New Label() With {
+            .Text = hint,
+            .AutoSize = True,
+            .Font = UiTheme.FontBodySmall,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0),
+            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
+        }
+
+        block.Controls.Add(lblCaption, 0, 0)
+        block.Controls.Add(input, 0, 1)
+        block.Controls.Add(lblHint, 0, 2)
+        Return block
+    End Function
 
     Private Sub ClearSettingsInputError()
         If lblSettingsError Is Nothing Then
