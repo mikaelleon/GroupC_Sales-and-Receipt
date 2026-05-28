@@ -254,17 +254,20 @@ Public Class MainMenuForm
         pnlLowStockAlert = New Panel() With {
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top,
+            .Dock = DockStyle.None,
             .BackColor = UiTheme.ColWarningMuted,
             .Padding = New Padding(UiTheme.PadCard, UiTheme.PadControl, UiTheme.PadCard, UiTheme.PadControl),
-            .Margin = New Padding(0, UiTheme.PadControl, 0, 0),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
             .Visible = False
         }
         Dim lowStockFlow As New FlowLayoutPanel() With {
             .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
             .FlowDirection = FlowDirection.LeftToRight,
             .WrapContents = False,
-            .BackColor = Color.Transparent
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
         }
         Dim lblLowStockCaption As New Label() With {
             .Text = "Low stock alert:",
@@ -466,15 +469,23 @@ Public Class MainMenuForm
         cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 2, 0)
         cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 3, 0)
 
-        Dim statsSection As New Panel() With {
+        Dim statsSection As New TableLayoutPanel() With {
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .Margin = Padding.Empty
         }
-        cardsLayout.Dock = DockStyle.Top
-        pnlLowStockAlert.Dock = DockStyle.Top
-        statsSection.Controls.Add(cardsLayout)
-        statsSection.Controls.Add(pnlLowStockAlert)
+        statsSection.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        statsSection.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        statsSection.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        cardsLayout.Dock = DockStyle.Fill
+        cardsLayout.Margin = New Padding(0, 0, 0, UiTheme.PadSection)
+        pnlLowStockAlert.Dock = DockStyle.Fill
+        statsSection.Controls.Add(pnlLowStockAlert, 0, 0)
+        statsSection.Controls.Add(cardsLayout, 0, 1)
 
         Dim salesCard As Panel = UiTheme.CreateCard(False)
         salesCard.Dock = DockStyle.Fill
