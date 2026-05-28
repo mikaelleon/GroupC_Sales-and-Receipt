@@ -87,6 +87,7 @@ Public NotInheritable Class DatabaseInitializer
             End Using
 
             EnsureSalesExtendedColumns(connection)
+            EnsureSalesVoidColumn(connection)
             EnsureCategoriesAndProductCategory(connection)
             EnsureProductStockQuantity(connection)
             EnsureProductImagePath(connection)
@@ -94,6 +95,75 @@ Public NotInheritable Class DatabaseInitializer
             EnsureCashierAccountsTable(connection)
         End Using
     End Sub
+
+    Private Shared Sub EnsureSalesVoidColumn(connection As SqlConnection)
+        Dim addCol As String =
+            "IF COL_LENGTH('dbo.sales','is_voided') IS NULL " &
+            "ALTER TABLE dbo.sales ADD is_voided BIT NOT NULL CONSTRAINT DF_sales_is_voided DEFAULT (0);"
+
+        Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    ''' <summary>
+    ''' Loads the expanded demo catalog (categories + products) from scripts/03_seed_data.sql logic.
+    ''' Idempotent — skips rows that already exist.
+    ''' </summary>
+    Public Shared Function SeedDemoCatalog() As String
+        EnsureDatabase()
+        Dim categoriesAdded As Integer = 0
+        Dim productsAdded As Integer = 0
+
+        Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+            connection.Open()
+
+            Dim seedCat As String =
+                "INSERT INTO dbo.categories (category_name, is_active) " &
+                "SELECT v.category_name, 1 FROM (VALUES " &
+                "(N'Writing Instruments'), (N'Notebooks & Paper'), (N'Art Supplies'), (N'School Supplies'), " &
+                "(N'Office Supplies'), (N'Books'), (N'Stationery & Cards'), (N'Planners & Organizers'), " &
+                "(N'Tech Accessories'), (N'Bags & Cases')) AS v(category_name) " &
+                "WHERE NOT EXISTS (SELECT 1 FROM dbo.categories c WHERE c.category_name = v.category_name);"
+
+            Using cmd As New SqlCommand(seedCat, connection)
+                categoriesAdded = cmd.ExecuteNonQuery()
+            End Using
+
+            Dim seedProducts As String =
+                "DECLARE @c_writing INT = (SELECT category_id FROM dbo.categories WHERE category_name = N'Writing Instruments'); " &
+                "DECLARE @c_notebooks INT = (SELECT category_id FROM dbo.categories WHERE category_name = N'Notebooks & Paper'); " &
+                "DECLARE @c_stationery INT = (SELECT category_id FROM dbo.categories WHERE category_name = N'Stationery & Cards'); " &
+                "DECLARE @c_books INT = (SELECT category_id FROM dbo.categories WHERE category_name = N'Books'); " &
+                "IF @c_writing IS NULL SET @c_writing = (SELECT TOP 1 category_id FROM dbo.categories ORDER BY category_id); " &
+                "IF @c_notebooks IS NULL SET @c_notebooks = @c_writing; " &
+                "IF @c_stationery IS NULL SET @c_stationery = @c_writing; " &
+                "IF @c_books IS NULL SET @c_books = @c_writing; " &
+                "INSERT INTO dbo.products (product_name, price, category_id, stock_quantity, is_active) " &
+                "SELECT v.product_name, v.price, v.category_id, v.stock_qty, 1 FROM (VALUES " &
+                "(N'BIC Round Stic Ballpen (Medium)', 15.00, @c_writing, 200), " &
+                "(N'Pilot G-2 Gel Pen', 75.00, @c_writing, 150), " &
+                "(N'Classmate Spiral Notebook 80L', 75.00, @c_notebooks, 120), " &
+                "(N'Navigator A4 Bond Paper (ream)', 350.00, @c_notebooks, 40), " &
+                "(N'Greeting Card Assorted', 45.00, @c_stationery, 80), " &
+                "(N'The Great Gatsby (Pocket)', 299.00, @c_books, 60), " &
+                "(N'Introduction to Programming', 650.00, @c_books, 35), " &
+                "(N'Bookmark Set (3-pack)', 25.00, @c_stationery, 100)) AS v(product_name, price, category_id, stock_qty) " &
+                "WHERE NOT EXISTS (SELECT 1 FROM dbo.products p WHERE p.product_name = v.product_name);"
+
+            Using cmd As New SqlCommand(seedProducts, connection)
+                productsAdded = cmd.ExecuteNonQuery()
+            End Using
+        End Using
+
+        Return String.Format(
+            Globalization.CultureInfo.CurrentCulture,
+            "Demo catalog loaded. {0} new categor{1}, {2} new product{3}.",
+            categoriesAdded,
+            If(categoriesAdded = 1, "y", "ies"),
+            productsAdded,
+            If(productsAdded = 1, "", "s"))
+    End Function
 
     Private Shared Sub EnsureSalesExtendedColumns(connection As SqlConnection)
         Dim alters As String() = {

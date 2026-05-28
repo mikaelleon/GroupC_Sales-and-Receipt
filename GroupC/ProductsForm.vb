@@ -1571,6 +1571,27 @@ Public Class ProductsForm
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
+                Dim usageCount As Integer
+                Using checkCmd As New SqlCommand(
+                    "SELECT COUNT(*) FROM sale_items WHERE product_name = @name;",
+                    connection)
+                    checkCmd.Parameters.AddWithValue("@name", productName)
+                    usageCount = Convert.ToInt32(checkCmd.ExecuteScalar())
+                End Using
+
+                If usageCount > 0 Then
+                    MessageBox.Show(
+                        String.Format(
+                            CultureInfo.CurrentCulture,
+                            """{0}"" appears on {1} sale line(s). Deactivate the product instead of deleting it to keep transaction history intact.",
+                            productName,
+                            usageCount),
+                        "Cannot delete product",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
                 Dim query As String = "DELETE FROM products WHERE id = @id;"
 
                 Using command As New SqlCommand(query, connection)

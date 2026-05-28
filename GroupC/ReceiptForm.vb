@@ -17,6 +17,7 @@ Public Class ReceiptForm
     Private Const MinPreviewZoom As Single = 0.75F
     Private Const MaxPreviewZoom As Single = 1.5F
     Private Const PreviewZoomStep As Single = 0.1F
+    Private Const HistoryPageSize As Integer = 500
 
     Private Enum HistoryDateFilter
         All = 0
@@ -38,6 +39,7 @@ Public Class ReceiptForm
         Public SaleDate As DateTime
         Public TotalAmount As Decimal
         Public CashierHint As String
+        Public IsVoided As Boolean
 
         Public Function MatchesSearch(term As String) As Boolean
             If String.IsNullOrWhiteSpace(term) Then
@@ -69,9 +71,11 @@ Public Class ReceiptForm
             End If
 
             Dim sym As String = AppSettings.Current.CurrencySymbol
+            Dim voidPrefix As String = If(IsVoided, "[VOID] ", String.Empty)
             Return String.Format(
                 CultureInfo.CurrentCulture,
-                "#{0}  {1:MMM d, h:mm tt}  {2}{3:N2}",
+                "{0}#{1}  {2:MMM d, h:mm tt}  {3}{4:N2}",
+                voidPrefix,
                 SaleId,
                 SaleDate,
                 sym,
@@ -106,6 +110,8 @@ Public Class ReceiptForm
     Private WithEvents btnDuplicate As Button
     Private WithEvents btnExportBatch As Button
     Private WithEvents btnPrintPreview As Button
+    Private WithEvents btnLoadMore As Button
+    Private WithEvents btnVoid As Button
     Private WithEvents btnBack As Button
     Private WithEvents btnZoomIn As Button
     Private WithEvents btnZoomOut As Button
@@ -128,6 +134,9 @@ Public Class ReceiptForm
     Private snapshot As ReceiptSnapshot
     Private saleIdForMeta As Integer = -1
     Private currentSaleId As Integer = -1
+    Private currentSaleVoided As Boolean = False
+    Private historySkip As Integer = 0
+    Private historyHasMore As Boolean = False
     Private printHelper As ReceiptPrintHelper
     Private suppressHistoryEvent As Boolean
     Private previewZoomScale As Single = 1.0F
@@ -306,6 +315,13 @@ Public Class ReceiptForm
             .MinimumSize = New Size(100, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
+        btnLoadMore = New Button() With {
+            .Text = "Load more",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Hand,
+            .Enabled = False
+        }
         btnExportBatch = New Button() With {
             .Text = "Export batch",
             .AutoSize = True,
@@ -313,7 +329,12 @@ Public Class ReceiptForm
             .Cursor = Cursors.Hand
         }
         UiTheme.ApplySecondaryButton(btnLoadList)
+        UiTheme.ApplySecondaryButton(btnLoadMore)
         UiTheme.ApplySecondaryAccentButton(btnExportBatch)
+
+        btnVoid = CreateToolbarButton("Void sale", False)
+        UiTheme.ApplyDangerButton(btnVoid)
+        btnVoid.Visible = AppSession.IsAdmin()
 
         btnPrint = CreateToolbarButton("Print", True)
         btnPrintPreview = CreateToolbarButton("Print preview", False)
@@ -394,7 +415,7 @@ Public Class ReceiptForm
             .Padding = New Padding(0, 0, 0, UiTheme.PadTight)
         }
         pnlActionToolbar.Controls.AddRange(New Control() {
-            btnPrint, btnPrintPreview, btnReprint, btnSavePdf, btnSave, btnCopy, btnEmail, btnDetails, btnDuplicate
+            btnPrint, btnPrintPreview, btnReprint, btnSavePdf, btnSave, btnCopy, btnEmail, btnDetails, btnDuplicate, btnVoid
         })
 
         BuildEmptyPreviewPanel()
@@ -486,7 +507,7 @@ Public Class ReceiptForm
             .Dock = DockStyle.Top,
             .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
-        pnlListActions.Controls.AddRange(New Control() {btnLoadList, btnExportBatch})
+        pnlListActions.Controls.AddRange(New Control() {btnLoadList, btnLoadMore, btnExportBatch})
         leftLayout.Controls.Add(pnlListActions, 0, 9)
         pnlSaleChip.Dock = DockStyle.Top
         pnlSaleChip.Margin = New Padding(0, UiTheme.PadControl, 0, 0)
@@ -938,20 +959,29 @@ Public Class ReceiptForm
         Return rtbReceipt.Text
     End Function
 
-    Private Sub LoadHistoryCombo()
-        allHistoryItems.Clear()
-        allHistoryItems.Add(New SaleListItem With {.SaleId = -1, .SaleDate = DateTime.MinValue, .TotalAmount = 0D})
+    Private Sub LoadHistoryCombo(Optional reset As Boolean = True)
+        If reset Then
+            allHistoryItems.Clear()
+            allHistoryItems.Add(New SaleListItem With {.SaleId = -1, .SaleDate = DateTime.MinValue, .TotalAmount = 0D})
+            historySkip = 0
+            historyHasMore = False
+        End If
+
+        Dim loadedThisPage As Integer = 0
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT TOP 500 sale_id, sale_date, total_amount, receipt_text FROM sales " &
-                    "WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
-                    "ORDER BY sale_date DESC, sale_id DESC;"
+                    "SELECT sale_id, sale_date, total_amount, receipt_text, ISNULL(is_voided, 0) AS is_voided " &
+                    "FROM sales WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
+                    "ORDER BY sale_date DESC, sale_id DESC " &
+                    "OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;"
 
                 Using command As New SqlCommand(query, connection)
+                    command.Parameters.AddWithValue("@skip", historySkip)
+                    command.Parameters.AddWithValue("@take", HistoryPageSize)
                     Using reader As SqlDataReader = command.ExecuteReader()
                         While reader.Read()
                             Dim receiptSnippet As String = reader("receipt_text").ToString()
@@ -959,8 +989,10 @@ Public Class ReceiptForm
                                 .SaleId = Convert.ToInt32(reader("sale_id")),
                                 .SaleDate = ReadStoredSaleDate(reader("sale_date")),
                                 .TotalAmount = Convert.ToDecimal(reader("total_amount")),
-                                .CashierHint = TryParseCashierFromReceipt(receiptSnippet)
+                                .CashierHint = TryParseCashierFromReceipt(receiptSnippet),
+                                .IsVoided = Convert.ToBoolean(reader("is_voided"))
                             })
+                            loadedThisPage += 1
                         End While
                     End Using
                 End Using
@@ -968,7 +1000,28 @@ Public Class ReceiptForm
         Catch
         End Try
 
+        historySkip += loadedThisPage
+        historyHasMore = loadedThisPage >= HistoryPageSize
+        UpdateLoadMoreButton()
         ApplyHistoryFilters()
+    End Sub
+
+    Private Sub UpdateLoadMoreButton()
+        If btnLoadMore Is Nothing Then
+            Return
+        End If
+
+        btnLoadMore.Enabled = historyHasMore
+        btnLoadMore.Text = If(historyHasMore, "Load more", "All loaded")
+    End Sub
+
+    Private Sub UpdateVoidButtonState()
+        If btnVoid Is Nothing Then
+            Return
+        End If
+
+        btnVoid.Visible = AppSession.IsAdmin()
+        btnVoid.Enabled = AppSession.IsAdmin() AndAlso currentSaleId > 0 AndAlso Not currentSaleVoided
     End Sub
 
     Private Sub ApplyHistoryFilters()
@@ -1075,7 +1128,7 @@ Public Class ReceiptForm
 
     Private Sub btnLoadList_Click(sender As Object, e As EventArgs) Handles btnLoadList.Click
         suppressHistoryEvent = True
-        LoadHistoryCombo()
+        LoadHistoryCombo(reset:=True)
         If lstHistory.Items.Count > 0 Then
             lstHistory.SelectedIndex = 0
             cmbHistory.SelectedIndex = 0
@@ -1084,6 +1137,109 @@ Public Class ReceiptForm
         suppressHistoryEvent = False
         ProcessHistorySelection()
         ShowStatus("Sales list refreshed.", False)
+    End Sub
+
+    Private Sub btnLoadMore_Click(sender As Object, e As EventArgs) Handles btnLoadMore.Click
+        LoadHistoryCombo(reset:=False)
+        ShowStatus("Loaded more receipts.", False)
+    End Sub
+
+    Private Sub btnVoid_Click(sender As Object, e As EventArgs) Handles btnVoid.Click
+        If Not AppSession.IsAdmin() Then
+            Return
+        End If
+
+        If currentSaleId <= 0 Then
+            MessageBox.Show("Select a saved sale to void.", "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        If currentSaleVoided Then
+            MessageBox.Show("This sale is already voided.", "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction(
+            "Void sale #" & currentSaleId.ToString(CultureInfo.InvariantCulture) &
+            "? Stock will be restored and the sale excluded from revenue reports.") Then
+            Return
+        End If
+
+        Try
+            VoidSale(currentSaleId)
+            LoadHistoryCombo(reset:=True)
+            LoadReceiptBySaleId(currentSaleId)
+            ShowStatus("Sale voided. Stock restored.", False)
+        Catch ex As Exception
+            MessageBox.Show("Could not void sale: " & ex.Message, "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(btnVoid_Click))
+        End Try
+    End Sub
+
+    Private Sub VoidSale(saleId As Integer)
+        Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+            connection.Open()
+
+            Using transaction As SqlTransaction = connection.BeginTransaction()
+                Dim alreadyVoided As Boolean
+                Using checkCmd As New SqlCommand("SELECT ISNULL(is_voided, 0) FROM sales WHERE sale_id = @id;", connection, transaction)
+                    checkCmd.Parameters.AddWithValue("@id", saleId)
+                    Dim result As Object = checkCmd.ExecuteScalar()
+                    If result Is Nothing OrElse result Is DBNull.Value Then
+                        Throw New InvalidOperationException("Sale not found.")
+                    End If
+
+                    alreadyVoided = Convert.ToBoolean(result)
+                End Using
+
+                If alreadyVoided Then
+                    Throw New InvalidOperationException("Sale is already voided.")
+                End If
+
+                Dim items As New List(Of (Name As String, Qty As Integer))()
+                Using itemsCmd As New SqlCommand(
+                    "SELECT product_name, quantity FROM sale_items WHERE sale_id = @id;",
+                    connection,
+                    transaction)
+                    itemsCmd.Parameters.AddWithValue("@id", saleId)
+                    Using reader As SqlDataReader = itemsCmd.ExecuteReader()
+                        While reader.Read()
+                            items.Add((reader("product_name").ToString(), Convert.ToInt32(reader("quantity"))))
+                        End While
+                    End Using
+                End Using
+
+                For Each item In items
+                    Using restoreCmd As New SqlCommand(
+                        "UPDATE products SET stock_quantity = stock_quantity + @qty, updated_at = SYSUTCDATETIME() " &
+                        "WHERE product_name = @name;",
+                        connection,
+                        transaction)
+                        restoreCmd.Parameters.AddWithValue("@name", item.Name)
+                        restoreCmd.Parameters.AddWithValue("@qty", item.Qty)
+                        restoreCmd.ExecuteNonQuery()
+                    End Using
+                Next
+
+                Using voidCmd As New SqlCommand(
+                    "UPDATE sales SET is_voided = 1, receipt_text = receipt_text + @banner WHERE sale_id = @id;",
+                    connection,
+                    transaction)
+                    voidCmd.Parameters.AddWithValue("@id", saleId)
+                    voidCmd.Parameters.AddWithValue("@banner", Environment.NewLine & Environment.NewLine & "*** VOIDED ***")
+                    voidCmd.ExecuteNonQuery()
+                End Using
+
+                AuditLogger.LogSale(connection, "VOID", saleId, "Sale voided from ReceiptForm")
+                AuditLogger.LogAudit(
+                    connection,
+                    "SALE_VOIDED",
+                    "Voided sale #" & saleId.ToString(CultureInfo.InvariantCulture),
+                    AppSession.CurrentRole)
+
+                transaction.Commit()
+            End Using
+        End Using
     End Sub
 
     Private Sub lstHistory_SelectedIndexChanged(sender As Object, e As EventArgs) Handles lstHistory.SelectedIndexChanged
@@ -1129,7 +1285,7 @@ Public Class ReceiptForm
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT TOP 1 sale_id, sale_date, receipt_text, total_amount " &
+                    "SELECT TOP 1 sale_id, sale_date, receipt_text, total_amount, ISNULL(is_voided, 0) AS is_voided " &
                     "FROM sales " &
                     "WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
                     "ORDER BY sale_date DESC, sale_id DESC;"
@@ -1138,8 +1294,10 @@ Public Class ReceiptForm
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
                             Dim sid As Integer = Convert.ToInt32(reader("sale_id"))
+                            currentSaleVoided = Convert.ToBoolean(reader("is_voided"))
                             ApplyLoadedReceipt(sid, reader("sale_date"), reader("receipt_text"), reader("total_amount"))
                             LoadSaleLinesIntoGrid(connection, sid)
+                            UpdateVoidButtonState()
                         Else
                             dgvLines.Rows.Clear()
                             ApplyReceiptContent("No saved receipt found. Finalize a sale from the Sales / Cart screen first.", True)
@@ -1160,17 +1318,19 @@ Public Class ReceiptForm
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT sale_id, sale_date, receipt_text, total_amount FROM sales WHERE sale_id = @id;"
+                    "SELECT sale_id, sale_date, receipt_text, total_amount, ISNULL(is_voided, 0) AS is_voided FROM sales WHERE sale_id = @id;"
 
                 Using command As New SqlCommand(query, connection)
                     command.Parameters.AddWithValue("@id", saleId)
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
+                            currentSaleVoided = Convert.ToBoolean(reader("is_voided"))
                             ApplyLoadedReceipt(
                                 Convert.ToInt32(reader("sale_id")),
                                 reader("sale_date"),
                                 reader("receipt_text"),
                                 reader("total_amount"))
+                            UpdateVoidButtonState()
                         Else
                             dgvLines.Rows.Clear()
                             ApplyReceiptContent("Receipt not found for this sale id.", True)
@@ -1295,10 +1455,11 @@ Public Class ReceiptForm
         End If
 
         Dim subject As String = Uri.EscapeDataString(If(currentSaleId > 0, "Receipt #" & currentSaleId.ToString(CultureInfo.InvariantCulture), "Receipt"))
-        Dim body As String = Uri.EscapeDataString(ReceiptBranding.GetReceiptText(GetFullReceiptSource()))
+        Dim bodyText As String = ReceiptBranding.GetReceiptText(GetFullReceiptSource())
         Try
-            Process.Start(New ProcessStartInfo("mailto:?subject=" & subject & "&body=" & body) With {.UseShellExecute = True})
-            ShowStatus("Email client opened.", False)
+            Clipboard.SetText(bodyText)
+            Process.Start(New ProcessStartInfo("mailto:?subject=" & subject) With {.UseShellExecute = True})
+            ShowStatus("Receipt copied to clipboard. Paste it into your email message.", False)
         Catch ex As Exception
             MessageBox.Show("Could not open email: " & ex.Message, "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try

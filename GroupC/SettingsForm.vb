@@ -3,21 +3,31 @@ Imports System.Globalization
 Imports System.Windows.Forms
 
 ''' <summary>
-''' Edits store name, receipt footer, and currency symbol persisted to LocalApplicationData.
+''' Edits store settings persisted to LocalApplicationData.
 ''' </summary>
 Public Class SettingsForm
     Inherits Form
 
     Private Const MaxStoreNameLength As Integer = 120
     Private Const MaxFooterLength As Integer = 500
+    Private Const MaxBranchLength As Integer = 120
+    Private Const MaxPolicyLength As Integer = 500
     Private Const MinCurrencySymbolLength As Integer = 1
     Private Const MaxCurrencySymbolLength As Integer = 6
-    Private Const SettingsDialogWidth As Integer = 580
-    Private Const SettingsDialogHeight As Integer = 520
+    Private Const MinAdminPasswordLength As Integer = 6
+    Private Const SettingsDialogWidth As Integer = 620
+    Private Const SettingsDialogHeight As Integer = 680
 
     Private WithEvents txtStoreName As TextBox
+    Private WithEvents txtBranch As TextBox
     Private WithEvents txtFooter As TextBox
+    Private WithEvents txtReturnPolicy As TextBox
+    Private WithEvents txtTerms As TextBox
     Private WithEvents txtCurrency As TextBox
+    Private WithEvents numDefaultTax As NumericUpDown
+    Private WithEvents numStockThreshold As NumericUpDown
+    Private WithEvents txtAdminPassword As TextBox
+    Private WithEvents txtAdminPasswordConfirm As TextBox
     Private lblSettingsError As Label
     Private WithEvents btnOk As Button
     Private WithEvents btnCancel As Button
@@ -28,7 +38,7 @@ Public Class SettingsForm
         Me.StartPosition = FormStartPosition.CenterParent
         Me.MinimizeBox = False
         Me.MaximizeBox = False
-        Me.MinimumSize = New Size(520, 460)
+        Me.MinimumSize = New Size(540, 520)
         Me.Size = New Size(SettingsDialogWidth, SettingsDialogHeight)
         Me.BackColor = UiTheme.ColBackground
         UiTheme.ApplyStandardWindowChrome(Me)
@@ -43,139 +53,124 @@ Public Class SettingsForm
 
         Dim settings As AppSettingsData = AppSettings.Current
 
-        txtStoreName = New TextBox() With {
-            .Text = settings.StoreName,
-            .MaxLength = MaxStoreNameLength,
-            .Dock = DockStyle.Fill
-        }
-        UiTheme.ApplyInputStyle(txtStoreName)
+        txtStoreName = CreateTextInput(settings.StoreName, MaxStoreNameLength)
+        txtBranch = CreateTextInput(settings.StoreBranch, MaxBranchLength)
+        txtFooter = CreateMultilineInput(settings.ReceiptFooter, MaxFooterLength)
+        txtReturnPolicy = CreateMultilineInput(settings.ReturnPolicyText, MaxPolicyLength)
+        txtTerms = CreateMultilineInput(settings.TermsText, MaxPolicyLength)
+        txtCurrency = CreateTextInput(settings.CurrencySymbol, MaxCurrencySymbolLength)
 
-        txtFooter = New TextBox() With {
-            .Text = settings.ReceiptFooter,
-            .MaxLength = MaxFooterLength,
-            .Multiline = True,
-            .ScrollBars = ScrollBars.Vertical,
-            .Height = 72,
-            .Dock = DockStyle.Fill
-        }
-        UiTheme.ApplyInputStyle(txtFooter)
+        numDefaultTax = New NumericUpDown()
+        numDefaultTax.DecimalPlaces = 2
+        numDefaultTax.Minimum = 0D
+        numDefaultTax.Maximum = 100D
+        numDefaultTax.Increment = 0.5D
+        numDefaultTax.Value = Math.Min(Math.Max(settings.DefaultTaxPercent, 0D), 100D)
+        numDefaultTax.Width = 100
+        numDefaultTax.TextAlign = HorizontalAlignment.Right
+        UiTheme.ApplyInputStyle(numDefaultTax)
 
-        txtCurrency = New TextBox() With {
-            .Text = settings.CurrencySymbol,
-            .MaxLength = MaxCurrencySymbolLength,
-            .Dock = DockStyle.Fill
-        }
-        UiTheme.ApplyInputStyle(txtCurrency)
+        numStockThreshold = New NumericUpDown()
+        numStockThreshold.Minimum = 1
+        numStockThreshold.Maximum = 99999
+        numStockThreshold.Value = Math.Max(settings.StockThreshold, 1)
+        numStockThreshold.Width = 100
+        numStockThreshold.TextAlign = HorizontalAlignment.Right
+        UiTheme.ApplyInputStyle(numStockThreshold)
 
-        btnOk = New Button() With {
-            .Text = "&Save settings",
-            .DialogResult = DialogResult.None,
-            .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
-            .Cursor = Cursors.Hand
-        }
-        btnCancel = New Button() With {
-            .Text = "Cancel",
-            .DialogResult = DialogResult.Cancel,
-            .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
-            .Cursor = Cursors.Hand
-        }
+        txtAdminPassword = CreateTextInput(String.Empty, 64)
+        txtAdminPassword.UseSystemPasswordChar = True
+        txtAdminPasswordConfirm = CreateTextInput(String.Empty, 64)
+        txtAdminPasswordConfirm.UseSystemPasswordChar = True
+
+        btnOk = New Button()
+        btnOk.Text = "&Save settings"
+        btnOk.DialogResult = DialogResult.None
+        btnOk.AutoSize = True
+        btnOk.MinimumSize = New Size(120, UiTheme.ButtonHeight)
+        btnOk.Cursor = Cursors.Hand
+
+        btnCancel = New Button()
+        btnCancel.Text = "Cancel"
+        btnCancel.DialogResult = DialogResult.Cancel
+        btnCancel.AutoSize = True
+        btnCancel.MinimumSize = New Size(100, UiTheme.ButtonHeight)
+        btnCancel.Cursor = Cursors.Hand
+
         UiTheme.ApplyPrimaryButton(btnOk)
         UiTheme.ApplySecondaryButton(btnCancel)
 
-        lblSettingsError = New Label() With {
-            .AutoSize = True,
-            .ForeColor = UiTheme.ColDanger,
-            .Font = UiTheme.FontBodySmall,
-            .Visible = False,
-            .Margin = New Padding(0, UiTheme.PadControl, 0, 0),
-            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
-        }
+        lblSettingsError = New Label()
+        lblSettingsError.AutoSize = True
+        lblSettingsError.ForeColor = UiTheme.ColDanger
+        lblSettingsError.Font = UiTheme.FontBodySmall
+        lblSettingsError.Visible = False
+        lblSettingsError.Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        lblSettingsError.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
 
         Dim buttonRow As FlowLayoutPanel = UiTheme.CreateButtonRow(FlowDirection.RightToLeft)
         buttonRow.Dock = DockStyle.Fill
         buttonRow.Controls.Add(btnCancel)
         buttonRow.Controls.Add(btnOk)
 
-        Dim fields As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 9,
-            .BackColor = Color.Transparent
-        }
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        fields.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Dim fields As New TableLayoutPanel()
+        fields.Dock = DockStyle.Top
+        fields.AutoSize = True
+        fields.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        fields.ColumnCount = 1
+        fields.BackColor = Color.Transparent
 
-        Dim headerPanel As New Panel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
-            .BackColor = Color.Transparent
-        }
+        Dim rowIndex As Integer = 0
+        AddHeader(fields, rowIndex, "Store settings", "Branding, tax defaults, and receipt text shown at checkout.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Store name", txtStoreName, "Displayed on receipts, reports, and the sidebar.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Store branch", txtBranch, "Branch line under the store name on receipts.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Receipt footer", txtFooter, "Closing message at the bottom of each receipt.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Return policy", txtReturnPolicy, "Return/exchange policy printed on receipts.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Terms text", txtTerms, "Terms and conditions line on receipts.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Currency symbol", txtCurrency, "Prefix for prices and totals (for example PHP symbol or $).")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Default tax rate (%)", numDefaultTax, "Applied when Point of Sale opens (cashier can still toggle tax off).")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Low-stock threshold", numStockThreshold, "Dashboard alert when active products reach this quantity or below.")
+        rowIndex += 1
+        AddSection(fields, rowIndex, "Administrator password")
+        rowIndex += 1
+        AddField(fields, rowIndex, "New admin password", txtAdminPassword, "Leave blank to keep current password. Minimum 6 characters.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Confirm password", txtAdminPasswordConfirm, "Must match when changing the administrator password.")
+        rowIndex += 1
+        fields.Controls.Add(lblSettingsError, 0, rowIndex)
+        rowIndex += 1
+        fields.Controls.Add(buttonRow, 0, rowIndex)
 
-        Dim lblTitle As New Label() With {
-            .Text = "Store settings",
-            .Font = UiTheme.FontHeading,
-            .ForeColor = UiTheme.ColPrimary,
-            .AutoSize = True,
-            .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
-        }
-        Dim lblSubtitle As New Label() With {
-            .Text = "Update branding shown on receipts and across the application.",
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.ColTextSecondary,
-            .AutoSize = True,
-            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0),
-            .Dock = DockStyle.Top
-        }
-        headerPanel.Controls.Add(lblSubtitle)
-        headerPanel.Controls.Add(lblTitle)
-
-        Dim sectionHeader As Panel = UiTheme.CreateSectionHeader("Receipt branding")
-
-        fields.Controls.Add(headerPanel, 0, 0)
-        fields.Controls.Add(sectionHeader, 0, 1)
-        fields.Controls.Add(CreateFieldBlock(
-            "Store name",
-            txtStoreName,
-            "Displayed on receipts, reports, and the sidebar."), 0, 2)
-        fields.Controls.Add(CreateFieldBlock(
-            "Receipt footer",
-            txtFooter,
-            "Closing message printed at the bottom of each receipt."), 0, 3)
-        fields.Controls.Add(CreateFieldBlock(
-            "Currency symbol",
-            txtCurrency,
-            "Prefix for prices and totals (for example ₱ or $)."), 0, 4)
-        fields.Controls.Add(lblSettingsError, 0, 5)
-        fields.Controls.Add(buttonRow, 0, 6)
+        Dim scrollHost As New Panel()
+        scrollHost.Dock = DockStyle.Fill
+        scrollHost.AutoScroll = True
+        scrollHost.Padding = New Padding(0, 0, 4, 0)
+        scrollHost.BackColor = Color.Transparent
+        scrollHost.Controls.Add(fields)
 
         Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.PadCard))
         cardOuter.Dock = DockStyle.Fill
         Dim cardInner As Panel = UiTheme.GetCardContentHost(cardOuter)
         If cardInner IsNot Nothing Then
-            cardInner.Controls.Add(fields)
+            cardInner.Controls.Add(scrollHost)
         Else
-            cardOuter.Controls.Add(fields)
+            cardOuter.Controls.Add(scrollHost)
         End If
 
-        Dim root As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .Padding = New Padding(UiTheme.PadPage),
-            .ColumnCount = 1,
-            .RowCount = 1,
-            .BackColor = UiTheme.ColBackground
-        }
+        Dim root As New TableLayoutPanel()
+        root.Dock = DockStyle.Fill
+        root.Padding = New Padding(UiTheme.PadPage)
+        root.ColumnCount = 1
+        root.RowCount = 1
+        root.BackColor = UiTheme.ColBackground
         root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         root.Controls.Add(cardOuter, 0, 0)
 
@@ -183,43 +178,115 @@ Public Class SettingsForm
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
 
-        UiTheme.AssignTabOrder(txtStoreName, txtFooter, txtCurrency, btnOk, btnCancel)
+        UiTheme.AssignTabOrder(
+            txtStoreName,
+            txtBranch,
+            txtFooter,
+            txtReturnPolicy,
+            txtTerms,
+            txtCurrency,
+            numDefaultTax,
+            numStockThreshold,
+            txtAdminPassword,
+            txtAdminPasswordConfirm,
+            btnOk,
+            btnCancel)
 
         Me.ResumeLayout(True)
     End Sub
 
+    Private Shared Function CreateTextInput(value As String, maxLength As Integer) As TextBox
+        Dim box As New TextBox()
+        box.Text = value
+        box.MaxLength = maxLength
+        box.Dock = DockStyle.Fill
+        UiTheme.ApplyInputStyle(box)
+        Return box
+    End Function
+
+    Private Shared Function CreateMultilineInput(value As String, maxLength As Integer) As TextBox
+        Dim box As New TextBox()
+        box.Text = value
+        box.MaxLength = maxLength
+        box.Multiline = True
+        box.ScrollBars = ScrollBars.Vertical
+        box.Height = 64
+        box.Dock = DockStyle.Fill
+        UiTheme.ApplyInputStyle(box)
+        Return box
+    End Function
+
+    Private Shared Sub AddHeader(table As TableLayoutPanel, row As Integer, title As String, subtitle As String)
+        table.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Dim headerPanel As New Panel()
+        headerPanel.AutoSize = True
+        headerPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        headerPanel.Dock = DockStyle.Top
+        headerPanel.Margin = New Padding(0, 0, 0, UiTheme.PadSection)
+        headerPanel.BackColor = Color.Transparent
+
+        Dim lblSubtitle As New Label()
+        lblSubtitle.Text = subtitle
+        lblSubtitle.Font = UiTheme.FontBodySmall
+        lblSubtitle.ForeColor = UiTheme.ColTextSecondary
+        lblSubtitle.AutoSize = True
+        lblSubtitle.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
+        lblSubtitle.Dock = DockStyle.Top
+
+        Dim lblTitle As New Label()
+        lblTitle.Text = title
+        lblTitle.Font = UiTheme.FontHeading
+        lblTitle.ForeColor = UiTheme.ColPrimary
+        lblTitle.AutoSize = True
+        lblTitle.Dock = DockStyle.Top
+        lblTitle.Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+
+        headerPanel.Controls.Add(lblSubtitle)
+        headerPanel.Controls.Add(lblTitle)
+        table.Controls.Add(headerPanel, 0, row)
+    End Sub
+
+    Private Shared Sub AddSection(table As TableLayoutPanel, row As Integer, title As String)
+        table.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Dim sectionHeader As Panel = UiTheme.CreateSectionHeader(title)
+        sectionHeader.Margin = New Padding(0, UiTheme.PadSection, 0, UiTheme.PadControl)
+        table.Controls.Add(sectionHeader, 0, row)
+    End Sub
+
+    Private Shared Sub AddField(table As TableLayoutPanel, row As Integer, caption As String, input As Control, hint As String)
+        table.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        table.Controls.Add(CreateFieldBlock(caption, input, hint), 0, row)
+    End Sub
+
     Private Shared Function CreateFieldBlock(caption As String, input As Control, hint As String) As Panel
-        Dim block As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top,
-            .ColumnCount = 1,
-            .RowCount = 3,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
-            .BackColor = Color.Transparent
-        }
+        Dim block As New TableLayoutPanel()
+        block.AutoSize = True
+        block.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        block.Dock = DockStyle.Top
+        block.ColumnCount = 1
+        block.RowCount = 3
+        block.Margin = New Padding(0, 0, 0, UiTheme.PadSection)
+        block.BackColor = Color.Transparent
         block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         block.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Dim lblCaption As New Label() With {
-            .Text = caption,
-            .AutoSize = True,
-            .Font = UiTheme.FontBodyBold,
-            .ForeColor = UiTheme.ColTextPrimary,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
-        }
+        Dim lblCaption As New Label()
+        lblCaption.Text = caption
+        lblCaption.AutoSize = True
+        lblCaption.Font = UiTheme.FontBodyBold
+        lblCaption.ForeColor = UiTheme.ColTextPrimary
+        lblCaption.Margin = New Padding(0, 0, 0, UiTheme.PadTight)
 
         input.Margin = New Padding(0)
 
-        Dim lblHint As New Label() With {
-            .Text = hint,
-            .AutoSize = True,
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.ColTextSecondary,
-            .Margin = New Padding(0, UiTheme.PadTight, 0, 0),
-            .MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
-        }
+        Dim lblHint As New Label()
+        lblHint.Text = hint
+        lblHint.AutoSize = True
+        lblHint.Font = UiTheme.FontBodySmall
+        lblHint.ForeColor = UiTheme.ColTextSecondary
+        lblHint.Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        lblHint.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
 
         block.Controls.Add(lblCaption, 0, 0)
         block.Controls.Add(input, 0, 1)
@@ -241,15 +308,7 @@ Public Class SettingsForm
         lblSettingsError.Visible = True
     End Sub
 
-    Private Sub txtStoreName_TextChanged(sender As Object, e As EventArgs) Handles txtStoreName.TextChanged
-        ClearSettingsInputError()
-    End Sub
-
-    Private Sub txtFooter_TextChanged(sender As Object, e As EventArgs) Handles txtFooter.TextChanged
-        ClearSettingsInputError()
-    End Sub
-
-    Private Sub txtCurrency_TextChanged(sender As Object, e As EventArgs) Handles txtCurrency.TextChanged
+    Private Sub InputChanged(sender As Object, e As EventArgs) Handles txtStoreName.TextChanged, txtBranch.TextChanged, txtFooter.TextChanged, txtReturnPolicy.TextChanged, txtTerms.TextChanged, txtCurrency.TextChanged, numDefaultTax.ValueChanged, numStockThreshold.ValueChanged, txtAdminPassword.TextChanged, txtAdminPasswordConfirm.TextChanged
         ClearSettingsInputError()
     End Sub
 
@@ -264,46 +323,52 @@ Public Class SettingsForm
             Return
         End If
 
-        If storeName.Length > MaxStoreNameLength Then
-            Dim msg As String = String.Format(CultureInfo.CurrentCulture, "Store name cannot exceed {0} characters.", MaxStoreNameLength)
-            ShowSettingsInputError(msg)
-            MessageBox.Show(msg, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            txtStoreName.Focus()
-            Return
-        End If
-
-        Dim footer As String = txtFooter.Text.Trim()
-        If footer.Length > MaxFooterLength Then
-            Dim msg As String = String.Format(CultureInfo.CurrentCulture, "Receipt footer cannot exceed {0} characters.", MaxFooterLength)
-            ShowSettingsInputError(msg)
-            MessageBox.Show(msg, "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            txtFooter.Focus()
-            Return
-        End If
-
         Dim currencySym As String = txtCurrency.Text.Trim()
         If currencySym.Length < MinCurrencySymbolLength OrElse currencySym.Length > MaxCurrencySymbolLength Then
-            ShowSettingsInputError(
-                String.Format(CultureInfo.CurrentCulture, "Currency symbol must be {0}–{1} characters.", MinCurrencySymbolLength, MaxCurrencySymbolLength))
-            MessageBox.Show(
-                String.Format(CultureInfo.CurrentCulture, "Enter a currency symbol ({0}–{1} characters), for example $ or ₱.", MinCurrencySymbolLength, MaxCurrencySymbolLength),
-                "Validation",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning)
+            ShowSettingsInputError("Currency symbol must be 1-6 characters.")
             txtCurrency.Focus()
             Return
         End If
 
-        Dim data As New AppSettingsData With {
-            .StoreName = storeName,
-            .ReceiptFooter = footer,
-            .CurrencySymbol = currencySym
-        }
+        Dim newPassword As String = txtAdminPassword.Text
+        Dim confirmPassword As String = txtAdminPasswordConfirm.Text
+        If newPassword.Length > 0 OrElse confirmPassword.Length > 0 Then
+            If newPassword.Length < MinAdminPasswordLength Then
+                ShowSettingsInputError(String.Format(CultureInfo.CurrentCulture, "Administrator password must be at least {0} characters.", MinAdminPasswordLength))
+                txtAdminPassword.Focus()
+                Return
+            End If
+
+            If Not String.Equals(newPassword, confirmPassword, StringComparison.Ordinal) Then
+                ShowSettingsInputError("Administrator passwords do not match.")
+                txtAdminPasswordConfirm.Focus()
+                Return
+            End If
+        End If
+
+        Dim data As AppSettingsData = AppSettings.Current
+        data.StoreName = storeName
+        data.StoreBranch = txtBranch.Text.Trim()
+        data.ReceiptFooter = txtFooter.Text.Trim()
+        data.ReturnPolicyText = txtReturnPolicy.Text.Trim()
+        data.TermsText = txtTerms.Text.Trim()
+        data.CurrencySymbol = currencySym
+        data.DefaultTaxPercent = numDefaultTax.Value
+        data.StockThreshold = CInt(numStockThreshold.Value)
+
+        If newPassword.Length > 0 Then
+            AdminAuth.ApplyPasswordChange(data, newPassword)
+        End If
+
         AppSettings.Save(data)
-        AuditLogger.LogAudit(
-            "SETTINGS_CHANGED",
-            "Store name / receipt footer / currency symbol updated.",
-            AppSession.CurrentRole)
+
+        Dim auditDetail As String = "Store settings updated (name, branch, receipt text, tax default, stock threshold"
+        If newPassword.Length > 0 Then
+            auditDetail &= ", admin password"
+        End If
+        auditDetail &= ")."
+
+        AuditLogger.LogAudit("SETTINGS_CHANGED", auditDetail, AppSession.CurrentRole)
 
         Me.DialogResult = DialogResult.OK
         Me.Close()

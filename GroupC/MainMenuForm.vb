@@ -2,6 +2,7 @@
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
 Imports System.Globalization
+Imports System.IO
 Imports System.Linq
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
@@ -656,20 +657,27 @@ Public Class MainMenuForm
                 End Using
                 lblDashProducts.Text = activeCount.ToString(CultureInfo.CurrentCulture)
 
-                Dim todaySql As String = "SELECT ISNULL(SUM(total_amount), 0) FROM sales WHERE CAST(sale_date AS DATE) = CAST(GETDATE() AS DATE);"
+                Dim todayRange = ReceiptBranding.GetUtcRangeForLocalDay(DateTime.Today)
+                Dim todaySql As String =
+                    "SELECT ISNULL(SUM(total_amount), 0) FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @start AND sale_date < @end;"
                 Dim todayTotal As Decimal = 0D
                 Using cmd As New SqlCommand(todaySql, connection)
+                    cmd.Parameters.AddWithValue("@start", todayRange.UtcStart)
+                    cmd.Parameters.AddWithValue("@end", todayRange.UtcEndExclusive)
                     todayTotal = Convert.ToDecimal(cmd.ExecuteScalar())
                 End Using
                 lblDashSalesToday.Text = sym & todayTotal.ToString("N2", CultureInfo.CurrentCulture)
 
                 Dim lastSaleSql As String =
-                    "SELECT TOP 1 sale_id, sale_date, total_amount FROM sales ORDER BY sale_id DESC;"
+                    "SELECT TOP 1 sale_id, sale_date, total_amount FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 ORDER BY sale_id DESC;"
                 Using cmd As New SqlCommand(lastSaleSql, connection)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         If reader.Read() Then
                             Dim saleId As Integer = Convert.ToInt32(reader("sale_id"))
-                            Dim saleWhen As DateTime = Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)
+                            Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+                                Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture))
                             Dim lastAmt As Decimal = Convert.ToDecimal(reader("total_amount"))
                             Dim lastSaleWhen As String = saleWhen.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)
                             lblDashLastSale.Text = "#" & saleId.ToString(CultureInfo.CurrentCulture)
@@ -884,22 +892,22 @@ Public Class MainMenuForm
             chartPoints.Add(New ChartDayPoint With {.Day = start.AddDays(offset), .Amount = 0D})
         Next
 
-        Dim rangeEndExclusive As Date = [end].AddDays(1)
+        Dim utcRange = ReceiptBranding.GetUtcRangeForLocalDates(start, [end])
         Dim aggSql As String =
-            "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
-            "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
-            "GROUP BY CAST(sale_date AS DATE) ORDER BY sale_day;"
+            "SELECT sale_date, total_amount FROM sales " &
+            "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @start AND sale_date < @end_ex;"
 
         Using cmd As New SqlCommand(aggSql, connection)
-            cmd.Parameters.AddWithValue("@start", start)
-            cmd.Parameters.AddWithValue("@end_ex", rangeEndExclusive)
+            cmd.Parameters.AddWithValue("@start", utcRange.UtcStart)
+            cmd.Parameters.AddWithValue("@end_ex", utcRange.UtcEndExclusive)
             Using reader As SqlDataReader = cmd.ExecuteReader()
                 While reader.Read()
-                    Dim d As DateTime = Convert.ToDateTime(reader("sale_day"), CultureInfo.InvariantCulture).Date
-                    Dim total As Decimal = Convert.ToDecimal(reader("day_total"))
+                    Dim localDay As Date = ReceiptBranding.NormalizeStoredSaleDate(
+                        Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)).Date
+                    Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
                     For Each pt As ChartDayPoint In chartPoints
-                        If pt.Day.Date = d Then
-                            pt.Amount = total
+                        If pt.Day.Date = localDay Then
+                            pt.Amount += total
                             chartPeriodTotal += total
                             Exit For
                         End If
@@ -1336,12 +1344,18 @@ Public Class MainMenuForm
                 .Padding = New Padding(UiTheme.PadPage),
                 .BackColor = UiTheme.ColBackground
             }
+            Dim btnRunBackup As New Button() With {.Text = "Run backup now", .AutoSize = True}
+            Dim btnSeedDemo As New Button() With {.Text = "Load demo catalog", .AutoSize = True}
             Dim btnCopy As New Button() With {.Text = "Copy commands", .AutoSize = True}
             Dim btnClose As New Button() With {.Text = "Close", .DialogResult = DialogResult.Cancel, .AutoSize = True}
-            UiTheme.ApplyPrimaryButton(btnCopy)
+            UiTheme.ApplyPrimaryButton(btnRunBackup)
+            UiTheme.ApplySecondaryAccentButton(btnSeedDemo)
+            UiTheme.ApplySecondaryAccentButton(btnCopy)
             UiTheme.ApplySecondaryButton(btnClose)
-            buttonRow.Controls.Add(btnCopy)
             buttonRow.Controls.Add(btnClose)
+            buttonRow.Controls.Add(btnCopy)
+            buttonRow.Controls.Add(btnSeedDemo)
+            buttonRow.Controls.Add(btnRunBackup)
 
             card.Controls.Add(txtBackupPath)
             card.Controls.Add(lblPath)
@@ -1359,7 +1373,67 @@ Public Class MainMenuForm
             dlg.Controls.Add(contentHost)
             dlg.Controls.Add(titleBar)
             dlg.CancelButton = btnClose
-            dlg.AcceptButton = btnCopy
+            dlg.AcceptButton = btnRunBackup
+
+            AddHandler btnRunBackup.Click,
+                Sub(s, ev)
+                    Dim backupPath As String = txtBackupPath.Text.Trim()
+                    If backupPath.Length = 0 Then
+                        backupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GroupCBackup")
+                    End If
+
+                    Try
+                        Directory.CreateDirectory(backupPath)
+                        Dim bakFile As String = Path.Combine(
+                            backupPath,
+                            DatabaseConfig.DatabaseName & "_" & DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) & ".bak")
+
+                        Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                            connection.Open()
+                            Dim backupSql As String =
+                                "BACKUP DATABASE [" & DatabaseConfig.DatabaseName & "] TO DISK = @path " &
+                                "WITH FORMAT, INIT, NAME = @name, SKIP, NOREWIND, NOUNLOAD, STATS = 10;"
+                            Using cmd As New SqlCommand(backupSql, connection)
+                                cmd.CommandTimeout = 120
+                                cmd.Parameters.AddWithValue("@path", bakFile)
+                                cmd.Parameters.AddWithValue("@name", "GroupC Full Backup")
+                                cmd.ExecuteNonQuery()
+                            End Using
+                        End Using
+
+                        AuditLogger.LogAudit("DATABASE_BACKUP", "Backup saved to " & bakFile, AppSession.CurrentRole)
+                        MessageBox.Show(
+                            "Backup completed successfully." & Environment.NewLine & Environment.NewLine & bakFile,
+                            "Backup / Restore",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+                    Catch ex As Exception
+                        MessageBox.Show(
+                            "Backup failed: " & ex.Message & Environment.NewLine & Environment.NewLine &
+                            "Try a folder your user account can write to, or copy the SQL commands and run them in sqlcmd.",
+                            "Backup / Restore",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+                        ErrorLogger.Log(ex, NameOf(MainMenuForm) & ".RunBackup")
+                    End Try
+                End Sub
+
+            AddHandler btnSeedDemo.Click,
+                Sub(s, ev)
+                    If Not UiTheme.ConfirmAction("Load demo categories and products? Existing rows are kept.") Then
+                        Return
+                    End If
+
+                    Try
+                        Dim message As String = DatabaseInitializer.SeedDemoCatalog()
+                        AuditLogger.LogAudit("DEMO_CATALOG_LOADED", message, AppSession.CurrentRole)
+                        MessageBox.Show(message, "Demo catalog", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        RefreshHealthAndDashboard()
+                    Catch ex As Exception
+                        MessageBox.Show("Could not load demo catalog: " & ex.Message, "Demo catalog", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        ErrorLogger.Log(ex, NameOf(MainMenuForm) & ".SeedDemoCatalog")
+                    End Try
+                End Sub
 
             AddHandler btnCopy.Click,
                 Sub(s, ev)

@@ -310,25 +310,42 @@ Public Class ReportsForm
             Return
         End If
 
-        Dim endExclusive As DateTime = [end].AddDays(1)
+        Dim utcRange = ReceiptBranding.GetUtcRangeForLocalDates(start, [end])
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
-                Dim dailySql As String =
-                    "SELECT CAST(s.sale_date AS DATE) AS sale_day, COUNT(*) AS sale_count, SUM(s.total_amount) AS revenue " &
-                    "FROM sales s WHERE s.sale_date >= @from AND s.sale_date < @to " &
-                    "GROUP BY CAST(s.sale_date AS DATE) ORDER BY sale_day;"
+                Dim rawSql As String =
+                    "SELECT sale_date, total_amount FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @from AND sale_date < @to;"
 
-                Dim dt As New DataTable()
-                Using cmd As New SqlCommand(dailySql, connection)
-                    cmd.Parameters.AddWithValue("@from", start)
-                    cmd.Parameters.AddWithValue("@to", endExclusive)
-                    Using adapter As New SqlDataAdapter(cmd)
-                        adapter.Fill(dt)
+                Dim dailyMap As New Dictionary(Of Date, (SaleCount As Integer, Revenue As Decimal))()
+                Using cmd As New SqlCommand(rawSql, connection)
+                    cmd.Parameters.AddWithValue("@from", utcRange.UtcStart)
+                    cmd.Parameters.AddWithValue("@to", utcRange.UtcEndExclusive)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            Dim localDay As Date = ReceiptBranding.NormalizeStoredSaleDate(
+                                Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)).Date
+                            Dim amount As Decimal = Convert.ToDecimal(reader("total_amount"))
+                            If dailyMap.ContainsKey(localDay) Then
+                                Dim existing = dailyMap(localDay)
+                                dailyMap(localDay) = (existing.SaleCount + 1, existing.Revenue + amount)
+                            Else
+                                dailyMap(localDay) = (1, amount)
+                            End If
+                        End While
                     End Using
                 End Using
+
+                Dim dt As New DataTable()
+                dt.Columns.Add("sale_day", GetType(Date))
+                dt.Columns.Add("sale_count", GetType(Integer))
+                dt.Columns.Add("revenue", GetType(Decimal))
+                For Each kvp In dailyMap.OrderBy(Function(x) x.Key)
+                    dt.Rows.Add(kvp.Key, kvp.Value.SaleCount, kvp.Value.Revenue)
+                Next
 
                 dgvDaily.DataSource = dt
                 ApplyDailyGridColumns(dgvDaily)
@@ -337,13 +354,13 @@ Public Class ReportsForm
                 Dim topSql As String =
                     "SELECT TOP 20 si.product_name, SUM(si.quantity) AS qty, SUM(si.subtotal) AS revenue " &
                     "FROM sale_items si INNER JOIN sales s ON s.sale_id = si.sale_id " &
-                    "WHERE s.sale_date >= @from AND s.sale_date < @to " &
+                    "WHERE ISNULL(s.is_voided, 0) = 0 AND s.sale_date >= @from AND s.sale_date < @to " &
                     "GROUP BY si.product_name ORDER BY qty DESC;"
 
                 Dim top As New DataTable()
                 Using cmd2 As New SqlCommand(topSql, connection)
-                    cmd2.Parameters.AddWithValue("@from", start)
-                    cmd2.Parameters.AddWithValue("@to", endExclusive)
+                    cmd2.Parameters.AddWithValue("@from", utcRange.UtcStart)
+                    cmd2.Parameters.AddWithValue("@to", utcRange.UtcEndExclusive)
                     Using adapter As New SqlDataAdapter(cmd2)
                         adapter.Fill(top)
                     End Using
@@ -353,11 +370,13 @@ Public Class ReportsForm
                 ApplyTopGridColumns(dgvTop)
                 UpdateGridEmptyState(dgvTop, lblTopEmpty, top.Rows.Count = 0)
 
-                Dim sumSql As String = "SELECT ISNULL(SUM(total_amount),0) FROM sales WHERE sale_date >= @from AND sale_date < @to;"
+                Dim sumSql As String =
+                    "SELECT ISNULL(SUM(total_amount),0) FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @from AND sale_date < @to;"
                 Dim total As Decimal = 0D
                 Using cmd3 As New SqlCommand(sumSql, connection)
-                    cmd3.Parameters.AddWithValue("@from", start)
-                    cmd3.Parameters.AddWithValue("@to", endExclusive)
+                    cmd3.Parameters.AddWithValue("@from", utcRange.UtcStart)
+                    cmd3.Parameters.AddWithValue("@to", utcRange.UtcEndExclusive)
                     Dim o As Object = cmd3.ExecuteScalar()
                     If o IsNot Nothing AndAlso Not Convert.IsDBNull(o) Then
                         total = Convert.ToDecimal(o)

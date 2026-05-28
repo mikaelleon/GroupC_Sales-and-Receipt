@@ -413,7 +413,8 @@ Public Class LoginForm
         End Try
 
         If radAdmin.Checked Then
-            If Not String.Equals(secret, DatabaseConfig.HardcodedAdminPassword, StringComparison.Ordinal) Then
+            AppSettings.Reload()
+            If Not AdminAuth.ValidatePassword(secret) Then
                 AuditLogger.LogAudit("LOGIN_FAILED", "Invalid administrator password.", "Admin sign-in attempt")
                 ShowLoginError("Invalid administrator password.")
                 MessageBox.Show("Invalid administrator password.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)

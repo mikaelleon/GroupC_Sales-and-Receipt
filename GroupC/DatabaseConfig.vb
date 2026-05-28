@@ -9,9 +9,14 @@ Public NotInheritable Class DatabaseConfig
     Public Const DatabaseName As String = "GroupC_DB"
 
     ''' <summary>
-    ''' Demo-only administrator password for login (replace for production).
+    ''' Default administrator password used only on first run until changed in Settings.
     ''' </summary>
-    Public Const HardcodedAdminPassword As String = "admin123"
+    Public Const DefaultAdminPassword As String = "admin123"
+
+    ''' <summary>
+    ''' Legacy alias for <see cref="DefaultAdminPassword"/>.
+    ''' </summary>
+    Public Const HardcodedAdminPassword As String = DefaultAdminPassword
 
     ''' <summary>
     ''' Unused. Cashiers sign in with database accounts created under Manage Cashiers.

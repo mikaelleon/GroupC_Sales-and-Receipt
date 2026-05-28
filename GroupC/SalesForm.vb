@@ -135,7 +135,20 @@ Public Class SalesForm
         End Try
 
         LoadProducts()
+        ApplyPosSettingsFromAppSettings()
         UpdateSummaryLabels()
+    End Sub
+
+    Private Sub ApplyPosSettingsFromAppSettings()
+        AppSettings.Reload()
+        Dim defaultTax As Decimal = AppSettings.Current.DefaultTaxPercent
+        If defaultTax <= 0D OrElse numTaxPercent Is Nothing Then
+            Return
+        End If
+
+        numTaxPercent.Value = Math.Min(defaultTax, numTaxPercent.Maximum)
+        taxToggleOn = True
+        RefreshTaxToggleUi()
     End Sub
 
     Private Sub SetupForm()

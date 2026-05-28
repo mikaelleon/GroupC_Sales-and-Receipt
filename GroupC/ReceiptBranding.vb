@@ -424,6 +424,24 @@ Public NotInheritable Class ReceiptBranding
         End Select
     End Function
 
+    ''' <summary>
+    ''' UTC bounds for filtering sales that fall on one local calendar day.
+    ''' </summary>
+    Public Shared Function GetUtcRangeForLocalDay(localDay As Date) As (UtcStart As DateTime, UtcEndExclusive As DateTime)
+        Dim startLocal As DateTime = DateTime.SpecifyKind(localDay, DateTimeKind.Local)
+        Dim endLocal As DateTime = startLocal.AddDays(1)
+        Return (startLocal.ToUniversalTime(), endLocal.ToUniversalTime())
+    End Function
+
+    ''' <summary>
+    ''' UTC bounds for an inclusive local date range (from date through to date).
+    ''' </summary>
+    Public Shared Function GetUtcRangeForLocalDates(fromLocal As Date, toLocalInclusive As Date) As (UtcStart As DateTime, UtcEndExclusive As DateTime)
+        Dim startLocal As DateTime = DateTime.SpecifyKind(fromLocal, DateTimeKind.Local)
+        Dim endLocal As DateTime = DateTime.SpecifyKind(toLocalInclusive.AddDays(1), DateTimeKind.Local)
+        Return (startLocal.ToUniversalTime(), endLocal.ToUniversalTime())
+    End Function
+
     Public Shared Function FormatReceiptDateTime(saleWhen As DateTime) As String
         Return NormalizeStoredSaleDate(saleWhen).ToString("MMMM dd, yyyy hh:mm tt", CultureInfo.CurrentCulture)
     End Function
