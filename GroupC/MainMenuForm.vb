@@ -43,7 +43,15 @@ Public Class MainMenuForm
     Private lblStatusDot As Label
     Private lblStatusText As Label
     Private pnlSystemStatus As FlowLayoutPanel
-    Private pnlLowStockAlert As Panel
+    Private Enum DashboardStockHealth
+        Healthy = 0
+        Watch = 1
+        Low = 2
+    End Enum
+
+    Private pnlStockCard As Panel
+    Private lblStockCardTitle As Label
+    Private lblStockCardSubtitle As Label
     Private lblDashProducts As Label
     Private lblDashSalesToday As Label
     Private lblDashLastSale As Label
@@ -76,6 +84,7 @@ Public Class MainMenuForm
     Private statusLabel As ToolStripStatusLabel
 
     Private closeDueToLoginFail As Boolean
+    Private currentStockHealth As DashboardStockHealth = DashboardStockHealth.Healthy
 
     Private Sub MainMenuForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
@@ -253,78 +262,6 @@ Public Class MainMenuForm
             .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
         }
 
-        pnlLowStockAlert = New Panel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.None,
-            .BackColor = UiTheme.ColWarning,
-            .Padding = New Padding(1),
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
-            .Visible = False,
-            .Cursor = Cursors.Hand
-        }
-        Dim pnlLowStockInner As New Panel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.ColWarningMuted,
-            .Padding = New Padding(UiTheme.PadCard, UiTheme.PadControl, UiTheme.PadCard, UiTheme.PadControl),
-            .Cursor = Cursors.Hand
-        }
-        Dim lowStockStack As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .ColumnCount = 1,
-            .RowCount = 2,
-            .BackColor = Color.Transparent,
-            .Margin = Padding.Empty
-        }
-        lowStockStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        lowStockStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Dim lowStockFlow As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top,
-            .FlowDirection = FlowDirection.LeftToRight,
-            .WrapContents = False,
-            .BackColor = Color.Transparent,
-            .Margin = Padding.Empty,
-            .Cursor = Cursors.Hand
-        }
-        Dim lblLowStockCaption As New Label() With {
-            .Text = "Low stock alert:",
-            .AutoSize = True,
-            .Font = UiTheme.FontCaption,
-            .ForeColor = UiTheme.ColTextSecondary,
-            .Margin = New Padding(0, 0, UiTheme.PadControl, 0),
-            .Cursor = Cursors.Hand
-        }
-        lblDashLowStock.AutoSize = True
-        lblDashLowStock.Font = UiTheme.FontBodyBold
-        lblDashLowStock.Margin = New Padding(0)
-        lblDashLowStock.Cursor = Cursors.Hand
-        Dim lblViewProducts As New Label() With {
-            .Text = "View products →",
-            .AutoSize = True,
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.ColPrimary,
-            .Margin = New Padding(0, UiTheme.PadTight, 0, 0),
-            .Cursor = Cursors.Hand
-        }
-        lowStockFlow.Controls.Add(lblLowStockCaption)
-        lowStockFlow.Controls.Add(lblDashLowStock)
-        lowStockStack.Controls.Add(lowStockFlow, 0, 0)
-        lowStockStack.Controls.Add(lblViewProducts, 0, 1)
-        pnlLowStockInner.Controls.Add(lowStockStack)
-        pnlLowStockAlert.Controls.Add(pnlLowStockInner)
-        AddHandler pnlLowStockAlert.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler pnlLowStockInner.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler lowStockStack.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler lblDashLowStock.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler lowStockFlow.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler lblLowStockCaption.Click, AddressOf pnlLowStockAlert_Click
-        AddHandler lblViewProducts.Click, AddressOf pnlLowStockAlert_Click
-
         suppressChartPresetEvents = True
         cmbChartPreset.SelectedIndex = 0
         cmbChartSort.SelectedIndex = 0
@@ -409,11 +346,11 @@ Public Class MainMenuForm
             .Dock = DockStyle.Top,
             .BackColor = Color.Transparent
         }
-        Dim mainNavButtons = {btnReports, btnReceipt, btnSales, btnCashierAccounts, btnCategories, btnProducts}
-        For Each btn In mainNavButtons
-            If btn IsNot Nothing Then
-                btn.Dock = DockStyle.Top
-                navMain.Controls.Add(btn)
+        For Each entry As WorkspaceNavigation.NavEntry In WorkspaceNavigation.EnumerateSidebarDockAddOrder()
+            Dim navBtn As Button = GetNavButtonForTarget(entry.Target)
+            If navBtn IsNot Nothing AndAlso navBtn.Visible Then
+                navBtn.Dock = DockStyle.Top
+                navMain.Controls.Add(navBtn)
             End If
         Next
         If btnDashboard IsNot Nothing Then
@@ -507,36 +444,19 @@ Public Class MainMenuForm
 
         Dim cardsLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .ColumnCount = 4,
+            .ColumnCount = 5,
             .RowCount = 1,
             .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
             .AutoSize = True
         }
-        For i As Integer = 0 To 3
-            cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        For i As Integer = 0 To 4
+            cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 20.0F))
         Next
         cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
         cardsLayout.Controls.Add(CreateDashCard("Today's sales", lblDashSalesToday), 1, 0)
         cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 2, 0)
         cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 3, 0)
-
-        Dim statsSection As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .Dock = DockStyle.Top,
-            .ColumnCount = 1,
-            .RowCount = 2,
-            .Margin = Padding.Empty
-        }
-        statsSection.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        statsSection.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        statsSection.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        cardsLayout.Dock = DockStyle.Fill
-        cardsLayout.Margin = New Padding(0, 0, 0, UiTheme.PadSection)
-        pnlLowStockAlert.Dock = DockStyle.Fill
-        statsSection.Controls.Add(pnlLowStockAlert, 0, 0)
-        statsSection.Controls.Add(cardsLayout, 0, 1)
+        cardsLayout.Controls.Add(CreateStockDashCard(), 4, 0)
 
         Dim salesCard As Panel = UiTheme.CreateCard(False)
         salesCard.Dock = DockStyle.Fill
@@ -590,7 +510,7 @@ Public Class MainMenuForm
             .BackColor = Color.Transparent
         }
 
-        contentLayout.Controls.Add(statsSection, 0, 0)
+        contentLayout.Controls.Add(cardsLayout, 0, 0)
         contentLayout.Controls.Add(salesCard, 0, 1)
         contentLayout.Controls.Add(futureSpacer, 0, 2)
         contentArea.Controls.Add(contentLayout)
@@ -647,8 +567,27 @@ Public Class MainMenuForm
         Return UiTheme.CreateSidebarNavButton(text)
     End Function
 
+    Private Function GetNavButtonForTarget(target As WorkspaceNavigation.Target) As Button
+        Select Case target
+            Case WorkspaceNavigation.Target.Products
+                Return btnProducts
+            Case WorkspaceNavigation.Target.Categories
+                Return btnCategories
+            Case WorkspaceNavigation.Target.Cashiers
+                Return btnCashierAccounts
+            Case WorkspaceNavigation.Target.Sales
+                Return btnSales
+            Case WorkspaceNavigation.Target.Receipt
+                Return btnReceipt
+            Case WorkspaceNavigation.Target.Reports
+                Return btnReports
+            Case Else
+                Return Nothing
+        End Select
+    End Function
+
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
-        Dim card As Panel = UiTheme.CreateCard(True)
+        Dim card As Panel = UiTheme.CreateCard(False)
         card.Margin = New Padding(UiTheme.PadTight, 0, UiTheme.PadTight, UiTheme.PadControl)
         card.Dock = DockStyle.Fill
         card.MinimumSize = New Size(140, 96)
@@ -689,6 +628,114 @@ Public Class MainMenuForm
     Private Function CreateDashValueLabel(initial As String) As Label
         Return New Label() With {.Text = initial, .AutoSize = False}
     End Function
+
+    Private Function CreateStockDashCard() As Panel
+        pnlStockCard = UiTheme.CreateStatusCard()
+        pnlStockCard.Dock = DockStyle.Fill
+        pnlStockCard.Margin = New Padding(UiTheme.PadTight, 0, UiTheme.PadTight, UiTheme.PadControl)
+        pnlStockCard.MinimumSize = New Size(140, 96)
+        pnlStockCard.Cursor = Cursors.Default
+
+        Dim inner As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        lblStockCardTitle = New Label() With {
+            .Text = "Stock health",
+            .Font = UiTheme.FontCaption,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        }
+
+        lblDashLowStock.AutoSize = True
+        lblDashLowStock.TextAlign = ContentAlignment.MiddleLeft
+        lblDashLowStock.Font = UiTheme.FontHeading
+        lblDashLowStock.Margin = New Padding(0)
+
+        lblStockCardSubtitle = New Label() With {
+            .Text = "All products healthy",
+            .Font = UiTheme.FontBodySmall,
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        }
+
+        inner.Controls.Add(lblStockCardTitle, 0, 0)
+        inner.Controls.Add(lblDashLowStock, 0, 1)
+        inner.Controls.Add(lblStockCardSubtitle, 0, 2)
+        pnlStockCard.Controls.Add(inner)
+
+        WireStockCardClickEvents(pnlStockCard)
+        ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
+        Return pnlStockCard
+    End Function
+
+    Private Sub WireStockCardClickEvents(root As Control)
+        AddHandler root.Click, AddressOf pnlStockCard_Click
+        For Each child As Control In root.Controls
+            WireStockCardClickEvents(child)
+        Next
+    End Sub
+
+    Private Sub ApplyStockCardHealth(level As DashboardStockHealth, lowCount As Integer, watchCount As Integer)
+        currentStockHealth = level
+
+        Dim backColor As Color
+        Dim foreColor As Color
+        Dim title As String
+        Dim valueText As String
+        Dim subtitle As String
+        Dim clickable As Boolean
+
+        Select Case level
+            Case DashboardStockHealth.Low
+                backColor = UiTheme.ColDanger
+                foreColor = UiTheme.ColTextOnDark
+                title = "Low stock items"
+                valueText = lowCount.ToString(CultureInfo.CurrentCulture)
+                subtitle = "View products →"
+                clickable = True
+            Case DashboardStockHealth.Watch
+                backColor = UiTheme.ColStockWatch
+                foreColor = UiTheme.ColTextPrimary
+                title = "Stock watch"
+                valueText = watchCount.ToString(CultureInfo.CurrentCulture)
+                subtitle = "Approaching threshold"
+                clickable = True
+            Case Else
+                backColor = UiTheme.ColAccent
+                foreColor = UiTheme.ColTextOnDark
+                title = "Stock health"
+                valueText = "OK"
+                subtitle = "All products healthy"
+                clickable = False
+        End Select
+
+        If lblStockCardTitle IsNot Nothing Then
+            lblStockCardTitle.Text = title
+        End If
+
+        If lblDashLowStock IsNot Nothing Then
+            lblDashLowStock.Text = valueText
+        End If
+
+        If lblStockCardSubtitle IsNot Nothing Then
+            lblStockCardSubtitle.Text = subtitle
+        End If
+
+        If pnlStockCard IsNot Nothing Then
+            pnlStockCard.Cursor = If(clickable, Cursors.Hand, Cursors.Default)
+            UiTheme.ApplyStatusCardTheme(pnlStockCard, backColor, foreColor)
+        End If
+    End Sub
 
     ' -----------------------------------------------------------
     ' DATA & CHART METHODS
@@ -752,16 +799,33 @@ Public Class MainMenuForm
                     End Using
                 End Using
 
-                Dim lowStockSql As String = "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_quantity <= @threshold;"
+                Dim threshold As Integer = Math.Max(AppSettings.Current.StockThreshold, 1)
+                Dim watchThreshold As Integer = threshold * 2
+
+                Dim lowStockSql As String =
+                    "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_quantity <= @threshold;"
                 Dim lowStockCount As Integer = 0
                 Using cmd As New SqlCommand(lowStockSql, connection)
-                    cmd.Parameters.AddWithValue("@threshold", AppSettings.Current.StockThreshold)
+                    cmd.Parameters.AddWithValue("@threshold", threshold)
                     lowStockCount = Convert.ToInt32(cmd.ExecuteScalar())
                 End Using
-                lblDashLowStock.Text = lowStockCount.ToString(CultureInfo.CurrentCulture)
-                lblDashLowStock.ForeColor = If(lowStockCount > 0, UiTheme.ColDanger, UiTheme.ColAccent)
-                If pnlLowStockAlert IsNot Nothing Then
-                    pnlLowStockAlert.Visible = lowStockCount > 0
+
+                Dim watchStockSql As String =
+                    "SELECT COUNT(*) FROM products WHERE is_active = 1 " &
+                    "AND stock_quantity > @threshold AND stock_quantity <= @watchThreshold;"
+                Dim watchStockCount As Integer = 0
+                Using cmd As New SqlCommand(watchStockSql, connection)
+                    cmd.Parameters.AddWithValue("@threshold", threshold)
+                    cmd.Parameters.AddWithValue("@watchThreshold", watchThreshold)
+                    watchStockCount = Convert.ToInt32(cmd.ExecuteScalar())
+                End Using
+
+                If lowStockCount > 0 Then
+                    ApplyStockCardHealth(DashboardStockHealth.Low, lowStockCount, watchStockCount)
+                ElseIf watchStockCount > 0 Then
+                    ApplyStockCardHealth(DashboardStockHealth.Watch, lowStockCount, watchStockCount)
+                Else
+                    ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
                 End If
 
                 LoadChartDataForRange(connection, sym, chartRangeStart, chartRangeEnd)
@@ -785,10 +849,7 @@ Public Class MainMenuForm
             lblDashLastSale.Text = "—"
             lblDashSevenDay.Text = "—"
             lblDashLowStock.Text = "—"
-            lblDashLowStock.ForeColor = UiTheme.ColTextPrimary
-            If pnlLowStockAlert IsNot Nothing Then
-                pnlLowStockAlert.Visible = False
-            End If
+            ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
             chartDataLoaded = False
             chartLoadFailed = True
             chartPeriodTotal = 0D
@@ -1222,7 +1283,11 @@ Public Class MainMenuForm
     ' BUTTON CLICK HANDLERS
     ' -----------------------------------------------------------
 
-    Private Sub pnlLowStockAlert_Click(sender As Object, e As EventArgs)
+    Private Sub pnlStockCard_Click(sender As Object, e As EventArgs)
+        If currentStockHealth = DashboardStockHealth.Healthy Then
+            Return
+        End If
+
         If Not AppSession.RequireAdmin(Me) Then
             Return
         End If

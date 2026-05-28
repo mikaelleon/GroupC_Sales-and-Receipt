@@ -57,6 +57,7 @@ Public NotInheritable Class UiTheme
 
     Public Shared ReadOnly ColWarning As Color = ColorFromHex(&HE65100)
     Public Shared ReadOnly ColWarningMuted As Color = ColorFromHex(&HFFF3E0)
+    Public Shared ReadOnly ColStockWatch As Color = ColorFromHex(&HFFF59D)
 
     Public Shared ReadOnly ColBackground As Color = ColorFromHex(&HF4F6F9)
     Public Shared ReadOnly ColSurface As Color = ColorFromHex(&HFFFFFF)
@@ -132,7 +133,8 @@ Public NotInheritable Class UiTheme
     Public Shared ReadOnly FontBodySmall As Font = FontBody
     Public Shared ReadOnly FontButton As Font = FontBody
 
-    Public Const DefaultButtonCornerRadius As Integer = 10
+    Public Const DefaultButtonCornerRadius As Integer = RadiusMd
+    Public Const DefaultCardCornerRadius As Integer = RadiusMd
     Private Const InputWrapTagKey As String = "UiTheme.InputWrap"
     Private Const SidebarActiveTagKey As String = "UiTheme.SidebarActive"
 
@@ -317,8 +319,8 @@ Public NotInheritable Class UiTheme
 
         If active Then
             btn.Tag = SidebarActiveTagKey
-            btn.BackColor = ColPrimaryLight
-            btn.Padding = New Padding(PadCard - 3, 0, PadControl, 0)
+            btn.BackColor = Color.Transparent
+            btn.Padding = New Padding(PadCard, 0, PadControl, 0)
             AddHandler btn.Paint, AddressOf SidebarActiveButton_Paint
         Else
             btn.Tag = Nothing
@@ -335,8 +337,16 @@ Public NotInheritable Class UiTheme
             Return
         End If
 
-        Using accentBrush As New SolidBrush(ColAccent)
-            e.Graphics.FillRectangle(accentBrush, 0, 0, 3, btn.Height)
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
+        Dim inset As Integer = PadTight
+        Dim rect As New Rectangle(inset, inset, Math.Max(0, btn.Width - (inset * 2) - 1), Math.Max(0, btn.Height - (inset * 2) - 1))
+        Using path As GraphicsPath = CreateRoundedRectPath(rect, RadiusSm)
+            Using fillBrush As New SolidBrush(Color.FromArgb(72, 255, 255, 255))
+                e.Graphics.FillPath(fillBrush, path)
+            End Using
+            Using accentBrush As New SolidBrush(ColAccent)
+                e.Graphics.FillRectangle(accentBrush, rect.X, rect.Y, 3, rect.Height)
+            End Using
         End Using
     End Sub
 
@@ -394,17 +404,7 @@ Public NotInheritable Class UiTheme
             .BackColor = Color.Transparent
         }
 
-        Dim navEntries As New List(Of (Target As WorkspaceNavigation.Target, Text As String)) From {
-            (WorkspaceNavigation.Target.Reports, "Reports"),
-            (WorkspaceNavigation.Target.Receipt, "Receipt Preview"),
-            (WorkspaceNavigation.Target.Sales, "Point of Sale"),
-            (WorkspaceNavigation.Target.Cashiers, "Manage Cashiers"),
-            (WorkspaceNavigation.Target.Categories, "Manage Categories"),
-            (WorkspaceNavigation.Target.Products, "Manage Products")
-        }
-
-        For i As Integer = navEntries.Count - 1 To 0 Step -1
-            Dim entry = navEntries(i)
+        For Each entry As WorkspaceNavigation.NavEntry In WorkspaceNavigation.EnumerateSidebarDockAddOrder()
             If Not WorkspaceNavigation.CanAccess(entry.Target) Then
                 Continue For
             End If
@@ -646,14 +646,48 @@ Public NotInheritable Class UiTheme
 
     ' ========== CARDS & BADGES ==========
 
-    ''' <summary>Single card surface with 1px ColBorder; optional ColPrimary left accent.</summary>
+    ''' <summary>Single card surface with rounded border; optional ColPrimary left accent.</summary>
     Public Shared Function CreateCard(Optional leftAccent As Boolean = False) As Panel
-        Dim card As New CardPanel(leftAccent) With {
+        Dim card As New CardPanel(leftAccent, DefaultCardCornerRadius) With {
             .BackColor = ColSurface,
             .Padding = New Padding(PadCard)
         }
         Return card
     End Function
+
+    ''' <summary>Rounded KPI/status card with a solid fill and contrasting text.</summary>
+    Public Shared Function CreateStatusCard() As Panel
+        Return New StatusCardPanel(ColAccent, ColTextOnDark, DefaultCardCornerRadius) With {
+            .Padding = New Padding(PadCard),
+            .BackColor = ColAccent
+        }
+    End Function
+
+    Public Shared Sub ApplyStatusCardTheme(card As Panel, backColor As Color, foreColor As Color)
+        If card Is Nothing Then
+            Return
+        End If
+
+        Dim statusCard As StatusCardPanel = TryCast(card, StatusCardPanel)
+        If statusCard IsNot Nothing Then
+            statusCard.ApplyTheme(backColor, foreColor)
+        End If
+
+        ApplyForeColorRecursive(card, foreColor)
+        card.Invalidate()
+    End Sub
+
+    Private Shared Sub ApplyForeColorRecursive(root As Control, foreColor As Color)
+        For Each child As Control In root.Controls
+            If TypeOf child Is Label Then
+                child.ForeColor = foreColor
+            End If
+
+            If child.HasChildren Then
+                ApplyForeColorRecursive(child, foreColor)
+            End If
+        Next
+    End Sub
 
     ''' <summary>Bordered card with inner content host (legacy two-panel structure).</summary>
     Public Shared Function CreateCardPanel(Optional innerPadding As Padding = Nothing) As Panel
@@ -661,7 +695,7 @@ Public NotInheritable Class UiTheme
             innerPadding = New Padding(PadCard)
         End If
 
-        Dim outer As New Panel() With {
+        Dim outer As New CardPanel(False, DefaultCardCornerRadius) With {
             .BackColor = ColBorder,
             .Padding = New Padding(1)
         }
@@ -961,6 +995,7 @@ Public NotInheritable Class UiTheme
         button.FlatAppearance.BorderColor = ColBorder
         button.UseCompatibleTextRendering = False
         button.TextAlign = ContentAlignment.MiddleCenter
+        WireRoundedButtonPaint(button, ColBackground, ColBackground, ColBackground, ColTextDisabled, ColBorder, DefaultButtonCornerRadius)
     End Sub
 
     Public Shared Sub ApplySecondaryAccentButton(button As Button)
@@ -1000,6 +1035,7 @@ Public NotInheritable Class UiTheme
         End If
         button.FlatAppearance.MouseOverBackColor = hover
         button.FlatAppearance.MouseDownBackColor = hover
+        WireRoundedButtonPaint(button, back, hover, hover, fore, border, DefaultButtonCornerRadius)
     End Sub
 
     Private Shared Sub ClearSpecButtonState(button As Button)
@@ -1323,24 +1359,104 @@ Public NotInheritable Class UiTheme
         Inherits Panel
 
         Private ReadOnly _leftAccent As Boolean
+        Private ReadOnly _cornerRadius As Integer
 
-        Public Sub New(Optional leftAccent As Boolean = False)
+        Public Sub New(Optional leftAccent As Boolean = False, Optional cornerRadius As Integer = DefaultCardCornerRadius)
             _leftAccent = leftAccent
+            _cornerRadius = Math.Max(RadiusSm, cornerRadius)
             SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.OptimizedDoubleBuffer Or ControlStyles.ResizeRedraw, True)
+            UpdateRoundedRegion()
+        End Sub
+
+        Protected Overrides Sub OnResize(e As EventArgs)
+            MyBase.OnResize(e)
+            UpdateRoundedRegion()
+        End Sub
+
+        Private Sub UpdateRoundedRegion()
+            If Width <= 0 OrElse Height <= 0 Then
+                Return
+            End If
+
+            Dim rect As New Rectangle(0, 0, Width, Height)
+            Using path As GraphicsPath = CreateRoundedRectPath(rect, _cornerRadius)
+                Region = New Region(path)
+            End Using
         End Sub
 
         Protected Overrides Sub OnPaint(e As PaintEventArgs)
             MyBase.OnPaint(e)
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
             Dim rect As New Rectangle(0, 0, Width - 1, Height - 1)
-            Using borderPen As New Pen(ColBorder, 1.0F)
-                e.Graphics.DrawRectangle(borderPen, rect)
-            End Using
-
-            If _leftAccent Then
-                Using accentBrush As New SolidBrush(ColPrimary)
-                    e.Graphics.FillRectangle(accentBrush, 0, 0, 3, Height)
+            Using path As GraphicsPath = CreateRoundedRectPath(rect, _cornerRadius)
+                Using fillBrush As New SolidBrush(BackColor)
+                    e.Graphics.FillPath(fillBrush, path)
                 End Using
+                Using borderPen As New Pen(ColBorder, 1.0F)
+                    e.Graphics.DrawPath(borderPen, path)
+                End Using
+
+                If _leftAccent Then
+                    Dim accentRect As New Rectangle(rect.X, rect.Y, 3, rect.Height)
+                    Using accentBrush As New SolidBrush(ColPrimary)
+                        e.Graphics.FillRectangle(accentBrush, accentRect)
+                    End Using
+                End If
+            End Using
+        End Sub
+    End Class
+
+    Private NotInheritable Class StatusCardPanel
+        Inherits Panel
+
+        Private _fillColor As Color
+        Private _contentForeColor As Color
+        Private ReadOnly _cornerRadius As Integer
+
+        Public Sub New(fillColor As Color, contentForeColor As Color, Optional cornerRadius As Integer = DefaultCardCornerRadius)
+            _fillColor = fillColor
+            _contentForeColor = contentForeColor
+            _cornerRadius = Math.Max(RadiusSm, cornerRadius)
+            BackColor = _fillColor
+            SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.OptimizedDoubleBuffer Or ControlStyles.ResizeRedraw, True)
+            UpdateRoundedRegion()
+        End Sub
+
+        Public Sub ApplyTheme(fillColor As Color, contentForeColor As Color)
+            _fillColor = fillColor
+            _contentForeColor = contentForeColor
+            BackColor = _fillColor
+            Invalidate()
+        End Sub
+
+        Protected Overrides Sub OnResize(e As EventArgs)
+            MyBase.OnResize(e)
+            UpdateRoundedRegion()
+        End Sub
+
+        Private Sub UpdateRoundedRegion()
+            If Width <= 0 OrElse Height <= 0 Then
+                Return
             End If
+
+            Dim rect As New Rectangle(0, 0, Width, Height)
+            Using path As GraphicsPath = CreateRoundedRectPath(rect, _cornerRadius)
+                Region = New Region(path)
+            End Using
+        End Sub
+
+        Protected Overrides Sub OnPaint(e As PaintEventArgs)
+            MyBase.OnPaint(e)
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
+            Dim rect As New Rectangle(0, 0, Width - 1, Height - 1)
+            Using path As GraphicsPath = CreateRoundedRectPath(rect, _cornerRadius)
+                Using fillBrush As New SolidBrush(_fillColor)
+                    e.Graphics.FillPath(fillBrush, path)
+                End Using
+                Using borderPen As New Pen(Color.FromArgb(40, ColTextPrimary), 1.0F)
+                    e.Graphics.DrawPath(borderPen, path)
+                End Using
+            End Using
         End Sub
     End Class
 

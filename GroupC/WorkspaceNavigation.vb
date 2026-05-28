@@ -15,6 +15,28 @@ Public Module WorkspaceNavigation
         Reports
     End Enum
 
+    Public Structure NavEntry
+        Public Target As Target
+        Public Text As String
+    End Structure
+
+    ''' <summary>Sidebar order top-to-bottom (below Dashboard on main menu).</summary>
+    Public ReadOnly MainNavEntries As NavEntry() = {
+        New NavEntry With {.Target = Target.Products, .Text = "Manage Products"},
+        New NavEntry With {.Target = Target.Categories, .Text = "Manage Categories"},
+        New NavEntry With {.Target = Target.Cashiers, .Text = "Manage Cashiers"},
+        New NavEntry With {.Target = Target.Sales, .Text = "Point of Sale"},
+        New NavEntry With {.Target = Target.Receipt, .Text = "Receipt Preview"},
+        New NavEntry With {.Target = Target.Reports, .Text = "Reports"}
+    }
+
+    ''' <summary>DockStyle.Top stacks last-added control at top; reverse visual order for adds.</summary>
+    Public Iterator Function EnumerateSidebarDockAddOrder() As IEnumerable(Of NavEntry)
+        For i As Integer = MainNavEntries.Length - 1 To 0 Step -1
+            Yield MainNavEntries(i)
+        Next
+    End Function
+
     Private pendingTarget As Target = Target.None
 
     Public Sub RequestNavigate(target As Target)

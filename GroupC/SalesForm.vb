@@ -43,14 +43,15 @@ Public Class SalesForm
     Private Const CheckoutSummaryTenderedRowHeight As Integer = 40
     Private Const CheckoutDiscountColumnWidth As Single = 210.0F
     Private Const CheckoutFinalizeColumnWidth As Single = 196.0F
-    Private Const TenderedFieldHeight As Integer = 40
+    Private Const TenderedFieldHeight As Integer = 48
     Private Const SalesInputShellHeight As Integer = 42
     Private Const DiscountPwdPercent As Decimal = 20D
     Private Const DiscountSeniorPercent As Decimal = 20D
     Private Const DiscountMembershipPercent As Decimal = 10D
-    Private Const ProductCardWidth As Integer = 150
-    Private Const ProductCardHeight As Integer = 180
-    Private Const ProductCardImageHeight As Integer = 90
+    Private Const ProductCardWidth As Integer = 172
+    Private Const ProductCardHeight As Integer = 204
+    Private Const ProductCardImageHeight As Integer = 76
+    Private Const ProductCardNameHeight As Integer = 44
     Private Const CartRemoveColumnName As String = "Remove"
     Private Const CartColIndexWidth As Integer = 40
     Private Const CartColPriceWidth As Integer = 80
@@ -81,6 +82,9 @@ Public Class SalesForm
     Private lblTotal As Label
     Private lblEmptyHint As Label
     Private lblCartEmpty As Label
+    Private lblCartEmptyHint As Label
+    Private pnlCartEmptyState As Panel
+    Private pnlSelectionAccent As Panel
     Private WithEvents btnOpenProducts As Button
     Private WithEvents btnBack As Button
 
@@ -235,7 +239,7 @@ Public Class SalesForm
             .AutoSize = True,
             .ForeColor = UiTheme.ColTextPrimary,
             .Font = UiTheme.FontBodyBold,
-            .Text = "No product selected",
+            .Text = "No product selected — click a card or double-click to add",
             .Margin = New Padding(0)
         }
         numQuantity = New NumericUpDown() With {
@@ -247,12 +251,13 @@ Public Class SalesForm
         UiTheme.ApplyInputStyle(numQuantity)
 
         btnAdd = New Button() With {
-            .Text = "&Add to cart",
+            .Text = "Select a product",
             .AutoSize = True,
-            .MinimumSize = New Size(0, UiTheme.ButtonHeight),
-            .Cursor = Cursors.Hand
+            .MinimumSize = New Size(132, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Default,
+            .Enabled = False
         }
-        UiTheme.ApplyDisabledButton(btnAdd)
+        UiTheme.ApplySecondaryButton(btnAdd)
         btnRemove = New Button() With {
             .Text = "&Remove item",
             .Height = UiTheme.ButtonHeightMd,
@@ -351,13 +356,31 @@ Public Class SalesForm
         lblEmptyHint = New Label() With {.Text = "No products in catalog. Open Manage Products.", .AutoSize = True, .ForeColor = UiTheme.ColTextSecondary, .Visible = False}
         lblCartEmpty = New Label() With {
             .Text = "Cart is empty",
+            .AutoSize = False,
+            .Dock = DockStyle.Top,
+            .Height = 28,
+            .TextAlign = ContentAlignment.BottomCenter,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Font = UiTheme.FontBodyBold,
+            .BackColor = Color.Transparent
+        }
+        lblCartEmptyHint = New Label() With {
+            .Text = "Select a product, then Add to cart or double-click a card.",
+            .AutoSize = False,
             .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleCenter,
+            .TextAlign = ContentAlignment.TopCenter,
             .ForeColor = UiTheme.ColTextSecondary,
-            .Font = New Font(UiTheme.FontBody, FontStyle.Italic),
+            .Font = New Font(UiTheme.FontBody.FontFamily, UiTheme.FontBody.Size, FontStyle.Italic),
             .BackColor = Color.Transparent,
+            .Padding = New Padding(UiTheme.PadCard, 0, UiTheme.PadCard, UiTheme.PadCard)
+        }
+        pnlCartEmptyState = New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColSurface,
             .Visible = True
         }
+        pnlCartEmptyState.Controls.Add(lblCartEmptyHint)
+        pnlCartEmptyState.Controls.Add(lblCartEmpty)
 
         dgvProducts = New DataGridView() With {
             .Dock = DockStyle.Fill,
@@ -458,17 +481,27 @@ Public Class SalesForm
         Dim productsHeaderHost As Panel = UiTheme.CreateSectionHeader("Products")
         productsHeaderHost.Dock = DockStyle.Top
 
-        Dim filterRow As New FlowLayoutPanel() With {
+        Dim filterRow As New TableLayoutPanel() With {
             .AutoSize = True,
-            .WrapContents = False,
-            .FlowDirection = FlowDirection.LeftToRight,
             .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
-            .Width = 400
+            .ColumnCount = 2,
+            .RowCount = 2,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        filterRow.Controls.Add(txtProductSearch)
-        filterRow.Controls.Add(cmbSalesCategory)
-        filterRow.Controls.Add(txtBarcodeScan)
+        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
+        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
+        filterRow.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        filterRow.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        txtProductSearch.Dock = DockStyle.Fill
+        txtProductSearch.Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadTight)
+        cmbSalesCategory.Dock = DockStyle.Fill
+        cmbSalesCategory.Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        txtBarcodeScan.Dock = DockStyle.Fill
+        txtBarcodeScan.Margin = New Padding(0, 0, 0, 0)
+        filterRow.Controls.Add(txtProductSearch, 0, 0)
+        filterRow.Controls.Add(cmbSalesCategory, 1, 0)
+        filterRow.SetColumnSpan(txtBarcodeScan, 2)
+        filterRow.Controls.Add(txtBarcodeScan, 0, 1)
 
         Dim catalogHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
         catalogHost.Controls.Add(lblNoProductCards)
@@ -480,6 +513,12 @@ Public Class SalesForm
             .Padding = New Padding(UiTheme.PadCard),
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink
+        }
+        pnlSelectionAccent = New Panel() With {
+            .Dock = DockStyle.Top,
+            .Height = 3,
+            .BackColor = UiTheme.ColPrimary,
+            .Visible = False
         }
         Dim selectionLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
@@ -519,6 +558,7 @@ Public Class SalesForm
         selectionLayout.Controls.Add(selectionLeft, 0, 0)
         selectionLayout.Controls.Add(selectionRight, 1, 0)
         selectionBar.Controls.Add(selectionLayout)
+        selectionBar.Controls.Add(pnlSelectionAccent)
 
         Dim utilityRow As New FlowLayoutPanel() With {
             .AutoSize = True,
@@ -541,26 +581,38 @@ Public Class SalesForm
         Dim rightSplit As SplitContainer = UiTheme.CreateHorizontalSplit()
 
         Dim cartPanel As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
-        Dim cartHeader As New FlowLayoutPanel() With {
+        Dim cartHeader As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .FlowDirection = FlowDirection.LeftToRight,
-            .WrapContents = False,
+            .ColumnCount = 2,
+            .RowCount = 1,
             .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        cartHeader.Controls.Add(New Label() With {
+        cartHeader.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        cartHeader.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        Dim lblCartTitle As New Label() With {
             .Text = "Shopping Cart",
             .Font = UiTheme.FontSubheading,
             .ForeColor = UiTheme.ColTextPrimary,
             .AutoSize = True,
-            .Margin = New Padding(0, 0, UiTheme.PadSection, 0)
-        })
-        cartHeader.Controls.Add(btnRemove)
-        cartHeader.Controls.Add(btnClear)
+            .Anchor = AnchorStyles.Left,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight)
+        }
+        Dim cartActions As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .WrapContents = False,
+            .Anchor = AnchorStyles.Right,
+            .Margin = Padding.Empty
+        }
+        cartActions.Controls.Add(btnRemove)
+        cartActions.Controls.Add(btnClear)
+        cartHeader.Controls.Add(lblCartTitle, 0, 0)
+        cartHeader.Controls.Add(cartActions, 1, 0)
 
         Dim cartGridHost As New Panel() With {.Dock = DockStyle.Fill, .MinimumSize = New Size(0, 160)}
         cartGridHost.Controls.Add(dgvProducts)
-        cartGridHost.Controls.Add(lblCartEmpty)
+        cartGridHost.Controls.Add(pnlCartEmptyState)
         cartGridHost.Controls.Add(lblEmptyHint)
 
         cartPanel.Controls.Add(cartGridHost)
@@ -601,15 +653,41 @@ Public Class SalesForm
         discountColumn.Controls.Add(btnDiscPwd)
         discountColumn.Controls.Add(btnDiscSenior)
         discountColumn.Controls.Add(btnDiscMembership)
-        discountColumn.Controls.Add(btnTaxToggle)
-        discountColumn.Controls.Add(numTaxPercent)
-        discountColumn.Controls.Add(New Label() With {
-            .Text = "Custom tax rate",
+
+        Dim taxGroup As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadControl),
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        }
+        Dim taxGroupBorder As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.ColBorder,
+            .Padding = New Padding(1)
+        }
+        Dim taxGroupInner As New FlowLayoutPanel() With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .WrapContents = False,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadTight),
+            .Margin = Padding.Empty
+        }
+        taxGroupInner.Controls.Add(btnTaxToggle)
+        taxGroupInner.Controls.Add(numTaxPercent)
+        taxGroupInner.Controls.Add(New Label() With {
+            .Text = "Custom tax rate (%)",
             .Font = UiTheme.FontCaption,
             .ForeColor = UiTheme.ColTextSecondary,
             .AutoSize = True,
             .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
         })
+        taxGroupBorder.Controls.Add(taxGroupInner)
+        taxGroup.Controls.Add(taxGroupBorder)
+        discountColumn.Controls.Add(taxGroup)
 
         Dim totalsColumn As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
@@ -626,8 +704,32 @@ Public Class SalesForm
             .Text = "Amount Due",
             .Font = UiTheme.FontSubheading,
             .ForeColor = UiTheme.ColTextPrimary,
-            .AutoSize = True
+            .AutoSize = True,
+            .Margin = New Padding(UiTheme.PadControl, UiTheme.PadControl, 0, UiTheme.PadControl)
         }
+        lblTotal.Margin = New Padding(0, UiTheme.PadControl, UiTheme.PadControl, UiTheme.PadControl)
+        lblTotal.AutoSize = False
+        lblTotal.Dock = DockStyle.Fill
+        lblTotal.TextAlign = ContentAlignment.MiddleRight
+
+        Dim pnlAmountDueBand As New Panel() With {
+            .BackColor = UiTheme.InfoBackground,
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl),
+            .Padding = New Padding(0)
+        }
+        Dim amountDueLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        amountDueLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
+        amountDueLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
+        amountDueLayout.Controls.Add(lblAmountDueCaption, 0, 0)
+        amountDueLayout.Controls.Add(lblTotal, 1, 0)
+        pnlAmountDueBand.Controls.Add(amountDueLayout)
 
         totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Subtotal"), 0, 0)
         totalsColumn.Controls.Add(lblSubtotalValue, 1, 0)
@@ -637,8 +739,8 @@ Public Class SalesForm
         totalsColumn.Controls.Add(lblTaxValue, 1, 2)
         totalsColumn.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder, .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)}, 0, 3)
         totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
-        totalsColumn.Controls.Add(lblAmountDueCaption, 0, 4)
-        totalsColumn.Controls.Add(lblTotal, 1, 4)
+        totalsColumn.Controls.Add(pnlAmountDueBand, 0, 4)
+        totalsColumn.SetColumnSpan(pnlAmountDueBand, 2)
         totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Tendered"), 0, 5)
         totalsColumn.Controls.Add(CreateTenderedInputShell(), 1, 5)
         totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Change"), 0, 6)
@@ -673,7 +775,7 @@ Public Class SalesForm
         formToolTips.SetToolTip(txtProductSearch, "Filter products by name")
         formToolTips.SetToolTip(cmbSalesCategory, "Show products in this category only")
         formToolTips.SetToolTip(numQuantity, "Quantity to add to the cart")
-        formToolTips.SetToolTip(btnAdd, "Add the selected product to the cart")
+        formToolTips.SetToolTip(btnAdd, "Add the selected product to the cart (or double-click a product card)")
         formToolTips.SetToolTip(btnRemove, "Remove the selected line from the cart")
         formToolTips.SetToolTip(btnClear, "Clear the entire cart")
         formToolTips.SetToolTip(btnFinalize, "Save this sale and open the receipt")
@@ -725,8 +827,14 @@ Public Class SalesForm
         End If
 
         If String.IsNullOrWhiteSpace(selectedProductName) Then
-            UiTheme.ApplyDisabledButton(btnAdd)
+            btnAdd.Text = "Select a product"
+            btnAdd.Enabled = False
+            btnAdd.Cursor = Cursors.Default
+            UiTheme.ApplySecondaryButton(btnAdd)
         Else
+            btnAdd.Text = "&Add to cart"
+            btnAdd.Enabled = True
+            btnAdd.Cursor = Cursors.Hand
             UiTheme.ApplyPrimaryButton(btnAdd)
         End If
     End Sub
@@ -747,12 +855,15 @@ Public Class SalesForm
     End Sub
 
     Private Sub UpdateCartEmptyState()
-        If lblCartEmpty Is Nothing OrElse Not IsSalesCartGridReady() Then
+        If pnlCartEmptyState Is Nothing OrElse Not IsSalesCartGridReady() Then
             Return
         End If
 
-        lblCartEmpty.Visible = dgvProducts.Rows.Count = 0
-        lblCartEmpty.BringToFront()
+        Dim isEmpty As Boolean = dgvProducts.Rows.Count = 0
+        pnlCartEmptyState.Visible = isEmpty
+        If isEmpty Then
+            pnlCartEmptyState.BringToFront()
+        End If
     End Sub
 
     Private Sub ShowStatus(message As String, isError As Boolean)
@@ -1183,12 +1294,15 @@ Public Class SalesForm
         UpdateStockHintForProduct(entry.ProductId, productName)
         UpdateProductCardSelectionVisuals()
         UpdateAddButtonState()
+        If pnlSelectionAccent IsNot Nothing Then
+            pnlSelectionAccent.Visible = True
+        End If
     End Sub
 
     Private Sub ClearProductSelection()
         selectedProductName = Nothing
         selectedProductCard = Nothing
-        lblSelectedProduct.Text = "No product selected"
+        lblSelectedProduct.Text = "No product selected — click a card or double-click to add"
         If lblStockOnHand IsNot Nothing Then
             lblStockOnHand.Text = "Available: —"
             lblStockOnHand.ForeColor = UiTheme.TextSecondary
@@ -1196,6 +1310,9 @@ Public Class SalesForm
         numQuantity.Maximum = MaxLineQty
         UpdateProductCardSelectionVisuals()
         UpdateAddButtonState()
+        If pnlSelectionAccent IsNot Nothing Then
+            pnlSelectionAccent.Visible = False
+        End If
     End Sub
 
     Private Sub UpdateProductCardSelectionVisuals()
@@ -1221,7 +1338,27 @@ Public Class SalesForm
     End Sub
 
     Private Shared Sub ApplyProductCardSelectionStyle(card As Panel, selected As Boolean)
-        card.BackColor = If(selected, UiTheme.InfoBackground, UiTheme.ColSurface)
+        RemoveHandler card.Paint, AddressOf SelectedProductCard_Paint
+
+        If selected Then
+            card.BackColor = UiTheme.InfoBackground
+            AddHandler card.Paint, AddressOf SelectedProductCard_Paint
+        Else
+            card.BackColor = UiTheme.CardSurface
+        End If
+
+        card.Invalidate()
+    End Sub
+
+    Private Shared Sub SelectedProductCard_Paint(sender As Object, e As PaintEventArgs)
+        Dim card As Panel = TryCast(sender, Panel)
+        If card Is Nothing Then
+            Return
+        End If
+
+        Using accentPen As New Pen(UiTheme.ColPrimary, 2.0F)
+            e.Graphics.DrawRectangle(accentPen, 1, 1, card.Width - 3, card.Height - 3)
+        End Using
     End Sub
 
     Private Sub ProductCard_MouseEnter(sender As Object, e As EventArgs)
@@ -1259,6 +1396,15 @@ Public Class SalesForm
         SelectProduct(productName)
     End Sub
 
+    Private Sub ProductCard_DoubleClick(sender As Object, e As EventArgs)
+        ProductCard_Click(sender, e)
+        If String.IsNullOrWhiteSpace(selectedProductName) OrElse btnAdd Is Nothing OrElse Not btnAdd.Enabled Then
+            Return
+        End If
+
+        btnAdd_Click(btnAdd, EventArgs.Empty)
+    End Sub
+
     Private Function FindProductCardPanel(control As Control) As Panel
         Dim current As Control = control
         While current IsNot Nothing
@@ -1275,6 +1421,7 @@ Public Class SalesForm
 
     Private Sub WireProductCardClickEvents(root As Control)
         AddHandler root.Click, AddressOf ProductCard_Click
+        AddHandler root.DoubleClick, AddressOf ProductCard_DoubleClick
         AddHandler root.MouseEnter, AddressOf ProductCard_MouseEnter
         AddHandler root.MouseLeave, AddressOf ProductCard_MouseLeave
         For Each child As Control In root.Controls
@@ -1354,8 +1501,8 @@ Public Class SalesForm
         Dim lblName As New Label() With {
             .Text = productName,
             .Location = New Point(8, pic.Bottom + 6),
-            .Size = New Size(ProductCardWidth - 16, 34),
-            .Font = UiTheme.FontBodyBold,
+            .Size = New Size(ProductCardWidth - 16, ProductCardNameHeight),
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.ColTextPrimary,
             .AutoEllipsis = True
         }
