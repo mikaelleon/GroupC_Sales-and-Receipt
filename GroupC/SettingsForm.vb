@@ -15,8 +15,8 @@ Public Class SettingsForm
     Private Const MinCurrencySymbolLength As Integer = 1
     Private Const MaxCurrencySymbolLength As Integer = 6
     Private Const MinAdminPasswordLength As Integer = 6
-    Private Const SettingsDialogWidth As Integer = 620
-    Private Const SettingsDialogHeight As Integer = 680
+    Private Const SettingsCardMaxWidth As Integer = 680
+    Private Const SettingsContentMaxWidth As Integer = SettingsCardMaxWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2)
 
     Private WithEvents txtStoreName As TextBox
     Private WithEvents txtBranch As TextBox
@@ -34,12 +34,7 @@ Public Class SettingsForm
 
     Private Sub SettingsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Settings")
-        Me.FormBorderStyle = FormBorderStyle.FixedDialog
-        Me.StartPosition = FormStartPosition.CenterParent
-        Me.MinimizeBox = False
-        Me.MaximizeBox = False
-        Me.MinimumSize = New Size(540, 520)
-        Me.Size = New Size(SettingsDialogWidth, SettingsDialogHeight)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 720, 520)
         Me.BackColor = UiTheme.ColBackground
         UiTheme.ApplyStandardWindowChrome(Me)
 
@@ -106,7 +101,7 @@ Public Class SettingsForm
         lblSettingsError.Font = UiTheme.FontBodySmall
         lblSettingsError.Visible = False
         lblSettingsError.Margin = New Padding(0, UiTheme.PadControl, 0, 0)
-        lblSettingsError.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
+        lblSettingsError.MaximumSize = New Size(SettingsContentMaxWidth, 0)
 
         Dim buttonRow As FlowLayoutPanel = UiTheme.CreateButtonRow(FlowDirection.RightToLeft)
         buttonRow.Dock = DockStyle.Fill
@@ -121,9 +116,17 @@ Public Class SettingsForm
         fields.BackColor = Color.Transparent
 
         Dim rowIndex As Integer = 0
-        AddHeader(fields, rowIndex, "Store settings", "Branding, tax defaults, and receipt text shown at checkout.")
+        AddHeader(fields, rowIndex, "Store settings", "Store identity, currency, tax defaults, and inventory alerts.")
         rowIndex += 1
         AddField(fields, rowIndex, "Store name", txtStoreName, "Displayed on receipts, reports, and the sidebar.")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Currency symbol", txtCurrency, "Prefix for prices and totals (for example PHP symbol or $).")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Default tax rate (%)", numDefaultTax, "Applied when Point of Sale opens (cashier can still toggle tax off).")
+        rowIndex += 1
+        AddField(fields, rowIndex, "Low-stock threshold", numStockThreshold, "Dashboard alert when active products reach this quantity or below.")
+        rowIndex += 1
+        AddSection(fields, rowIndex, "Receipt branding")
         rowIndex += 1
         AddField(fields, rowIndex, "Store branch", txtBranch, "Branch line under the store name on receipts.")
         rowIndex += 1
@@ -132,12 +135,6 @@ Public Class SettingsForm
         AddField(fields, rowIndex, "Return policy", txtReturnPolicy, "Return/exchange policy printed on receipts.")
         rowIndex += 1
         AddField(fields, rowIndex, "Terms text", txtTerms, "Terms and conditions line on receipts.")
-        rowIndex += 1
-        AddField(fields, rowIndex, "Currency symbol", txtCurrency, "Prefix for prices and totals (for example PHP symbol or $).")
-        rowIndex += 1
-        AddField(fields, rowIndex, "Default tax rate (%)", numDefaultTax, "Applied when Point of Sale opens (cashier can still toggle tax off).")
-        rowIndex += 1
-        AddField(fields, rowIndex, "Low-stock threshold", numStockThreshold, "Dashboard alert when active products reach this quantity or below.")
         rowIndex += 1
         AddSection(fields, rowIndex, "Administrator password")
         rowIndex += 1
@@ -149,30 +146,58 @@ Public Class SettingsForm
         rowIndex += 1
         fields.Controls.Add(buttonRow, 0, rowIndex)
 
-        Dim scrollHost As New Panel()
-        scrollHost.Dock = DockStyle.Fill
-        scrollHost.AutoScroll = True
-        scrollHost.Padding = New Padding(0, 0, 4, 0)
-        scrollHost.BackColor = Color.Transparent
+        Dim scrollHost As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .AutoScroll = True,
+            .Padding = New Padding(0, 0, 4, 0),
+            .BackColor = Color.Transparent,
+            .MaximumSize = New Size(SettingsContentMaxWidth, 600)
+        }
         scrollHost.Controls.Add(fields)
 
         Dim cardOuter As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.PadCard))
-        cardOuter.Dock = DockStyle.Fill
+        cardOuter.AutoSize = True
+        cardOuter.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        cardOuter.MaximumSize = New Size(SettingsCardMaxWidth, 0)
         Dim cardInner As Panel = UiTheme.GetCardContentHost(cardOuter)
         If cardInner IsNot Nothing Then
+            cardInner.Dock = DockStyle.None
+            cardInner.AutoSize = True
+            cardInner.AutoSizeMode = AutoSizeMode.GrowAndShrink
             cardInner.Controls.Add(scrollHost)
         Else
             cardOuter.Controls.Add(scrollHost)
         End If
 
+        Dim centerGrid As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 3,
+            .RowCount = 3,
+            .BackColor = UiTheme.ColBackground
+        }
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerGrid.Controls.Add(cardOuter, 1, 1)
+
+        Dim topBar As Panel = UiTheme.CreateTopBar(
+            "Settings",
+            "Store branding, tax defaults, and administrator password.")
+
         Dim root As New TableLayoutPanel()
         root.Dock = DockStyle.Fill
-        root.Padding = New Padding(UiTheme.PadPage)
+        root.Padding = Padding.Empty
         root.ColumnCount = 1
-        root.RowCount = 1
+        root.RowCount = 2
         root.BackColor = UiTheme.ColBackground
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        root.Controls.Add(cardOuter, 0, 0)
+        root.Controls.Add(topBar, 0, 0)
+        root.Controls.Add(centerGrid, 0, 1)
 
         Me.Controls.Add(root)
         Me.AcceptButton = btnOk
@@ -230,7 +255,7 @@ Public Class SettingsForm
         lblSubtitle.Font = UiTheme.FontBodySmall
         lblSubtitle.ForeColor = UiTheme.ColTextSecondary
         lblSubtitle.AutoSize = True
-        lblSubtitle.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
+        lblSubtitle.MaximumSize = New Size(SettingsContentMaxWidth, 0)
         lblSubtitle.Dock = DockStyle.Top
 
         Dim lblTitle As New Label()
@@ -286,7 +311,7 @@ Public Class SettingsForm
         lblHint.Font = UiTheme.FontBodySmall
         lblHint.ForeColor = UiTheme.ColTextSecondary
         lblHint.Margin = New Padding(0, UiTheme.PadTight, 0, 0)
-        lblHint.MaximumSize = New Size(SettingsDialogWidth - (UiTheme.PadPage * 2) - (UiTheme.PadCard * 2), 0)
+        lblHint.MaximumSize = New Size(SettingsContentMaxWidth, 0)
 
         block.Controls.Add(lblCaption, 0, 0)
         block.Controls.Add(input, 0, 1)

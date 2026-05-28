@@ -11,8 +11,10 @@ Public Class SalesForm
         Public Property ProductId As Integer
         Public Property UnitPrice As Decimal
         Public Property CategoryId As Integer?
+        Public Property CategoryName As String
         Public Property StockQuantity As Integer
         Public Property ImagePath As String
+        Public Property Barcode As String
     End Class
 
     Private Class SalesCategoryFilterItem
@@ -66,6 +68,7 @@ Public Class SalesForm
 
     Private WithEvents cmbSalesCategory As ComboBox
     Private WithEvents txtProductSearch As TextBox
+    Private WithEvents txtBarcodeScan As TextBox
     Private productCardHost As FlowLayoutPanel
     Private productCardScrollPanel As Panel
     Private lblSelectedProduct As Label
@@ -111,6 +114,8 @@ Public Class SalesForm
     Private formToolTips As ToolTip
 
     Private ReadOnly productCatalog As New Dictionary(Of String, ProductCatalogEntry)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly productCatalogByScanCode As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly categoryNamesById As New Dictionary(Of Integer, String)()
     Private suppressSalesCategoryEvent As Boolean
 
     ''' <summary>
@@ -137,18 +142,34 @@ Public Class SalesForm
         LoadProducts()
         ApplyPosSettingsFromAppSettings()
         UpdateSummaryLabels()
+        UpdateCatalogEmptyMessages()
+    End Sub
+
+    Private Sub SalesForm_Activated(sender As Object, e As EventArgs) Handles MyBase.Activated
+        AppSettings.Reload()
+        UpdateSummaryLabels()
+    End Sub
+
+    Private Sub UpdateCatalogEmptyMessages()
+        If lblEmptyHint Is Nothing Then
+            Return
+        End If
+
+        If AppSession.IsAdmin() Then
+            lblEmptyHint.Text = "No products in the catalog. Open Manage Products to add items."
+        Else
+            lblEmptyHint.Text = "No products available. Contact your store administrator to add items to the catalog."
+        End If
     End Sub
 
     Private Sub ApplyPosSettingsFromAppSettings()
         AppSettings.Reload()
         Dim defaultTax As Decimal = AppSettings.Current.DefaultTaxPercent
-        If defaultTax <= 0D OrElse numTaxPercent Is Nothing Then
-            Return
+        If defaultTax > 0D AndAlso numTaxPercent IsNot Nothing Then
+            numTaxPercent.Value = Math.Min(defaultTax, numTaxPercent.Maximum)
+            taxToggleOn = True
+            RefreshTaxToggleUi()
         End If
-
-        numTaxPercent.Value = Math.Min(defaultTax, numTaxPercent.Maximum)
-        taxToggleOn = True
-        RefreshTaxToggleUi()
     End Sub
 
     Private Sub SetupForm()
@@ -171,6 +192,13 @@ Public Class SalesForm
             .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
         UiTheme.ApplyInputStyle(txtProductSearch)
+
+        txtBarcodeScan = New TextBox() With {
+            .PlaceholderText = "Scan barcode, press Enter",
+            .Width = 180,
+            .Margin = New Padding(0, 0, 0, 0)
+        }
+        UiTheme.ApplyInputStyle(txtBarcodeScan)
 
         cmbSalesCategory = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
@@ -440,6 +468,7 @@ Public Class SalesForm
         }
         filterRow.Controls.Add(txtProductSearch)
         filterRow.Controls.Add(cmbSalesCategory)
+        filterRow.Controls.Add(txtBarcodeScan)
 
         Dim catalogHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
         catalogHost.Controls.Add(lblNoProductCards)
@@ -1304,15 +1333,22 @@ Public Class SalesForm
             pic.Image = cardImage
             productCardImages.Add(cardImage)
         Else
-            Dim lblPlaceholder As New Label() With {
-                .Text = "📦",
-                .Dock = DockStyle.Fill,
-                .TextAlign = ContentAlignment.MiddleCenter,
-                .Font = New Font(UiTheme.FontBody.FontFamily, 24.0F, FontStyle.Regular),
-                .ForeColor = UiTheme.ColTextSecondary,
-                .BackColor = UiTheme.SurfaceVariant
-            }
-            pic.Controls.Add(lblPlaceholder)
+            Dim storeLogo As Image = ReceiptBranding.TryGetReceiptLogo()
+            If storeLogo IsNot Nothing AndAlso String.IsNullOrWhiteSpace(entry.CategoryName) Then
+                pic.Image = storeLogo
+                productCardImages.Add(storeLogo)
+            Else
+                Dim glyph As String = GetCategoryGlyph(entry.CategoryName)
+                Dim lblPlaceholder As New Label() With {
+                    .Text = glyph,
+                    .Dock = DockStyle.Fill,
+                    .TextAlign = ContentAlignment.MiddleCenter,
+                    .Font = New Font(UiTheme.FontBody.FontFamily, 24.0F, FontStyle.Regular),
+                    .ForeColor = UiTheme.ColPrimary,
+                    .BackColor = UiTheme.SurfaceVariant
+                }
+                pic.Controls.Add(lblPlaceholder)
+            End If
         End If
 
         Dim lblName As New Label() With {
@@ -1351,6 +1387,34 @@ Public Class SalesForm
         card.Controls.Add(lblStock)
         WireProductCardClickEvents(card)
         Return card
+    End Function
+
+    Private Shared Function GetCategoryGlyph(categoryName As String) As String
+        If String.IsNullOrWhiteSpace(categoryName) Then
+            Return "📖"
+        End If
+
+        Dim normalized As String = categoryName.ToLowerInvariant()
+        If normalized.Contains("book") Then
+            Return "📚"
+        End If
+        If normalized.Contains("stationery") OrElse normalized.Contains("supply") OrElse normalized.Contains("supplies") Then
+            Return "✏️"
+        End If
+        If normalized.Contains("magazine") OrElse normalized.Contains("periodical") Then
+            Return "📰"
+        End If
+        If normalized.Contains("novel") OrElse normalized.Contains("fiction") Then
+            Return "📕"
+        End If
+        If normalized.Contains("reference") OrElse normalized.Contains("textbook") OrElse normalized.Contains("academic") Then
+            Return "📘"
+        End If
+        If normalized.Contains("children") OrElse normalized.Contains("kids") Then
+            Return "🧸"
+        End If
+
+        Return "📖"
     End Function
 
     Private Sub RefreshProductCardStockLabels()
@@ -2199,6 +2263,8 @@ Public Class SalesForm
 
     Private Sub LoadProducts()
         productCatalog.Clear()
+        productCatalogByScanCode.Clear()
+        categoryNamesById.Clear()
         ClearProductSelection()
 
         Dim prevCatIdx As Integer = 0
@@ -2227,6 +2293,7 @@ Public Class SalesForm
                         While r.Read()
                             Dim cid As Integer = Convert.ToInt32(r("category_id"))
                             Dim cname As String = r("category_name").ToString()
+                            categoryNamesById(cid) = cname
                             cmbSalesCategory.Items.Add(
                                 New SalesCategoryFilterItem With {
                                     .Kind = SalesCategoryFilterItem.FilterKindEnum.SpecificCategory,
@@ -2245,7 +2312,7 @@ Public Class SalesForm
                 suppressSalesCategoryEvent = False
 
                 Dim query As String =
-                    "SELECT id, product_name, price, category_id, stock_quantity, image_path " &
+                    "SELECT id, product_name, price, category_id, stock_quantity, image_path, barcode " &
                     "FROM products " &
                     "WHERE is_active = 1 " &
                     "ORDER BY product_name;"
@@ -2267,12 +2334,31 @@ Public Class SalesForm
                                 imagePath = reader.GetString(imageOrd)
                             End If
 
+                            Dim barcode As String = String.Empty
+                            Dim barcodeOrd As Integer = reader.GetOrdinal("barcode")
+                            If Not reader.IsDBNull(barcodeOrd) Then
+                                barcode = reader.GetString(barcodeOrd).Trim()
+                            End If
+
+                            Dim productId As Integer = Convert.ToInt32(reader("id"))
+                            Dim categoryName As String = String.Empty
+                            If catId.HasValue AndAlso categoryNamesById.ContainsKey(catId.Value) Then
+                                categoryName = categoryNamesById(catId.Value)
+                            End If
+
                             productCatalog(productName) = New ProductCatalogEntry With {
-                                .ProductId = Convert.ToInt32(reader("id")),
+                                .ProductId = productId,
                                 .UnitPrice = price,
                                 .CategoryId = catId,
+                                .CategoryName = categoryName,
                                 .StockQuantity = Convert.ToInt32(reader("stock_quantity")),
-                                .ImagePath = imagePath}
+                                .ImagePath = imagePath,
+                                .Barcode = barcode}
+
+                            productCatalogByScanCode(productId.ToString(CultureInfo.InvariantCulture)) = productName
+                            If barcode.Length > 0 Then
+                                productCatalogByScanCode(barcode) = productName
+                            End If
                         End While
                     End Using
                 End Using
@@ -2285,6 +2371,7 @@ Public Class SalesForm
             UpdateAddButtonState()
             numQuantity.Enabled = hasVisibleCards
             lblEmptyHint.Visible = Not hasCatalogProducts
+            UpdateCatalogEmptyMessages()
             lblNoProductCards.Visible = hasCatalogProducts AndAlso Not hasVisibleCards
             productCardScrollPanel.Visible = hasVisibleCards
             If lblNoProductCards.Visible Then
@@ -2300,6 +2387,7 @@ Public Class SalesForm
             UpdateAddButtonState()
             numQuantity.Enabled = False
             lblEmptyHint.Visible = True
+            UpdateCatalogEmptyMessages()
             lblNoProductCards.Visible = False
             lblEmptyHint.Text = "Could not load products. Check database and App.config."
             btnOpenProducts.Visible = AppSession.IsAdmin()
@@ -2542,5 +2630,49 @@ Public Class SalesForm
             ErrorLogger.Log(ex, NameOf(SalesForm) & "." & NameOf(LoadCartFromSaleId))
         End Try
     End Sub
+
+    Private Sub txtBarcodeScan_KeyDown(sender As Object, e As KeyEventArgs) Handles txtBarcodeScan.KeyDown
+        If e.KeyCode <> Keys.Enter Then
+            Return
+        End If
+
+        e.SuppressKeyPress = True
+        Dim code As String = txtBarcodeScan.Text.Trim()
+        txtBarcodeScan.Clear()
+
+        If code.Length = 0 Then
+            Return
+        End If
+
+        Dim productName As String = ResolveProductNameFromScan(code)
+        If String.IsNullOrWhiteSpace(productName) Then
+            ShowStatus("No product matches barcode """ & code & """.", True)
+            MessageBox.Show("No active product matches that barcode.", "Scan", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            txtBarcodeScan.Focus()
+            Return
+        End If
+
+        SelectProduct(productName)
+        btnAdd_Click(Me, EventArgs.Empty)
+        txtBarcodeScan.Focus()
+    End Sub
+
+    Private Function ResolveProductNameFromScan(code As String) As String
+        If String.IsNullOrWhiteSpace(code) Then
+            Return Nothing
+        End If
+
+        Dim trimmed As String = code.Trim()
+        Dim productName As String = Nothing
+        If productCatalogByScanCode.TryGetValue(trimmed, productName) Then
+            Return productName
+        End If
+
+        If productCatalog.ContainsKey(trimmed) Then
+            Return trimmed
+        End If
+
+        Return Nothing
+    End Function
 
 End Class

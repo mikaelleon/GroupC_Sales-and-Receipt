@@ -6,6 +6,7 @@
 | Document | Description |
 |----------|-------------|
 | This file | Setup, features, POS, receipts, troubleshooting |
+| [DEMO.md](DEMO.md) | Manual smoke-test checklist before presentation |
 | [GroupC/scripts/README.md](GroupC/scripts/README.md) | SQL seed scripts, run order, `sqlcmd` examples |
 
 ## In plain English

@@ -124,7 +124,9 @@ Public Class ReceiptForm
     Private WithEvents printDocument As PrintDocument
 
     Private pnlPageCanvas As Panel
-    Private pnlActionToolbar As FlowLayoutPanel
+    Private pnlActionToolbar As TableLayoutPanel
+    Private WithEvents btnMoreActions As Button
+    Private ctxMoreActions As ContextMenuStrip
     Private pnlCustomRange As Panel
     Private lblZoomPct As Label
     Private ctxReceipt As ContextMenuStrip
@@ -137,6 +139,7 @@ Public Class ReceiptForm
     Private currentSaleVoided As Boolean = False
     Private historySkip As Integer = 0
     Private historyHasMore As Boolean = False
+    Private pendingReceiptDayFilter As Date? = Nothing
     Private printHelper As ReceiptPrintHelper
     Private suppressHistoryEvent As Boolean
     Private previewZoomScale As Single = 1.0F
@@ -166,6 +169,32 @@ Public Class ReceiptForm
         snapshot = detail
         receiptText = If(detail IsNot Nothing, detail.ReceiptText, String.Empty)
         saleIdForMeta = savedSaleId
+    End Sub
+
+    Public Sub ShowReceiptsForDay(day As Date)
+        pendingReceiptDayFilter = day.Date
+    End Sub
+
+    Private Sub ApplyPendingDayFilterIfNeeded()
+        If Not pendingReceiptDayFilter.HasValue Then
+            Return
+        End If
+
+        If cmbDateFilter Is Nothing OrElse dtpFilterFrom Is Nothing OrElse dtpFilterTo Is Nothing Then
+            Return
+        End If
+
+        suppressHistoryEvent = True
+        cmbDateFilter.SelectedIndex = CInt(HistoryDateFilter.CustomRange)
+        dtpFilterFrom.Value = pendingReceiptDayFilter.Value
+        dtpFilterTo.Value = pendingReceiptDayFilter.Value
+        If pnlCustomRange IsNot Nothing Then
+            pnlCustomRange.Visible = True
+        End If
+
+        suppressHistoryEvent = False
+        ApplyHistoryFilters()
+        pendingReceiptDayFilter = Nothing
     End Sub
 
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -217,6 +246,8 @@ Public Class ReceiptForm
                 LoadLatestReceiptFromDb()
             End If
         End If
+
+        ApplyPendingDayFilterIfNeeded()
     End Sub
 
     Private Sub SetupForm()
@@ -407,16 +438,46 @@ Public Class ReceiptForm
             .Margin = New Padding(UiTheme.PadSection, UiTheme.PadControl, 0, 0)
         }
 
-        pnlActionToolbar = New FlowLayoutPanel() With {
+        pnlActionToolbar = New TableLayoutPanel() With {
             .AutoSize = True,
-            .WrapContents = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .Dock = DockStyle.Top,
             .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
-            .Padding = New Padding(0, 0, 0, UiTheme.PadTight)
+            .Padding = Padding.Empty,
+            .ColumnCount = 1,
+            .RowCount = 1,
+            .BackColor = Color.Transparent
         }
-        pnlActionToolbar.Controls.AddRange(New Control() {
-            btnPrint, btnPrintPreview, btnReprint, btnSavePdf, btnSave, btnCopy, btnEmail, btnDetails, btnDuplicate, btnVoid
-        })
+        pnlActionToolbar.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim primaryToolbar As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Margin = Padding.Empty,
+            .Padding = Padding.Empty,
+            .BackColor = Color.Transparent
+        }
+        primaryToolbar.Controls.AddRange(New Control() {btnPrint, btnSavePdf, btnCopy})
+
+        btnMoreActions = CreateToolbarButton("More ▾", False)
+        UiTheme.ApplySecondaryButton(btnMoreActions)
+        primaryToolbar.Controls.Add(btnMoreActions)
+
+        ctxMoreActions = New ContextMenuStrip()
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Print preview", Nothing, Sub(s, ev) btnPrintPreview.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Reprint", Nothing, Sub(s, ev) btnReprint.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Save text", Nothing, Sub(s, ev) btnSave.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Email", Nothing, Sub(s, ev) btnEmail.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Details", Nothing, Sub(s, ev) btnDetails.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Duplicate", Nothing, Sub(s, ev) btnDuplicate.PerformClick()))
+        If btnVoid.Visible Then
+            ctxMoreActions.Items.Add(New ToolStripSeparator())
+            ctxMoreActions.Items.Add(New ToolStripMenuItem("Void sale", Nothing, Sub(s, ev) btnVoid.PerformClick()))
+        End If
+        AddHandler btnMoreActions.Click, AddressOf btnMoreActions_Click
+
+        pnlActionToolbar.Controls.Add(primaryToolbar, 0, 0)
 
         BuildEmptyPreviewPanel()
         BuildPreviewArea()
@@ -1366,6 +1427,14 @@ Public Class ReceiptForm
                 End While
             End Using
         End Using
+    End Sub
+
+    Private Sub btnMoreActions_Click(sender As Object, e As EventArgs)
+        If ctxMoreActions Is Nothing OrElse btnMoreActions Is Nothing Then
+            Return
+        End If
+
+        ctxMoreActions.Show(btnMoreActions, New Point(0, btnMoreActions.Height))
     End Sub
 
     Private Sub btnPrint_Click(sender As Object, e As EventArgs) Handles btnPrint.Click

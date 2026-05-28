@@ -28,6 +28,7 @@ Public Class MainMenuForm
     Private Const ChartPresetThisMonth As String = "This month"
     Private Const ChartPresetCustom As String = "Custom range"
 
+    Private WithEvents btnDashboard As Button
     Private WithEvents btnProducts As Button
     Private WithEvents btnCategories As Button
     Private WithEvents btnCashierAccounts As Button
@@ -256,11 +257,30 @@ Public Class MainMenuForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .Dock = DockStyle.None,
+            .BackColor = UiTheme.ColWarning,
+            .Padding = New Padding(1),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Visible = False,
+            .Cursor = Cursors.Hand
+        }
+        Dim pnlLowStockInner As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Fill,
             .BackColor = UiTheme.ColWarningMuted,
             .Padding = New Padding(UiTheme.PadCard, UiTheme.PadControl, UiTheme.PadCard, UiTheme.PadControl),
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
-            .Visible = False
+            .Cursor = Cursors.Hand
         }
+        Dim lowStockStack As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        lowStockStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        lowStockStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         Dim lowStockFlow As New FlowLayoutPanel() With {
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
@@ -268,21 +288,42 @@ Public Class MainMenuForm
             .FlowDirection = FlowDirection.LeftToRight,
             .WrapContents = False,
             .BackColor = Color.Transparent,
-            .Margin = Padding.Empty
+            .Margin = Padding.Empty,
+            .Cursor = Cursors.Hand
         }
         Dim lblLowStockCaption As New Label() With {
             .Text = "Low stock alert:",
             .AutoSize = True,
             .Font = UiTheme.FontCaption,
             .ForeColor = UiTheme.ColTextSecondary,
-            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0),
+            .Cursor = Cursors.Hand
         }
         lblDashLowStock.AutoSize = True
         lblDashLowStock.Font = UiTheme.FontBodyBold
         lblDashLowStock.Margin = New Padding(0)
+        lblDashLowStock.Cursor = Cursors.Hand
+        Dim lblViewProducts As New Label() With {
+            .Text = "View products →",
+            .AutoSize = True,
+            .Font = UiTheme.FontBodySmall,
+            .ForeColor = UiTheme.ColPrimary,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0),
+            .Cursor = Cursors.Hand
+        }
         lowStockFlow.Controls.Add(lblLowStockCaption)
         lowStockFlow.Controls.Add(lblDashLowStock)
-        pnlLowStockAlert.Controls.Add(lowStockFlow)
+        lowStockStack.Controls.Add(lowStockFlow, 0, 0)
+        lowStockStack.Controls.Add(lblViewProducts, 0, 1)
+        pnlLowStockInner.Controls.Add(lowStockStack)
+        pnlLowStockAlert.Controls.Add(pnlLowStockInner)
+        AddHandler pnlLowStockAlert.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler pnlLowStockInner.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler lowStockStack.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler lblDashLowStock.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler lowStockFlow.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler lblLowStockCaption.Click, AddressOf pnlLowStockAlert_Click
+        AddHandler lblViewProducts.Click, AddressOf pnlLowStockAlert_Click
 
         suppressChartPresetEvents = True
         cmbChartPreset.SelectedIndex = 0
@@ -290,6 +331,7 @@ Public Class MainMenuForm
         suppressChartPresetEvents = False
 
         ' Buttons
+        btnDashboard = CreateNavButton("&Dashboard")
         btnProducts = CreateNavButton("&Manage Products")
         btnCategories = CreateNavButton("Manage &Categories")
         btnCashierAccounts = CreateNavButton("Manage &Cashiers")
@@ -300,6 +342,7 @@ Public Class MainMenuForm
         btnBackup = CreateNavButton("&Backup / Restore")
         btnLogout = CreateNavButton("Log &out")
 
+        StyleSidebarNavButton(btnDashboard)
         StyleSidebarNavButton(btnProducts)
         StyleSidebarNavButton(btnCategories)
         StyleSidebarNavButton(btnCashierAccounts)
@@ -309,6 +352,9 @@ Public Class MainMenuForm
         StyleSidebarUtilityButton(btnSettings)
         StyleSidebarUtilityButton(btnBackup)
         StyleSidebarLogoutButton(btnLogout)
+
+        btnDashboard.Enabled = False
+        UiTheme.SetSidebarButtonActive(btnDashboard, True)
 
         ApplyRoleBasedNavigation()
 
@@ -370,6 +416,10 @@ Public Class MainMenuForm
                 navMain.Controls.Add(btn)
             End If
         Next
+        If btnDashboard IsNot Nothing Then
+            btnDashboard.Dock = DockStyle.Top
+            navMain.Controls.Add(btnDashboard)
+        End If
 
         lblSidebarStoreName.Dock = DockStyle.Top
         sidebarTop.Controls.Add(navMain)
@@ -603,25 +653,36 @@ Public Class MainMenuForm
         card.Dock = DockStyle.Fill
         card.MinimumSize = New Size(140, 96)
 
+        Dim inner As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
         Dim lblTitle As New Label() With {
             .Text = title,
             .Font = UiTheme.FontCaption,
             .ForeColor = UiTheme.ColTextSecondary,
-            .Dock = DockStyle.Top,
             .AutoSize = True,
             .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
 
-        valueLabel.Dock = DockStyle.Fill
+        valueLabel.Dock = DockStyle.None
+        valueLabel.AutoSize = True
         valueLabel.TextAlign = ContentAlignment.MiddleLeft
         valueLabel.Font = UiTheme.FontHeading
         valueLabel.ForeColor = UiTheme.ColTextPrimary
-        valueLabel.AutoSize = False
-        valueLabel.MinimumSize = New Size(0, 28)
+        valueLabel.Margin = New Padding(0)
 
-        card.Controls.Add(valueLabel)
-        card.Controls.Add(lblTitle)
-        lblTitle.BringToFront()
+        inner.Controls.Add(lblTitle, 0, 0)
+        inner.Controls.Add(valueLabel, 0, 1)
+        card.Controls.Add(inner)
         Return card
     End Function
 
@@ -1161,6 +1222,18 @@ Public Class MainMenuForm
     ' BUTTON CLICK HANDLERS
     ' -----------------------------------------------------------
 
+    Private Sub pnlLowStockAlert_Click(sender As Object, e As EventArgs)
+        If Not AppSession.RequireAdmin(Me) Then
+            Return
+        End If
+
+        ShowWorkspaceDialog(Function()
+                                Dim form As New ProductsForm()
+                                form.OpenWithLowStockFilter = True
+                                Return form
+                            End Function)
+    End Sub
+
     Private Sub ShowWorkspaceDialog(factory As Func(Of Form), Optional refreshDashboard As Boolean = True)
         If Me.IsDisposed Then
             Return
@@ -1182,6 +1255,9 @@ Public Class MainMenuForm
             If Not Me.IsDisposed Then
                 Me.Show()
                 Me.ShowInTaskbar = True
+                If btnDashboard IsNot Nothing Then
+                    UiTheme.SetSidebarButtonActive(btnDashboard, True)
+                End If
             End If
         End Try
 

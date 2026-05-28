@@ -1,4 +1,5 @@
 Imports System.Collections.Generic
+Imports System.ComponentModel
 Imports System.Data
 Imports System.Globalization
 Imports System.IO
@@ -58,6 +59,7 @@ Public Class ProductsForm
     End Enum
 
     Private WithEvents txtProductName As TextBox
+    Private WithEvents txtBarcode As TextBox
     Private WithEvents numPrice As NumericUpDown
     Private WithEvents numStock As NumericUpDown
     Private WithEvents cmbCategory As ComboBox
@@ -104,6 +106,14 @@ Public Class ProductsForm
     Private suppressGridCategoryFilterEvents As Boolean
 
     Private productGridLayoutPending As Boolean
+    Private showLowStockOnly As Boolean
+
+    ''' <summary>
+    ''' When true, the form opens filtered to active products at or below the low-stock threshold.
+    ''' </summary>
+    <Browsable(False)>
+    <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
+    Public Property OpenWithLowStockFilter As Boolean
 
     Private Sub ProductsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Products")
@@ -123,6 +133,26 @@ Public Class ProductsForm
 
         CreateControls()
         LoadProducts()
+        If OpenWithLowStockFilter Then
+            ApplyLowStockFilter()
+        End If
+    End Sub
+
+    Public Sub ApplyLowStockFilter()
+        showLowStockOnly = True
+        If cmbFilter IsNot Nothing Then
+            cmbFilter.SelectedIndex = CInt(ProductFilterMode.ActiveOnly)
+        End If
+
+        If txtSearch IsNot Nothing Then
+            txtSearch.Clear()
+        End If
+
+        ApplyCombinedFilter()
+        ShowStatus(
+            "Showing active products with stock at or below " &
+            AppSettings.Current.StockThreshold.ToString(CultureInfo.CurrentCulture) & ".",
+            False)
     End Sub
 
     Private Sub CreateControls()
@@ -133,6 +163,11 @@ Public Class ProductsForm
         txtProductName = New TextBox() With {
             .Dock = DockStyle.Fill,
             .MaxLength = MaxProductNameLength,
+            .Font = UiTheme.FontBody
+        }
+        txtBarcode = New TextBox() With {
+            .Dock = DockStyle.Fill,
+            .MaxLength = 50,
             .Font = UiTheme.FontBody
         }
         numPrice = New NumericUpDown() With {
@@ -161,6 +196,7 @@ Public Class ProductsForm
 
         Try
             UiTheme.ApplyTableLayoutSingleLineTextBox(txtProductName)
+            UiTheme.ApplyTableLayoutSingleLineTextBox(txtBarcode)
             UiTheme.ApplyTableLayoutDropDown(cmbCategory)
             ApplyTableLayoutNumeric(numPrice)
             ApplyTableLayoutNumeric(numStock)
@@ -346,7 +382,7 @@ Public Class ProductsForm
         Dim inputLayout As New TableLayoutPanel() With {
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 14,
+            .RowCount = 16,
             .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl),
             .Dock = DockStyle.Top
         }
@@ -355,13 +391,15 @@ Public Class ProductsForm
 
         inputLayout.Controls.Add(CreateFieldLabel("Product Name", isFirst:=True), 0, 0)
         inputLayout.Controls.Add(txtProductName, 0, 1)
-        inputLayout.Controls.Add(CreateFieldLabel("Price (" & AppSettings.Current.CurrencySymbol & ")"), 0, 2)
-        inputLayout.Controls.Add(numPrice, 0, 3)
-        inputLayout.Controls.Add(CreateFieldLabel("Stock quantity"), 0, 4)
-        inputLayout.Controls.Add(numStock, 0, 5)
-        inputLayout.Controls.Add(CreateFieldLabel("Category"), 0, 6)
-        inputLayout.Controls.Add(cmbCategory, 0, 7)
-        inputLayout.Controls.Add(CreateFieldLabel("Product image"), 0, 8)
+        inputLayout.Controls.Add(CreateFieldLabel("Barcode (optional)"), 0, 2)
+        inputLayout.Controls.Add(txtBarcode, 0, 3)
+        inputLayout.Controls.Add(CreateFieldLabel("Price (" & AppSettings.Current.CurrencySymbol & ")"), 0, 4)
+        inputLayout.Controls.Add(numPrice, 0, 5)
+        inputLayout.Controls.Add(CreateFieldLabel("Stock quantity"), 0, 6)
+        inputLayout.Controls.Add(numStock, 0, 7)
+        inputLayout.Controls.Add(CreateFieldLabel("Category"), 0, 8)
+        inputLayout.Controls.Add(cmbCategory, 0, 9)
+        inputLayout.Controls.Add(CreateFieldLabel("Product image"), 0, 10)
 
         Dim picHost As New Panel() With {
             .Dock = DockStyle.Top,
@@ -370,7 +408,7 @@ Public Class ProductsForm
             .BackColor = UiTheme.SurfaceVariant
         }
         picHost.Controls.Add(picProductImage)
-        inputLayout.Controls.Add(picHost, 0, 9)
+        inputLayout.Controls.Add(picHost, 0, 11)
 
         Dim pnlImageActions As New TableLayoutPanel() With {
             .AutoSize = True,
@@ -391,7 +429,7 @@ Public Class ProductsForm
 
         pnlImageActions.Controls.Add(btnChooseImage, 0, 0)
         pnlImageActions.Controls.Add(btnRemoveImage, 1, 0)
-        inputLayout.Controls.Add(pnlImageActions, 0, 10)
+        inputLayout.Controls.Add(pnlImageActions, 0, 12)
 
         Dim actionGrid As New TableLayoutPanel() With {
             .AutoSize = True,
@@ -425,9 +463,9 @@ Public Class ProductsForm
         actionGrid.SetColumnSpan(btnDelete, 2)
         actionGrid.Controls.Add(btnDeactivate, 0, 2)
         actionGrid.Controls.Add(btnReactivate, 1, 2)
-        inputLayout.Controls.Add(actionGrid, 0, 11)
+        inputLayout.Controls.Add(actionGrid, 0, 13)
 
-        inputLayout.Controls.Add(UiTheme.CreateSectionHeader("Utility tools"), 0, 12)
+        inputLayout.Controls.Add(UiTheme.CreateSectionHeader("Utility tools"), 0, 14)
 
         Dim pnlUtilities As New TableLayoutPanel() With {
             .AutoSize = True,
@@ -459,7 +497,7 @@ Public Class ProductsForm
         pnlUtilities.Controls.Add(btnImportPdf, 0, 1)
         pnlUtilities.Controls.Add(btnImportTxt, 1, 1)
         pnlUtilities.Controls.Add(btnPrintCopy, 0, 2)
-        inputLayout.Controls.Add(pnlUtilities, 0, 13)
+        inputLayout.Controls.Add(pnlUtilities, 0, 15)
 
         Dim sidebarBody As New Panel() With {
             .Dock = DockStyle.Fill,
@@ -747,6 +785,11 @@ Public Class ProductsForm
             End Select
         End If
 
+        If showLowStockOnly Then
+            parts.Add("is_active = 1")
+            parts.Add("stock_quantity <= " & AppSettings.Current.StockThreshold.ToString(CultureInfo.InvariantCulture))
+        End If
+
         If parts.Count = 0 Then
             productsView.RowFilter = String.Empty
         Else
@@ -831,6 +874,10 @@ Public Class ProductsForm
             Dim stockCol As DataGridViewColumn = dgvProducts.Columns("stock_quantity")
             stockCol.HeaderText = "Stock"
             ConfigureInventoryGridFixedColumn(stockCol, GridStockColumnWidth, DataGridViewContentAlignment.MiddleCenter, 3)
+        End If
+
+        If dgvProducts.Columns.Contains("barcode") Then
+            dgvProducts.Columns("barcode").Visible = False
         End If
 
         If dgvProducts.Columns.Contains("category_name") Then
@@ -1070,7 +1117,7 @@ Public Class ProductsForm
         Dim inputRowHeight As Integer = Math.Max(UiTheme.InputHeight, 30)
 
         layout.RowStyles.Clear()
-        For i As Integer = 0 To 16
+        For i As Integer = 0 To 18
             layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         Next
 
@@ -1082,6 +1129,8 @@ Public Class ProductsForm
         layout.RowStyles(5).Height = inputRowHeight
         layout.RowStyles(7).SizeType = SizeType.Absolute
         layout.RowStyles(7).Height = inputRowHeight
+        layout.RowStyles(9).SizeType = SizeType.Absolute
+        layout.RowStyles(9).Height = inputRowHeight
     End Sub
 
     Private Shared Sub ApplyTableLayoutNumeric(nud As NumericUpDown)
@@ -1406,12 +1455,13 @@ Public Class ProductsForm
                 End If
 
                 Dim insertSql As String =
-                    "INSERT INTO products (product_name, price, category_id, stock_quantity) " &
+                    "INSERT INTO products (product_name, price, category_id, stock_quantity, barcode) " &
                     "OUTPUT INSERTED.id " &
-                    "VALUES (@product_name, @price, @category_id, @stock_quantity);"
+                    "VALUES (@product_name, @price, @category_id, @stock_quantity, @barcode);"
 
                 Dim newCatId As Integer? = Nothing
                 TryGetCategoryIdForSave(newCatId)
+                Dim barcode As String = txtBarcode.Text.Trim()
 
                 Dim newProductId As Integer? = Nothing
                 Using insertCmd As New SqlCommand(insertSql, connection)
@@ -1423,6 +1473,11 @@ Public Class ProductsForm
                         insertCmd.Parameters.AddWithValue("@category_id", DBNull.Value)
                     End If
                     insertCmd.Parameters.AddWithValue("@stock_quantity", stockQty)
+                    If barcode.Length > 0 Then
+                        insertCmd.Parameters.AddWithValue("@barcode", barcode)
+                    Else
+                        insertCmd.Parameters.AddWithValue("@barcode", DBNull.Value)
+                    End If
 
                     newProductId = TryReadInsertedProductId(insertCmd.ExecuteScalar())
                 End Using
@@ -1467,6 +1522,8 @@ Public Class ProductsForm
 
         Dim productId As Integer = Convert.ToInt32(dgvProducts.SelectedRows(0).Cells("id").Value)
         Dim productName As String = txtProductName.Text.Trim()
+        Dim oldStock As Integer = Convert.ToInt32(dgvProducts.SelectedRows(0).Cells("stock_quantity").Value)
+        Dim barcode As String = txtBarcode.Text.Trim()
 
         If Not ValidateProductNameInput(productName) Then
             Return
@@ -1503,7 +1560,7 @@ Public Class ProductsForm
 
                 Dim query As String =
                     "UPDATE products " &
-                    "SET product_name = @product_name, price = @price, category_id = @category_id, stock_quantity = @stock_quantity, is_active = 1, updated_at = SYSUTCDATETIME() " &
+                    "SET product_name = @product_name, price = @price, category_id = @category_id, stock_quantity = @stock_quantity, barcode = @barcode, is_active = 1, updated_at = SYSUTCDATETIME() " &
                     "WHERE id = @id;"
 
                 Using command As New SqlCommand(query, connection)
@@ -1516,9 +1573,25 @@ Public Class ProductsForm
                         command.Parameters.AddWithValue("@category_id", DBNull.Value)
                     End If
                     command.Parameters.AddWithValue("@stock_quantity", stockQty)
+                    If barcode.Length > 0 Then
+                        command.Parameters.AddWithValue("@barcode", barcode)
+                    Else
+                        command.Parameters.AddWithValue("@barcode", DBNull.Value)
+                    End If
 
                     command.ExecuteNonQuery()
                 End Using
+
+                If oldStock <> stockQty Then
+                    AuditLogger.LogStockAdjustment(
+                        connection,
+                        productId,
+                        productName,
+                        oldStock,
+                        stockQty,
+                        AppSession.GetAuditIdentity(),
+                        "Manual stock edit in Manage Products")
+                End If
 
                 Dim existingImagePath As String = GetSelectedRowImagePath()
                 PersistProductImage(connection, productId, existingImagePath)
@@ -1813,6 +1886,12 @@ Public Class ProductsForm
 
         Dim row As DataGridViewRow = dgvProducts.Rows(e.RowIndex)
         txtProductName.Text = Convert.ToString(row.Cells("product_name").Value, CultureInfo.CurrentCulture)
+        If dgvProducts.Columns.Contains("barcode") Then
+            Dim barcodeVal As Object = row.Cells("barcode").Value
+            txtBarcode.Text = If(barcodeVal Is Nothing OrElse barcodeVal Is DBNull.Value, String.Empty, barcodeVal.ToString())
+        Else
+            txtBarcode.Clear()
+        End If
         Dim priceVal As Decimal = Convert.ToDecimal(row.Cells("price").Value)
         If priceVal < numPrice.Minimum Then
             numPrice.Value = numPrice.Minimum
@@ -1952,7 +2031,7 @@ Public Class ProductsForm
                 End Select
 
                 Dim query As String =
-                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.image_path, p.is_active, p.category_id, c.category_name AS category_name " &
+                    "SELECT p.id, p.product_name, p.price, p.stock_quantity, p.barcode, p.image_path, p.is_active, p.category_id, c.category_name AS category_name " &
                     "FROM products p " &
                     "LEFT JOIN dbo.categories c ON c.category_id = p.category_id " &
                     whereClause &
@@ -1984,6 +2063,7 @@ Public Class ProductsForm
 
     Private Sub ClearInputs()
         txtProductName.Clear()
+        txtBarcode.Clear()
         numPrice.Value = numPrice.Minimum
         numStock.Value = DefaultStockQuantity
         SelectCategoryForEditor(Nothing)

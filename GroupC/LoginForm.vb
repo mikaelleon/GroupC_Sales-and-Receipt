@@ -42,6 +42,7 @@ Public Class LoginForm
         Me.FormBorderStyle = FormBorderStyle.Sizable
         Me.StartPosition = FormStartPosition.CenterScreen
         Me.MinimumSize = New Size(420, 480)
+        Me.ClientSize = New Size(480, 640)
         Me.MinimizeBox = True
         Me.MaximizeBox = True
         UiTheme.ApplyStandardWindowChrome(Me)
@@ -230,9 +231,9 @@ Public Class LoginForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .Width = LoginCardContentWidth + (UiTheme.PadCard * 2),
-            .Padding = New Padding(UiTheme.PadCard),
-            .BackColor = UiTheme.ColSurface
+            .Width = LoginCardContentWidth,
+            .Padding = Padding.Empty,
+            .BackColor = Color.Transparent
         }
 
         cardStack.Controls.Add(picLoginLogo)
@@ -260,7 +261,7 @@ Public Class LoginForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .BackColor = UiTheme.ColSurface,
-            .Padding = New Padding(0)
+            .Padding = New Padding(UiTheme.PadCard)
         }
         loginCardInner.Controls.Add(cardStack)
         loginCardOuter.Controls.Add(loginCardInner)

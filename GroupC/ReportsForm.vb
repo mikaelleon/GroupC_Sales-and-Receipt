@@ -17,7 +17,7 @@ Public Class ReportsForm
     Private WithEvents dtpTo As DateTimePicker
     Private WithEvents btnRun As Button
     Private WithEvents btnExport As Button
-    Private dgvDaily As DataGridView
+    Private WithEvents dgvDaily As DataGridView
     Private dgvTop As DataGridView
     Private lblSummary As Label
     Private lblDailyEmpty As Label
@@ -258,9 +258,15 @@ Public Class ReportsForm
                 connection.Open()
 
                 Dim sql As String =
-                    "SELECT LogID, Action, Detail, PerformedBy, LoggedAt " &
+                    "SELECT audit_id, Action, Detail, PerformedBy, LoggedAt FROM (" &
+                    "SELECT LogID AS audit_id, Action, Detail, PerformedBy, LoggedAt " &
                     "FROM dbo.AuditLogs WHERE LoggedAt >= @from AND LoggedAt < @to " &
-                    "ORDER BY LoggedAt DESC;"
+                    "UNION ALL " &
+                    "SELECT adjustment_id, 'STOCK_ADJUSTED', " &
+                    "product_name + ': ' + CAST(old_quantity AS NVARCHAR(20)) + ' -> ' + CAST(new_quantity AS NVARCHAR(20)), " &
+                    "adjusted_by, adjusted_at " &
+                    "FROM dbo.stock_adjustments WHERE adjusted_at >= @from AND adjusted_at < @to" &
+                    ") AS combined ORDER BY LoggedAt DESC;"
 
                 Dim dt As New DataTable()
                 Using cmd As New SqlCommand(sql, connection)
@@ -295,6 +301,27 @@ Public Class ReportsForm
 
     Private Sub btnRun_Click(sender As Object, e As EventArgs) Handles btnRun.Click
         RunReport()
+    End Sub
+
+    Private Sub dgvDaily_CellDoubleClick(sender As Object, e As DataGridViewCellEventArgs) Handles dgvDaily.CellDoubleClick
+        If e.RowIndex < 0 OrElse dgvDaily Is Nothing Then
+            Return
+        End If
+
+        If Not dgvDaily.Columns.Contains("sale_day") Then
+            Return
+        End If
+
+        Dim dayValue As Object = dgvDaily.Rows(e.RowIndex).Cells("sale_day").Value
+        If dayValue Is Nothing OrElse dayValue Is DBNull.Value Then
+            Return
+        End If
+
+        Dim day As Date = Convert.ToDateTime(dayValue, CultureInfo.CurrentCulture).Date
+        Using receipt As New ReceiptForm()
+            receipt.ShowReceiptsForDay(day)
+            receipt.ShowDialog(Me)
+        End Using
     End Sub
 
     Private Sub RunReport()
@@ -628,12 +655,13 @@ Public Class ReportsForm
         }
         layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        layout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Dim filterRow As New FlowLayoutPanel() With {
+        Dim dateRow As New FlowLayoutPanel() With {
             .AutoSize = True,
             .Dock = DockStyle.Fill,
             .FlowDirection = FlowDirection.LeftToRight,
-            .WrapContents = True,
+            .WrapContents = False,
             .Padding = Padding.Empty,
             .Margin = Padding.Empty
         }
@@ -645,32 +673,43 @@ Public Class ReportsForm
         dtpTo.Height = UiTheme.InputHeight
         dtpTo.Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs)
 
+        dateRow.Controls.Add(CreateFilterCaption("From:"))
+        dateRow.Controls.Add(dtpFrom)
+        dateRow.Controls.Add(CreateFilterCaption("To:"))
+        dateRow.Controls.Add(dtpTo)
+        dateRow.Controls.Add(CreateRangePresetButton("7 days", 7))
+        dateRow.Controls.Add(CreateRangePresetButton("30 days", 30))
+        dateRow.Controls.Add(CreateRangePresetButton("90 days", 90))
+
         ConfigureFilterActionButton(btnRun)
         ConfigureFilterActionButton(btnExport)
         ApplyFilterChipButton(btnExport)
 
-        filterRow.Controls.Add(CreateFilterCaption("From:"))
-        filterRow.Controls.Add(dtpFrom)
-        filterRow.Controls.Add(CreateFilterCaption("To:"))
-        filterRow.Controls.Add(dtpTo)
-        filterRow.Controls.Add(CreateRangePresetButton("7 days", 7))
-        filterRow.Controls.Add(CreateRangePresetButton("30 days", 30))
-        filterRow.Controls.Add(CreateRangePresetButton("90 days", 90))
-        filterRow.Controls.Add(btnRun)
-        filterRow.Controls.Add(btnExport)
+        Dim actionRow As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .WrapContents = False,
+            .Padding = Padding.Empty,
+            .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
+        }
+        actionRow.Controls.Add(btnRun)
+        actionRow.Controls.Add(btnExport)
 
         Dim summaryHost As New Panel() With {
-            .Dock = DockStyle.Top,
+            .Dock = DockStyle.Fill,
             .AutoSize = True,
             .BackColor = UiTheme.GridAltRow,
             .Padding = New Padding(UiTheme.SpaceMd, UiTheme.SpaceSm, UiTheme.SpaceMd, UiTheme.SpaceSm),
             .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
         }
         lblSummary.MinimumSize = New Size(0, 28)
+        lblSummary.Dock = DockStyle.Fill
         summaryHost.Controls.Add(lblSummary)
+        actionRow.Controls.Add(summaryHost)
 
-        layout.Controls.Add(filterRow, 0, 0)
-        layout.Controls.Add(summaryHost, 0, 1)
+        layout.Controls.Add(dateRow, 0, 0)
+        layout.Controls.Add(actionRow, 0, 1)
 
         UiTheme.PopulateCardContent(card, layout)
         Return card

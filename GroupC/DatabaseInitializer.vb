@@ -91,6 +91,8 @@ Public NotInheritable Class DatabaseInitializer
             EnsureCategoriesAndProductCategory(connection)
             EnsureProductStockQuantity(connection)
             EnsureProductImagePath(connection)
+            EnsureProductBarcode(connection)
+            EnsureStockAdjustmentsTable(connection)
             EnsureAuditAndLogTables(connection)
             EnsureCashierAccountsTable(connection)
         End Using
@@ -223,6 +225,36 @@ Public NotInheritable Class DatabaseInitializer
             "ALTER TABLE dbo.products ADD stock_quantity INT NOT NULL CONSTRAINT DF_products_stock_quantity DEFAULT (100);"
 
         Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Private Shared Sub EnsureProductBarcode(connection As SqlConnection)
+        Dim addCol As String =
+            "IF COL_LENGTH('dbo.products','barcode') IS NULL " &
+            "ALTER TABLE dbo.products ADD barcode NVARCHAR(50) NULL;"
+
+        Using cmd As New SqlCommand(addCol, connection)
+            cmd.ExecuteNonQuery()
+        End Using
+    End Sub
+
+    Private Shared Sub EnsureStockAdjustmentsTable(connection As SqlConnection)
+        Dim sql As String =
+            "IF OBJECT_ID('dbo.stock_adjustments','U') IS NULL " &
+            "BEGIN " &
+            "CREATE TABLE dbo.stock_adjustments (" &
+            " adjustment_id INT IDENTITY(1,1) NOT NULL PRIMARY KEY, " &
+            " product_id INT NULL, " &
+            " product_name NVARCHAR(100) NOT NULL, " &
+            " old_quantity INT NOT NULL, " &
+            " new_quantity INT NOT NULL, " &
+            " adjusted_by NVARCHAR(100) NULL, " &
+            " adjusted_at DATETIME2 NOT NULL CONSTRAINT DF_stock_adjustments_adjusted DEFAULT (SYSUTCDATETIME()), " &
+            " note NVARCHAR(500) NULL " &
+            "); END;"
+
+        Using cmd As New SqlCommand(sql, connection)
             cmd.ExecuteNonQuery()
         End Using
     End Sub

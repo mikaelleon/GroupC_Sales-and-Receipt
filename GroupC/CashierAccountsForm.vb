@@ -15,7 +15,6 @@ Public Class CashierAccountsForm
     Private Shared ReadOnly SuccessBg As Color = UiTheme.SuccessLight
     Private Shared ReadOnly MutedBg As Color = UiTheme.SurfaceVariant
     Private Shared ReadOnly DangerBg As Color = UiTheme.DangerLight
-    Private Const StatusClearMs As Integer = 4000
     Private Const FieldWidth As Integer = 292
     Private Const FieldHeight As Integer = 40
     Private Const FieldShellHeight As Integer = 42
@@ -77,7 +76,7 @@ Public Class CashierAccountsForm
         Catch
         End Try
 
-        statusClearTimer = New Timer() With {.Interval = StatusClearMs}
+        statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
         fieldHighlightTimer = New Timer() With {.Interval = 3000}
         highlightRestore = New Dictionary(Of TextBox, Color)()
         toolTips = UiTheme.CreateStandardToolTip()
