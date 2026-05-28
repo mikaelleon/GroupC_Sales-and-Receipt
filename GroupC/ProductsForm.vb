@@ -50,12 +50,22 @@ Public Class ProductsForm
     Private Const GridStockColumnWidth As Integer = 80
     Private Const GridProductFillWeight As Integer = 230
     Private Const GridProductMinWidth As Integer = 150
-    Private Const GridCategoryFixedWidth As Integer = 140
+    Private Const GridCategoryFixedWidth As Integer = 148
 
     Private Enum ProductFilterMode
         ActiveOnly = 0
         AllProducts = 1
         InactiveOnly = 2
+    End Enum
+
+    Private Enum ProductGridSortOption
+        NameAsc = 0
+        NameDesc = 1
+        StockAsc = 2
+        StockDesc = 3
+        PriceAsc = 4
+        PriceDesc = 5
+        CategoryAsc = 6
     End Enum
 
     Private WithEvents txtProductName As TextBox
@@ -84,6 +94,7 @@ Public Class ProductsForm
     Private WithEvents btnManageCategories As Button
 
     Private WithEvents cmbGridCategoryFilter As ComboBox
+    Private WithEvents cmbGridSort As ComboBox
 
     Private picProductImage As PictureBox
     Private WithEvents btnChooseImage As Button
@@ -104,9 +115,11 @@ Public Class ProductsForm
     Private suppressProductFilterEvents As Boolean
 
     Private suppressGridCategoryFilterEvents As Boolean
+    Private suppressGridSortEvents As Boolean
 
     Private productGridLayoutPending As Boolean
     Private showLowStockOnly As Boolean
+    Private currentGridSort As ProductGridSortOption = ProductGridSortOption.NameAsc
 
     ''' <summary>
     ''' When true, the form opens filtered to active products at or below the low-stock threshold.
@@ -148,10 +161,12 @@ Public Class ProductsForm
             txtSearch.Clear()
         End If
 
+        SetGridSort(ProductGridSortOption.StockAsc)
         ApplyCombinedFilter()
         ShowStatus(
             "Showing active products with stock at or below " &
-            AppSettings.Current.StockThreshold.ToString(CultureInfo.CurrentCulture) & ".",
+            AppSettings.Current.StockThreshold.ToString(CultureInfo.CurrentCulture) &
+            ", sorted by lowest stock first.",
             False)
     End Sub
 
@@ -224,9 +239,24 @@ Public Class ProductsForm
             .Width = GridFilterComboWidth,
             .Font = UiTheme.FontBody
         }
+        cmbGridSort = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Font = UiTheme.FontBody
+        }
+        cmbGridSort.Items.AddRange(New Object() {
+            "Name (A to Z)",
+            "Name (Z to A)",
+            "Stock (low to high)",
+            "Stock (high to low)",
+            "Price (low to high)",
+            "Price (high to low)",
+            "Category (A to Z)"
+        })
+
         Try
             UiTheme.ApplyTableLayoutDropDown(cmbFilter)
             UiTheme.ApplyTableLayoutDropDown(cmbGridCategoryFilter)
+            UiTheme.ApplyTableLayoutDropDown(cmbGridSort)
         Catch
         End Try
         suppressProductFilterEvents = True
@@ -446,8 +476,7 @@ Public Class ProductsForm
 
         btnAdd.Dock = DockStyle.Fill
         btnUpdate.Dock = DockStyle.Fill
-        btnDelete.Dock = DockStyle.None
-        btnDelete.Anchor = AnchorStyles.None
+        btnDelete.Dock = DockStyle.Fill
         btnDeactivate.Dock = DockStyle.Fill
         btnReactivate.Dock = DockStyle.Fill
 
@@ -513,32 +542,35 @@ Public Class ProductsForm
         Dim toolbar As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
             .AutoSize = True,
-            .ColumnCount = 5,
-            .RowCount = 1,
+            .ColumnCount = 4,
+            .RowCount = 2,
             .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 35.0F))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 22.0F))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 22.0F))
-        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 21.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 36.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 24.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 24.0F))
         toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
         toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, ToolbarRowHeight()))
 
         txtSearch.Dock = DockStyle.Fill
         cmbGridCategoryFilter.Dock = DockStyle.Fill
         cmbFilter.Dock = DockStyle.Fill
+        cmbGridSort.Dock = DockStyle.Fill
         btnRefresh.Dock = DockStyle.Fill
 
-        txtSearch.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
-        cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
-        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        txtSearch.Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadTight)
+        cmbGridCategoryFilter.Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadTight)
+        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadTight)
+        cmbGridSort.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         btnRefresh.Margin = Padding.Empty
 
         toolbar.Controls.Add(txtSearch, 0, 0)
         toolbar.Controls.Add(cmbGridCategoryFilter, 1, 0)
         toolbar.Controls.Add(cmbFilter, 2, 0)
-        toolbar.Controls.Add(New Panel(), 3, 0)
-        toolbar.Controls.Add(btnRefresh, 4, 0)
+        toolbar.Controls.Add(btnRefresh, 3, 0)
+        toolbar.SetColumnSpan(cmbGridSort, 3)
+        toolbar.Controls.Add(cmbGridSort, 0, 1)
 
         Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill}
         Dim gridCard As Panel = UiTheme.CreateCard()
@@ -633,10 +665,19 @@ Public Class ProductsForm
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
 
-        AddHandler productsSplit.SplitterMoved, Sub(s, ev) ConfigureProductsSplit(productsSplit)
-        AddHandler Me.Resize, Sub(s, ev) ConfigureProductsSplit(productsSplit)
+        AddHandler productsSplit.SplitterMoved,
+            Sub(s, ev)
+                ConfigureProductsSplit(productsSplit)
+                ScheduleProductGridColumnLayout()
+            End Sub
+        AddHandler Me.Resize,
+            Sub(s, ev)
+                ConfigureProductsSplit(productsSplit)
+                ScheduleProductGridColumnLayout()
+            End Sub
 
         cmbFilter.SelectedIndex = 0
+        cmbGridSort.SelectedIndex = CInt(ProductGridSortOption.NameAsc)
         suppressProductFilterEvents = False
         RefreshReactivateButtonAppearance()
 
@@ -645,6 +686,7 @@ Public Class ProductsForm
         formToolTips.SetToolTip(btnDeactivate, "Hide this product from active lists")
         formToolTips.SetToolTip(btnReactivate, "Show this product in active lists again")
         formToolTips.SetToolTip(txtSearch, "Filter the product list by name")
+        formToolTips.SetToolTip(cmbGridSort, "Sort the product list")
         formToolTips.SetToolTip(btnRefresh, "Reload products from the database")
 
         UiTheme.AssignTabOrder(
@@ -659,12 +701,18 @@ Public Class ProductsForm
             txtSearch,
             cmbGridCategoryFilter,
             cmbFilter,
+            cmbGridSort,
             btnRefresh,
             dgvProducts,
             btnBack)
 
         Me.ResumeLayout(True)
-        AddHandler Me.Shown, Sub(s, ev) ConfigureProductsSplit(productsSplit)
+        AddHandler Me.Shown,
+            Sub(s, ev)
+                ConfigureProductsSplit(productsSplit)
+                ScheduleProductGridColumnLayout()
+            End Sub
+        AddHandler dgvProducts.Resize, Sub(s, ev) ScheduleProductGridColumnLayout()
         inputLayout.Width = Math.Max(0, sidebarBody.ClientSize.Width - SystemInformation.VerticalScrollBarWidth)
     End Sub
 
@@ -756,6 +804,15 @@ Public Class ProductsForm
         ApplyCombinedFilter()
     End Sub
 
+    Private Sub cmbGridSort_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbGridSort.SelectedIndexChanged
+        If suppressGridSortEvents OrElse cmbGridSort Is Nothing OrElse cmbGridSort.SelectedIndex < 0 Then
+            Return
+        End If
+
+        currentGridSort = CType(cmbGridSort.SelectedIndex, ProductGridSortOption)
+        ApplyProductSort()
+    End Sub
+
     Private Sub cmbCategory_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbCategory.SelectedIndexChanged
         ClearProductsInputError()
     End Sub
@@ -795,10 +852,48 @@ Public Class ProductsForm
         Else
             productsView.RowFilter = String.Join(" AND ", parts)
         End If
+
+        ApplyProductSort()
+    End Sub
+
+    Private Sub SetGridSort(sort As ProductGridSortOption)
+        currentGridSort = sort
+
+        If cmbGridSort IsNot Nothing AndAlso cmbGridSort.Items.Count > CInt(sort) Then
+            suppressGridSortEvents = True
+            cmbGridSort.SelectedIndex = CInt(sort)
+            suppressGridSortEvents = False
+        End If
+
+        ApplyProductSort()
+    End Sub
+
+    Private Sub ApplyProductSort()
+        If productsView Is Nothing Then
+            Return
+        End If
+
+        Select Case currentGridSort
+            Case ProductGridSortOption.NameDesc
+                productsView.Sort = "product_name DESC"
+            Case ProductGridSortOption.StockAsc
+                productsView.Sort = "stock_quantity ASC, product_name ASC"
+            Case ProductGridSortOption.StockDesc
+                productsView.Sort = "stock_quantity DESC, product_name ASC"
+            Case ProductGridSortOption.PriceAsc
+                productsView.Sort = "price ASC, product_name ASC"
+            Case ProductGridSortOption.PriceDesc
+                productsView.Sort = "price DESC, product_name ASC"
+            Case ProductGridSortOption.CategoryAsc
+                productsView.Sort = "category_name ASC, product_name ASC"
+            Case Else
+                productsView.Sort = "product_name ASC"
+        End Select
     End Sub
 
     Private Sub dgvProducts_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs) Handles dgvProducts.DataBindingComplete
         FormatProductColumns()
+        ScheduleProductGridColumnLayout()
         UpdateReactivateEnabled()
     End Sub
 
@@ -823,16 +918,12 @@ Public Class ProductsForm
 
         Try
             Dim stock As Integer = Convert.ToInt32(e.Value)
+            Dim threshold As Integer = AppSettings.Current.StockThreshold
 
-            ' Check if stock is less than or equal to 5
-            If stock <= 5 Then
-                ' You can use Color.Red directly, or keep using UiTheme.Danger if it is already red
-                e.CellStyle.ForeColor = Color.Red
-
-                ' Optional: Keep it red even if the user clicks/selects the row
-                e.CellStyle.SelectionForeColor = Color.Red
+            If stock <= threshold Then
+                e.CellStyle.ForeColor = UiTheme.Danger
+                e.CellStyle.SelectionForeColor = UiTheme.Danger
             Else
-                ' CRITICAL: Reset the color for stocks > 5 so scrolling doesn't glitch the colors
                 e.CellStyle.ForeColor = dgv.DefaultCellStyle.ForeColor
                 e.CellStyle.SelectionForeColor = dgv.DefaultCellStyle.SelectionForeColor
             End If
@@ -892,6 +983,10 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("category_id") Then
             dgvProducts.Columns("category_id").Visible = False
+        End If
+
+        If dgvProducts.Columns.Contains("id") Then
+            dgvProducts.Columns("id").Visible = False
         End If
     End Sub
 
@@ -965,7 +1060,7 @@ Public Class ProductsForm
                 activeCol.DisplayIndex = 0
                 activeCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
                 activeCol.Width = activeWidth
-                activeCol.MinimumWidth = 68
+                activeCol.MinimumWidth = activeWidth
                 activeCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
@@ -982,7 +1077,7 @@ Public Class ProductsForm
                 priceCol.DisplayIndex = 2
                 priceCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
                 priceCol.Width = priceWidth
-                priceCol.MinimumWidth = 92
+                priceCol.MinimumWidth = priceWidth
                 priceCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
@@ -991,7 +1086,7 @@ Public Class ProductsForm
                 stockCol.DisplayIndex = 3
                 stockCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
                 stockCol.Width = stockWidth
-                stockCol.MinimumWidth = 64
+                stockCol.MinimumWidth = stockWidth
                 stockCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
@@ -1000,7 +1095,7 @@ Public Class ProductsForm
                 categoryCol.DisplayIndex = 4
                 categoryCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
                 categoryCol.Width = categoryWidth
-                categoryCol.MinimumWidth = 96
+                categoryCol.MinimumWidth = categoryWidth
                 categoryCol.SortMode = DataGridViewColumnSortMode.NotSortable
             End If
 
@@ -1043,7 +1138,7 @@ Public Class ProductsForm
         Dim measured As Size = TextRenderer.MeasureText(headerText, fontToUse)
         Dim horizontalPadding As Integer = dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Left + dgvProducts.ColumnHeadersDefaultCellStyle.Padding.Right
 
-        Dim required As Integer = measured.Width + horizontalPadding + 20
+        Dim required As Integer = measured.Width + horizontalPadding + 24
         Return Math.Max(fallbackWidth, required)
     End Function
 
@@ -1067,7 +1162,7 @@ Public Class ProductsForm
         column.Width = width
         column.MinimumWidth = width
         column.DisplayIndex = displayIndex
-        column.SortMode = DataGridViewColumnSortMode.Automatic
+        column.SortMode = DataGridViewColumnSortMode.NotSortable
         column.DefaultCellStyle.Alignment = alignment
         column.HeaderCell.Style.Alignment = alignment
         column.HeaderCell.Style.WrapMode = DataGridViewTriState.False
@@ -1084,7 +1179,7 @@ Public Class ProductsForm
         column.FillWeight = fillWeight
         column.MinimumWidth = minimumWidth
         column.DisplayIndex = displayIndex
-        column.SortMode = DataGridViewColumnSortMode.Automatic
+        column.SortMode = DataGridViewColumnSortMode.NotSortable
         column.DefaultCellStyle.Alignment = alignment
         column.HeaderCell.Style.Alignment = alignment
         column.HeaderCell.Style.WrapMode = DataGridViewTriState.False

@@ -1,6 +1,7 @@
 ﻿Imports System.Collections.Generic
 Imports System.Drawing
 Imports System.Globalization
+Imports System.Linq
 Imports System.Text
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
@@ -48,10 +49,12 @@ Public Class SalesForm
     Private Const DiscountPwdPercent As Decimal = 20D
     Private Const DiscountSeniorPercent As Decimal = 20D
     Private Const DiscountMembershipPercent As Decimal = 10D
-    Private Const ProductCardWidth As Integer = 172
-    Private Const ProductCardHeight As Integer = 204
-    Private Const ProductCardImageHeight As Integer = 76
-    Private Const ProductCardNameHeight As Integer = 44
+    Private Const ProductCardWidth As Integer = 188
+    Private Const ProductCardHeight As Integer = 216
+    Private Const ProductCardImageHeight As Integer = 72
+    Private Const ProductCardNameHeight As Integer = 56
+    Private Const ProductCardRefreshDelayMs As Integer = 220
+    Private Const CatalogSkeletonCardCount As Integer = 12
     Private Const CartRemoveColumnName As String = "Remove"
     Private Const CartColIndexWidth As Integer = 40
     Private Const CartColPriceWidth As Integer = 80
@@ -72,8 +75,14 @@ Public Class SalesForm
     Private WithEvents txtBarcodeScan As TextBox
     Private productCardHost As FlowLayoutPanel
     Private productCardScrollPanel As Panel
+    Private pnlCatalogLoading As Panel
+    Private lblCatalogLoading As Label
+    Private lblProductResultCount As Label
     Private lblSelectedProduct As Label
     Private lblNoProductCards As Label
+    Private WithEvents productCardRefreshTimer As Timer
+    Private catalogLoadGeneration As Integer
+    Private catalogLoadingVisible As Boolean
     Private selectedProductName As String
     Private selectedProductCard As Panel
     Private ReadOnly productCardImages As New List(Of Image)()
@@ -143,6 +152,7 @@ Public Class SalesForm
         Catch
         End Try
 
+        productCardRefreshTimer = New Timer() With {.Interval = ProductCardRefreshDelayMs}
         LoadProducts()
         ApplyPosSettingsFromAppSettings()
         UpdateSummaryLabels()
@@ -228,18 +238,47 @@ Public Class SalesForm
         AddHandler productCardScrollPanel.Resize, AddressOf ProductCardScrollPanel_Resize
 
         lblNoProductCards = New Label() With {
-            .Text = "No products available for this category.",
+            .Text = "No products match the current search or category filter.",
             .Dock = DockStyle.Fill,
             .TextAlign = ContentAlignment.MiddleCenter,
             .ForeColor = UiTheme.ColTextSecondary,
             .Font = UiTheme.FontBody,
             .Visible = False
         }
+        lblProductResultCount = New Label() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
+            .TextAlign = ContentAlignment.MiddleLeft,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = UiTheme.FontCaption,
+            .Text = String.Empty,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        }
+        pnlCatalogLoading = New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = Color.FromArgb(235, UiTheme.ColBackground),
+            .Visible = False
+        }
+        lblCatalogLoading = New Label() With {
+            .Text = "Loading products...",
+            .AutoSize = True,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = UiTheme.FontBody,
+            .BackColor = Color.Transparent
+        }
+        pnlCatalogLoading.Controls.Add(lblCatalogLoading)
+        AddHandler pnlCatalogLoading.Resize,
+            Sub()
+                lblCatalogLoading.Location = New Point(
+                    Math.Max(0, (pnlCatalogLoading.ClientSize.Width - lblCatalogLoading.Width) \ 2),
+                    Math.Max(0, (pnlCatalogLoading.ClientSize.Height - lblCatalogLoading.Height) \ 2))
+            End Sub
         lblSelectedProduct = New Label() With {
             .AutoSize = True,
             .ForeColor = UiTheme.ColTextPrimary,
             .Font = UiTheme.FontBodyBold,
             .Text = "No product selected — click a card or double-click to add",
+            .MaximumSize = New Size(420, 0),
             .Margin = New Padding(0)
         }
         numQuantity = New NumericUpDown() With {
@@ -485,11 +524,12 @@ Public Class SalesForm
             .AutoSize = True,
             .Dock = DockStyle.Top,
             .ColumnCount = 2,
-            .RowCount = 2,
-            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+            .RowCount = 3,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
-        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
-        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
+        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
+        filterRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
+        filterRow.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         filterRow.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         filterRow.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         txtProductSearch.Dock = DockStyle.Fill
@@ -497,22 +537,26 @@ Public Class SalesForm
         cmbSalesCategory.Dock = DockStyle.Fill
         cmbSalesCategory.Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         txtBarcodeScan.Dock = DockStyle.Fill
-        txtBarcodeScan.Margin = New Padding(0, 0, 0, 0)
+        txtBarcodeScan.Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         filterRow.Controls.Add(txtProductSearch, 0, 0)
         filterRow.Controls.Add(cmbSalesCategory, 1, 0)
         filterRow.SetColumnSpan(txtBarcodeScan, 2)
         filterRow.Controls.Add(txtBarcodeScan, 0, 1)
-
-        Dim catalogHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
-        catalogHost.Controls.Add(lblNoProductCards)
-        catalogHost.Controls.Add(productCardScrollPanel)
+        filterRow.SetColumnSpan(lblProductResultCount, 2)
+        filterRow.Controls.Add(lblProductResultCount, 0, 2)
 
         Dim selectionBar As New Panel() With {
             .Dock = DockStyle.Top,
             .BackColor = UiTheme.ColSurface,
             .Padding = New Padding(UiTheme.PadCard),
             .AutoSize = True,
-            .AutoSizeMode = AutoSizeMode.GrowAndShrink
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        }
+        Dim selectionBarBorder As New Panel() With {
+            .Dock = DockStyle.Bottom,
+            .Height = 1,
+            .BackColor = UiTheme.ColBorder
         }
         pnlSelectionAccent = New Panel() With {
             .Dock = DockStyle.Top,
@@ -557,8 +601,14 @@ Public Class SalesForm
 
         selectionLayout.Controls.Add(selectionLeft, 0, 0)
         selectionLayout.Controls.Add(selectionRight, 1, 0)
-        selectionBar.Controls.Add(selectionLayout)
         selectionBar.Controls.Add(pnlSelectionAccent)
+        selectionBar.Controls.Add(selectionLayout)
+        selectionBar.Controls.Add(selectionBarBorder)
+
+        Dim catalogHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        catalogHost.Controls.Add(lblNoProductCards)
+        catalogHost.Controls.Add(productCardScrollPanel)
+        catalogHost.Controls.Add(pnlCatalogLoading)
 
         Dim utilityRow As New FlowLayoutPanel() With {
             .AutoSize = True,
@@ -570,8 +620,8 @@ Public Class SalesForm
 
         leftLayout.Controls.Add(productsHeaderHost, 0, 0)
         leftLayout.Controls.Add(filterRow, 0, 1)
-        leftLayout.Controls.Add(catalogHost, 0, 2)
-        leftLayout.Controls.Add(selectionBar, 0, 3)
+        leftLayout.Controls.Add(selectionBar, 0, 2)
+        leftLayout.Controls.Add(catalogHost, 0, 3)
         leftPanel.Controls.Add(leftLayout)
         lblSalesInputError.Dock = DockStyle.Bottom
         leftPanel.Controls.Add(lblSalesInputError)
@@ -818,7 +868,250 @@ Public Class SalesForm
     End Sub
 
     Private Sub txtProductSearch_TextChanged(sender As Object, e As EventArgs) Handles txtProductSearch.TextChanged
+        ScheduleProductCardRefresh("Updating products...")
+    End Sub
+
+    Private Sub productCardRefreshTimer_Tick(sender As Object, e As EventArgs) Handles productCardRefreshTimer.Tick
+        productCardRefreshTimer.Stop()
         RefreshProductCards()
+        HideCatalogLoading()
+        UpdateCatalogVisibility()
+    End Sub
+
+    Private Sub ScheduleProductCardRefresh(message As String)
+        If productCardRefreshTimer Is Nothing Then
+            RefreshProductCards()
+            UpdateCatalogVisibility()
+            Return
+        End If
+
+        productCardRefreshTimer.Stop()
+        ShowCatalogLoading(message, showSkeleton:=False)
+        productCardRefreshTimer.Start()
+    End Sub
+
+    Private Function IsCatalogLoading() As Boolean
+        Return catalogLoadingVisible
+    End Function
+
+    Private Sub ShowCatalogLoading(message As String, Optional showSkeleton As Boolean = True)
+        catalogLoadingVisible = True
+
+        If lblCatalogLoading IsNot Nothing Then
+            lblCatalogLoading.Text = message
+        End If
+
+        If showSkeleton AndAlso productCardHost IsNot Nothing Then
+            DisposeProductCardImages()
+            productCardHost.SuspendLayout()
+            productCardHost.Controls.Clear()
+            For i As Integer = 0 To CatalogSkeletonCardCount - 1
+                productCardHost.Controls.Add(CreateSkeletonProductCard())
+            Next
+            productCardHost.ResumeLayout(True)
+            ProductCardScrollPanel_Resize(productCardScrollPanel, EventArgs.Empty)
+        End If
+
+        If productCardScrollPanel IsNot Nothing Then
+            productCardScrollPanel.Visible = True
+            productCardScrollPanel.BringToFront()
+        End If
+
+        If lblNoProductCards IsNot Nothing Then
+            lblNoProductCards.Visible = False
+        End If
+
+        If pnlCatalogLoading IsNot Nothing Then
+            pnlCatalogLoading.Visible = True
+            pnlCatalogLoading.BringToFront()
+        End If
+
+        If lblProductResultCount IsNot Nothing Then
+            lblProductResultCount.Text = message
+        End If
+    End Sub
+
+    Private Sub HideCatalogLoading()
+        catalogLoadingVisible = False
+
+        If pnlCatalogLoading IsNot Nothing Then
+            pnlCatalogLoading.Visible = False
+        End If
+    End Sub
+
+    Private Shared Function CreateSkeletonBlock(width As Integer, height As Integer, backColor As Color) As Panel
+        Return New Panel() With {
+            .Size = New Size(width, height),
+            .BackColor = backColor,
+            .Margin = Padding.Empty
+        }
+    End Function
+
+    Private Function CreateSkeletonProductCard() As Panel
+        Dim card As New Panel() With {
+            .Width = ProductCardWidth,
+            .Height = ProductCardHeight,
+            .BackColor = UiTheme.CardSurface,
+            .BorderStyle = BorderStyle.FixedSingle,
+            .Margin = New Padding(UiTheme.SpaceSm)
+        }
+
+        Dim shimmer As Color = UiTheme.SurfaceVariant
+        Dim shimmerLight As Color = UiTheme.ColBackground
+
+        card.Controls.Add(CreateSkeletonBlock(ProductCardWidth - 16, ProductCardImageHeight, shimmer))
+        card.Controls(0).Location = New Point(8, 8)
+
+        card.Controls.Add(CreateSkeletonBlock(ProductCardWidth - 16, 12, shimmerLight))
+        card.Controls(1).Location = New Point(8, ProductCardImageHeight + 16)
+
+        card.Controls.Add(CreateSkeletonBlock(96, 10, shimmerLight))
+        card.Controls(2).Location = New Point(8, ProductCardImageHeight + 34)
+
+        card.Controls.Add(CreateSkeletonBlock(72, 10, shimmerLight))
+        card.Controls(3).Location = New Point(8, ProductCardImageHeight + 50)
+
+        Return card
+    End Function
+
+    Private Shared Function WrapProductNameForCard(name As String, maxWidth As Integer, font As Font, maxLines As Integer) As String
+        If String.IsNullOrWhiteSpace(name) Then
+            Return String.Empty
+        End If
+
+        Dim trimmed As String = name.Trim()
+        If TextRenderer.MeasureText(trimmed, font, New Size(maxWidth, Integer.MaxValue), TextFormatFlags.WordBreak).Height <=
+            TextRenderer.MeasureText("Ag", font).Height * maxLines Then
+            Return trimmed
+        End If
+
+        Dim words As String() = trimmed.Split({" "c}, StringSplitOptions.RemoveEmptyEntries)
+        Dim lines As New List(Of String)()
+        Dim currentLine As New StringBuilder()
+
+        For Each word As String In words
+            Dim candidate As String
+            If currentLine.Length = 0 Then
+                candidate = word
+            Else
+                candidate = currentLine.ToString() & " " & word
+            End If
+
+            If TextRenderer.MeasureText(candidate, font).Width <= maxWidth Then
+                currentLine.Clear()
+                currentLine.Append(candidate)
+            Else
+                If currentLine.Length > 0 Then
+                    lines.Add(currentLine.ToString())
+                    currentLine.Clear()
+                    currentLine.Append(word)
+                Else
+                    lines.Add(TruncateWordToWidth(word, maxWidth, font))
+                    currentLine.Clear()
+                End If
+
+                If lines.Count >= maxLines Then
+                    Exit For
+                End If
+            End If
+        Next
+
+        If lines.Count < maxLines AndAlso currentLine.Length > 0 Then
+            lines.Add(currentLine.ToString())
+        End If
+
+        If lines.Count = 0 Then
+            Return TruncateWordToWidth(trimmed, maxWidth, font)
+        End If
+
+        If lines.Count > maxLines Then
+            lines = lines.Take(maxLines).ToList()
+        End If
+
+        If lines.Count = maxLines AndAlso (words.Length > 0 OrElse trimmed.Contains(" "c)) Then
+            Dim lastLine As String = lines(lines.Count - 1)
+            If Not lastLine.EndsWith("…", StringComparison.Ordinal) Then
+                lines(lines.Count - 1) = TruncateWordToWidth(lastLine, maxWidth, font)
+            End If
+        End If
+
+        Return String.Join(Environment.NewLine, lines)
+    End Function
+
+    Private Shared Function TruncateWordToWidth(text As String, maxWidth As Integer, font As Font) As String
+        Dim value As String = text
+        While value.Length > 1 AndAlso TextRenderer.MeasureText(value & "…", font).Width > maxWidth
+            value = value.Substring(0, value.Length - 1)
+        End While
+
+        If String.Equals(value, text, StringComparison.Ordinal) Then
+            Return value
+        End If
+
+        Return value & "…"
+    End Function
+
+    Private Sub UpdateCatalogVisibility()
+        Dim hasCatalogProducts As Boolean = productCatalog.Count > 0
+        Dim hasVisibleCards As Boolean = productCardHost IsNot Nothing AndAlso productCardHost.Controls.Count > 0 AndAlso Not IsCatalogLoading()
+        UpdateAddButtonState()
+        numQuantity.Enabled = hasVisibleCards
+        lblEmptyHint.Visible = Not hasCatalogProducts
+        UpdateCatalogEmptyMessages()
+        lblNoProductCards.Visible = hasCatalogProducts AndAlso Not hasVisibleCards AndAlso Not IsCatalogLoading()
+        productCardScrollPanel.Visible = hasVisibleCards OrElse IsCatalogLoading()
+
+        If lblNoProductCards.Visible Then
+            lblNoProductCards.BringToFront()
+        ElseIf hasVisibleCards OrElse IsCatalogLoading() Then
+            productCardScrollPanel.BringToFront()
+            If IsCatalogLoading() AndAlso pnlCatalogLoading IsNot Nothing Then
+                pnlCatalogLoading.BringToFront()
+            End If
+        End If
+
+        btnOpenProducts.Visible = Not hasCatalogProducts AndAlso AppSession.IsAdmin()
+    End Sub
+
+    Private Sub UpdateProductResultCount(visibleCount As Integer)
+        If lblProductResultCount Is Nothing Then
+            Return
+        End If
+
+        If IsCatalogLoading() Then
+            Return
+        End If
+
+        Dim searchText As String = String.Empty
+        If txtProductSearch IsNot Nothing Then
+            searchText = txtProductSearch.Text.Trim()
+        End If
+
+        Dim filterLabel As String = "All categories"
+        Dim sel As SalesCategoryFilterItem = Nothing
+        If cmbSalesCategory IsNot Nothing Then
+            sel = TryCast(cmbSalesCategory.SelectedItem, SalesCategoryFilterItem)
+        End If
+        If sel IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(sel.Display) Then
+            filterLabel = sel.Display
+        End If
+
+        If visibleCount = 0 Then
+            lblProductResultCount.Text = "No products to show for the current filters."
+        ElseIf searchText.Length > 0 OrElse Not String.Equals(filterLabel, "All categories", StringComparison.OrdinalIgnoreCase) Then
+            lblProductResultCount.Text = String.Format(
+                CultureInfo.CurrentCulture,
+                "Showing {0} product{1} · {2}",
+                visibleCount,
+                If(visibleCount = 1, String.Empty, "s"),
+                filterLabel)
+        Else
+            lblProductResultCount.Text = String.Format(
+                CultureInfo.CurrentCulture,
+                "Showing {0} available product{1}",
+                visibleCount,
+                If(visibleCount = 1, String.Empty, "s"))
+        End If
     End Sub
 
     Private Sub UpdateAddButtonState()
@@ -1239,7 +1532,7 @@ Public Class SalesForm
         End If
 
         ClearSalesInputError()
-        RefreshProductCards()
+        ScheduleProductCardRefresh("Updating products...")
     End Sub
 
     Private Sub txtAmountTendered_TextChanged(sender As Object, e As EventArgs) Handles txtAmountTendered.TextChanged
@@ -1284,13 +1577,7 @@ Public Class SalesForm
             Return
         End If
 
-        Dim sym As String = AppSettings.Current.CurrencySymbol
-        lblSelectedProduct.Text = String.Format(
-            CultureInfo.CurrentCulture,
-            "Selected: {0} — {1}{2:N2}",
-            productName,
-            sym,
-            entry.UnitPrice)
+        lblSelectedProduct.Text = productName & Environment.NewLine & FormatMoney(entry.UnitPrice)
         UpdateStockHintForProduct(entry.ProductId, productName)
         UpdateProductCardSelectionVisuals()
         UpdateAddButtonState()
@@ -1499,12 +1786,12 @@ Public Class SalesForm
         End If
 
         Dim lblName As New Label() With {
-            .Text = productName,
-            .Location = New Point(8, pic.Bottom + 6),
+            .Text = WrapProductNameForCard(productName, ProductCardWidth - 16, UiTheme.FontBodySmall, 2),
+            .Location = New Point(8, pic.Bottom + 4),
             .Size = New Size(ProductCardWidth - 16, ProductCardNameHeight),
             .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.ColTextPrimary,
-            .AutoEllipsis = True
+            .AutoEllipsis = False
         }
         If formToolTips IsNot Nothing Then
             formToolTips.SetToolTip(lblName, productName)
@@ -2409,6 +2696,12 @@ Public Class SalesForm
     End Sub
 
     Private Sub LoadProducts()
+        Dim loadGeneration As Integer = System.Threading.Interlocked.Increment(catalogLoadGeneration)
+        ShowCatalogLoading("Loading products...")
+        BeginInvoke(New MethodInvoker(Sub() LoadProductsCore(loadGeneration)))
+    End Sub
+
+    Private Sub LoadProductsCore(loadGeneration As Integer)
         productCatalog.Clear()
         productCatalogByScanCode.Clear()
         categoryNamesById.Clear()
@@ -2512,21 +2805,7 @@ Public Class SalesForm
             End Using
 
             RefreshProductCards()
-
-            Dim hasCatalogProducts As Boolean = productCatalog.Count > 0
-            Dim hasVisibleCards As Boolean = productCardHost IsNot Nothing AndAlso productCardHost.Controls.Count > 0
-            UpdateAddButtonState()
-            numQuantity.Enabled = hasVisibleCards
-            lblEmptyHint.Visible = Not hasCatalogProducts
-            UpdateCatalogEmptyMessages()
-            lblNoProductCards.Visible = hasCatalogProducts AndAlso Not hasVisibleCards
-            productCardScrollPanel.Visible = hasVisibleCards
-            If lblNoProductCards.Visible Then
-                lblNoProductCards.BringToFront()
-            Else
-                productCardScrollPanel.BringToFront()
-            End If
-            btnOpenProducts.Visible = Not hasCatalogProducts AndAlso AppSession.IsAdmin()
+            UpdateCatalogVisibility()
         Catch ex As Exception
             suppressSalesCategoryEvent = False
             ShowDatabaseError("Error loading products", ex)
@@ -2538,6 +2817,10 @@ Public Class SalesForm
             lblNoProductCards.Visible = False
             lblEmptyHint.Text = "Could not load products. Check database and App.config."
             btnOpenProducts.Visible = AppSession.IsAdmin()
+        Finally
+            If loadGeneration = catalogLoadGeneration Then
+                HideCatalogLoading()
+            End If
         End Try
     End Sub
 
@@ -2564,6 +2847,7 @@ Public Class SalesForm
             searchText = txtProductSearch.Text.Trim()
         End If
 
+        Dim visibleCount As Integer = 0
         For Each productName As String In names
             Dim entry As ProductCatalogEntry = productCatalog(productName)
             If entry.StockQuantity <= 0 Then
@@ -2579,10 +2863,12 @@ Public Class SalesForm
             End If
 
             productCardHost.Controls.Add(CreateProductCard(productName, entry))
+            visibleCount += 1
         Next
 
         productCardHost.ResumeLayout(True)
         ProductCardScrollPanel_Resize(productCardScrollPanel, EventArgs.Empty)
+        UpdateProductResultCount(visibleCount)
 
         If Not String.IsNullOrWhiteSpace(previousSelection) AndAlso productCatalog.ContainsKey(previousSelection) Then
             Dim entry As ProductCatalogEntry = productCatalog(previousSelection)

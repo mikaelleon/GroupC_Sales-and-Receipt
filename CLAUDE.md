@@ -8,6 +8,26 @@ Context for AI assistants working in this repository.
 
 **Current State:** All forms have been redesigned with modern, consistent UI/UX using a comprehensive design system. The application uses responsive layouts (TableLayoutPanel/FlowLayoutPanel), follows an 8px spacing grid, and implements Material Design-inspired visual language.
 
+**Full name:** International Bookstore — Sales & Receipt System (Group C)
+
+**Target users:**
+- **Store administrator** — owner/manager; full menu (catalog, cashiers, POS, receipts, reports, settings, backup guidance)
+- **Cashier** — front-desk staff; Point of Sale and Receipt Preview only
+
+**Store benefits:** accurate pricing (auto totals/discount/tax), professional branded receipts, inventory control with low-stock awareness, sale accountability with audit trail, daily reconciliation via dashboard/reports, role-based security, local persistence without cloud dependency.
+
+## Project Documentation Index
+
+- docs/01-system-description.md — system overview and purpose
+- docs/02-system-requirements.md — functional and non-functional requirements
+- docs/03-interface-design-and-navigation.md — UI layout and navigation flow
+- docs/04-database-design.md — schema, tables, and relationships
+- docs/05-features-checklist.md — required features and completion status
+- docs/06-demo-and-presentation-guide.md — walkthrough script for demo day
+- docs/07-project-submission-checklist.md — submission requirements and status
+- docs/08-title-page-and-reflection-template.md — group members and project reflection
+- docs/screenshots/ — UI screenshots of all forms (suggested: `01-login.png` through `10-audit-log.png`; folder currently contains README only)
+
 ## Tech Stack
 
 - **Language / UI:** VB.NET, Windows Forms
@@ -36,6 +56,8 @@ Context for AI assistants working in this repository.
 - **Audit Log:** Track all administrative actions (product changes, category changes, cashier account operations, settings changes)
 - **Store Settings:** Configure store name, receipt footer text, currency symbol
 - **All Cashier Features:** Admins have full access to POS and receipt viewing
+
+**Additional features (beyond Group C minimum):** category management, cashier accounts, CSV import, dashboard KPIs + chart (7–90 days) + low-stock alert, audit log, store settings, backup/restore SQL guidance dialog, cross-screen sidebar navigation (`WorkspaceNavigation`), role-based menu hiding.
 
 ### Security & Authentication
 - **Role-based Access:** Administrator vs Cashier roles with different menu access
@@ -184,6 +206,30 @@ GroupC_Sales-and-Receipt/
 - `products.category_id` → `categories.category_id` (ON DELETE SET NULL)
 - `sale_items.sale_id` → `sales.sale_id` (ON DELETE CASCADE)
 
+**Updated per docs/04-database-design.md:** Runtime schema in `DatabaseInitializer.vb` may use column names below. Map to instructor handout equivalents during defense.
+
+| Instructor handout | This project |
+|---|---|
+| `products.product_id` | `products.id` |
+| `products.name` | `products.product_name` |
+| `products.unit_price` | `products.price` |
+| `products.stock_qty` | `products.stock_quantity` |
+| `sale_items.item_id` | `sale_items.sale_item_id` |
+| `sale_items.unit_price` / `line_total` | `sale_items.price` / `subtotal` |
+| `cashier_accounts.account_id` | `cashier_accounts.cashier_id` |
+| `audit_log` | `AuditLogs` (+ `audit_products`, `audit_sales`) |
+| `error_log.error_id` / `error_time` | `error_log.log_id` / `occurred_at` |
+
+Additional runtime columns/tables not listed above in this file:
+- **products:** `stock_quantity`, `image_path`, `updated_at`
+- **sales:** `subtotal_before_discount`, `discount_percent`, `amount_before_tax`, `tax_percent`, `amount_tendered`, `change_given`, `created_at` (plus `sale_date` stored UTC)
+- **cashier_accounts:** `password_salt`, `last_login_at`
+- **AuditLogs:** `LogID`, `Action`, `Detail`, `PerformedBy`, `LoggedAt` (Reports → System Audit Logs)
+- **audit_products** / **audit_sales:** domain-specific audit via `AuditLogger.LogProduct` / `LogSale`
+- **sale_items:** no FK to `products` — name/price snapshot only
+
+Sample verification queries: active product count, today's sales total, daily revenue GROUP BY, low stock (`stock_quantity <= 5`).
+
 ## UI/UX Design System (UiTheme.vb)
 
 **Philosophy:** Material Design-inspired, 8px spacing grid, responsive layouts, consistent typography and color usage.
@@ -316,6 +362,8 @@ RadiusXl = 16px   ' Extra large elements
 **Purpose:** Post-login dashboard and navigation hub.
 
 **Layout:** SplitContainer with left sidebar (240px) and right dashboard area (responsive TableLayoutPanel).
+
+**Updated per docs/03-interface-design-and-navigation.md:** Shared workspace shell uses dark navy sidebar (~220px), light gray workspace, top bar with page title; child forms highlight current nav item. Dashboard shows **low-stock alert** when any active product has `stock_quantity <= 5`. Cross-screen sidebar navigation via `WorkspaceNavigation` lets users switch modules without returning to dashboard first.
 
 **Features:**
 - **Top Header:** Application title (Heading2), system status label (database connection health)
@@ -767,7 +815,18 @@ Visual Studio: open `GroupC.slnx`, press **F5**.
 - **CSV import** — basic parsing, no error recovery for malformed files, no progress indicator for large imports
 - **Performance** — no pagination on grids, full table scans for some queries, acceptable for small datasets (<10,000 products, <50,000 sales)
 
+**Updated per docs/02-system-requirements.md:**
+- **Hardware:** Windows 10/11 64-bit; .NET 10 Desktop Runtime; LocalDB; display 1366×768+ (optimized 1920×1080); optional Windows printer; keyboard/mouse (barcode wedge via search field)
+- **Assumptions:** single store/single PC; cash payment implied (tendered/change, no card gateway); English UI with configurable currency (default ₱)
+- **ProductsForm** also supports hard delete with confirmation (per FR-01), in addition to deactivate/reactivate
+
+**Updated per docs/03-interface-design-and-navigation.md:** Backup/Restore is an **inline SQL guidance dialog** in `MainMenuForm.vb`, not a separate `BackupRestoreForm.vb`.
+
+**Updated per docs/05-features-checklist.md:** `sale_date` stored UTC; display normalized to local time. Receipt email opens mail client; long receipts may need clipboard paste.
+
 ## Future Enhancements (Not Implemented)
+
+**Updated per docs/03-interface-design-and-navigation.md:** Backup/restore **SQL guidance dialog** exists inline in `MainMenuForm.vb`; automatic backup not implemented.
 
 - Backup/Restore functionality (BackupRestoreForm.vb referenced but missing)
 - Email receipt feature (button exists in ReceiptForm, not wired)
@@ -845,7 +904,7 @@ Visual Studio: open `GroupC.slnx`, press **F5**.
 ---
 
 **Document maintained by:** AI assistant (Claude)
-**Last updated:** 2026-05-23 (after complete UI/UX redesign)
+**Last updated:** 2026-05-29 (merged docs/ course documentation index and submission guides)
 **Repository:** GroupC_Sales-and-Receipt
 
 ## Form Documentation
@@ -871,10 +930,13 @@ See FORMS.md for a detailed breakdown of every form's structure, appearance, con
 
 None — all audited features are implemented. Restart the app once so `DatabaseInitializer.EnsureProductStockQuantity` adds `stock_quantity` to existing databases (default 100). Set stock in **Manage Products** or CSV import (optional third column).
 
+**Demo verification:** See docs/05-features-checklist.md for 30-second demo steps per feature, CRUD rubric actions, database integration checks, and evaluator talking points.
+
 ## Project Documentation Files
 
 - `FORMS.md` — detailed structure, appearance, controls, and behavior of every form
 - `RECOMMENDATIONS.md` — possible improvements and recommendations covering features, functionality, and aesthetics
+- `docs/` — course submission documentation (see Project Documentation Index above)
 
 ## UI/UX Overhaul Log
 
@@ -898,3 +960,131 @@ Changes summary:
 Phase 3 global polish: standardized `Confirm action` Yes/No dialogs for logout, clear cart, finalize sale, deactivate, and reactivate; minimum sizes on workspace forms; tooltips on key controls; logical tab order on data-entry forms; `ApplyDisabledButton` enforcement for selection-dependent actions; italic empty-state labels on grids and lists.
 
 No business logic, SQL queries, database calls, service methods, or protected files (`DatabaseConfig.vb`, `DatabaseInitializer.vb`, `AppSession.vb`, `AppSettings.vb`, audit/error/password/cashier services, `GroupC/scripts/`) were modified.
+
+## System Requirements
+
+Source: docs/02-system-requirements.md
+
+### Functional requirements (FR-01–FR-17)
+
+| ID | Requirement | Location |
+|---|---|---|
+| FR-01 | Product CRUD + deactivate/reactivate/delete | `ProductsForm` |
+| FR-02 | Category CRUD + deactivate/reactivate | `CategoriesForm` |
+| FR-03 | Cart subtotal | `SalesForm` |
+| FR-04 | Discount (PWD/Senior/Member) | `SalesForm` toggles |
+| FR-05 | VAT/tax on discounted subtotal | `SalesForm` tax toggle |
+| FR-06 | Grand total + change | `SalesForm` tendered validation |
+| FR-07 | Formatted receipt text | `ReceiptBranding.BuildReceiptText` → `sales.receipt_text` |
+| FR-08 | Print receipts | `ReceiptPrintHelper` |
+| FR-09 | Export PDF/text | PDFsharp + save dialog |
+| FR-10 | Transaction history | `ReceiptForm` |
+| FR-11 | Daily sales report | `ReportsForm` |
+| FR-12 | Inventory deduction | `SalesForm.SaveSale` → `products.stock_quantity` |
+| FR-13 | Role-based login | `LoginForm` + `AppSession` |
+| FR-14 | Cashier account management | `CashierAccountsForm` |
+| FR-15 | Audit trail | `AuditLogger` → `AuditLogs`; Reports audit tab |
+| FR-16 | CSV product import | `ProductsForm` |
+| FR-17 | Dashboard metrics/chart | `MainMenuForm` |
+
+All FR items marked ✅ implemented in course docs.
+
+### Non-functional requirements (NFR-01–NFR-09)
+
+- **NFR-01 Usability:** `UiTheme.vb` design system; sidebar shell; 8px grid; tooltips, tab order, empty states, confirm dialogs
+- **NFR-02 Performance:** LocalDB inline SQL; indexes on `sale_items.sale_id`
+- **NFR-03 Security:** bcrypt/salted cashier passwords; demo admin password in config
+- **NFR-04 Audit:** `AuditLogs` + `audit_products` / `audit_sales`
+- **NFR-05 Reliability:** sale finalize in SQL transaction (sale + line items + stock); `error_log` + `%LocalAppData%\GroupC\logs\app.log`
+- **NFR-06 Recoverability:** backup/restore SQL guidance dialog; `GroupC/scripts/`
+- **NFR-07–NFR-09:** single-machine deploy; service-layer maintainability
+
+## UI/UX Notes (Navigation & Workspace Shell)
+
+Source: docs/03-interface-design-and-navigation.md
+
+- **Shell:** left dark navy sidebar (220px) + light workspace + top bar (title, user/subtitle)
+- **Forms:** Login, Dashboard, POS, Receipt, Products, Categories, Cashiers, Reports, Settings, Backup dialog (inline in MainMenu)
+- **Navigation:** child forms modal; MainMenu hides while module open; sidebar links switch modules via `WorkspaceNavigation`; "← Back to Menu" returns to dashboard
+- **Role menus:** admin sees full nav; cashier sees POS, Receipt, Log out only
+- **Screenshots for submission:** capture at 1920×1080 with sidebar + top bar visible; place labeled PNGs in `docs/screenshots/` (`01-login.png` … `10-audit-log.png`)
+- **Wireframes & flow:** mermaid navigation diagram in docs/03; detailed control lists in `FORMS.md`
+
+## Database Design Notes
+
+Source: docs/04-database-design.md
+
+- **Connection:** `GroupC/App.config` → `GroupCSqlServer`; instance `(localdb)\MSSQLLocalDB`; database `GroupC_DB`
+- **Authority:** `DatabaseInitializer.vb` at runtime; reference scripts in `GroupC/scripts/`
+- **Design choice:** `sale_items` stores product name/price snapshot — no FK to `products.id` — preserves history after rename/deactivate
+- **Settings (non-DB):** `%LocalAppData%\GroupC\settings.json` — store name, footer, currency, branch, policies, stock threshold
+- **Oral defense:** use mapping table under Database Schema section for instructor handout name equivalents
+
+## Presentation Guide
+
+Source: docs/06-demo-and-presentation-guide.md
+
+### Slide outline (8–10 slides)
+
+Title → Problem/purpose → Target users → 10 required features → Architecture (VB.NET + LocalDB) → Database design → UI/navigation → Screenshots grid → Demo flow → Members/roles
+
+### Live demo script (~5–10 min)
+
+1. **Intro (0–1 min):** dashboard KPIs, chart, System Status Online
+2. **Admin CRUD (1–2 min):** Products — add, update, mention deactivate vs delete
+3. **Categories (optional 20 sec):** add/rename; verify dropdown on Products
+4. **Sale (3–5 min):** POS — 2 items, Senior/PWD discount, VAT, tender ≥ total, finalize → receipt
+5. **Receipt (5–6 min):** preview, print preview or Save PDF
+6. **History (6–7 min):** Receipt Preview — search/filter past sales
+7. **Reports (7–8 min):** daily revenue + top products; System Audit Logs tab
+8. **Roles (8–9 min):** logout → cashier login → limited menu
+9. **Close (9–10 min):** all 10 features implemented; Q&A
+
+### Demo disaster recovery
+
+| Problem | Fix |
+|---|---|
+| LocalDB offline | `sqllocaldb start MSSQLLocalDB` |
+| Empty catalog | Import CSV or run seed |
+| Login fails | Admin `admin123`; create cashier account |
+| Build locked | Close `GroupC.exe` |
+| Chart empty | Run sale in date range |
+
+### Evaluator rubric (60 pts)
+
+Three areas × 20 pts: **Database Integration** (Online status, sale saves, reports, `GroupC_DB`), **CRUD Operations** (live product add/update/deactivate), **System Functionality** (full sale + receipt + report + role switch). Cheat sheet: docs/05-features-checklist.md.
+
+## Submission Checklist
+
+Source: docs/07-project-submission-checklist.md
+
+### Documentation bundle (print/PDF)
+
+Combine: title page + introduction (docs/08) → system description (docs/01) → features checklist (docs/05) → requirements (docs/02) → interface design + screenshots (docs/03) → database (docs/04) → per-member reflection (docs/08)
+
+Optional Pandoc merge from repo root:
+```powershell
+pandoc docs/01-system-description.md docs/02-system-requirements.md docs/03-interface-design-and-navigation.md docs/04-database-design.md docs/05-features-checklist.md -o GroupC_Documentation.pdf
+```
+
+### Source code zip
+
+Include: `GroupC.slnx`, `GroupC/*.vb`, `GroupC/Assets/`, `GroupC/scripts/*.sql`, `docs/`, `README.md`, `FORMS.md`. Exclude: `bin/`, `obj/`, `.vs/`. Suggested name: `GroupC_SourceCode.zip`. Verify `dotnet build GroupC.slnx` on clean machine.
+
+### Pre-demo checklist
+
+- Rehearse 5–10 min script (docs/06)
+- Verify all 10 features (docs/05)
+- Create cashier test account; ≥5 products; LocalDB running
+
+## Project Reflection
+
+Source: docs/08-title-page-and-reflection-template.md
+
+Submission title page placeholders: course, section, school year, date, group member names/IDs, instructor name.
+
+Per-member reflection sections: role, what learned, challenges, contribution (specific files/features).
+
+Optional group closing: all ten required features delivered; skills gained; future work (auto backup, barcode, cloud sync).
+
+Member roles slide template: assign primary responsibilities (database/POS, UI/navigation, CRUD/import, reports/docs) — replace bracketed placeholders before printing.
