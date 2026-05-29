@@ -1580,11 +1580,20 @@ Public Class SalesForm
         End If
 
         Dim clicked As Button = TryCast(sender, Button)
-        If clicked Is Nothing OrElse clicked.Tag Is Nothing Then
+        If clicked Is Nothing Then
             Return
         End If
 
-        Dim clickedType As PosDiscountType = CType(clicked.Tag, PosDiscountType)
+        Dim clickedType As PosDiscountType = PosDiscountType.None
+
+        If clicked Is btnDiscPwd Then
+            clickedType = PosDiscountType.Pwd
+        ElseIf clicked Is btnDiscSenior Then
+            clickedType = PosDiscountType.Senior
+        ElseIf clicked Is btnDiscMembership Then
+            clickedType = PosDiscountType.Membership
+        End If
+
         If selectedPosDiscount = clickedType Then
             selectedPosDiscount = PosDiscountType.None
         Else
