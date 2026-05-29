@@ -1309,12 +1309,24 @@ Public Class MainMenuForm
                             End Function)
     End Sub
 
+    Private Enum WorkspaceCloseAction
+        None
+        Disposed
+        NavigatePending
+        ReopenPos
+        PromptLogin
+        ShowDashboard
+    End Enum
+
     Private Sub ShowWorkspaceDialog(factory As Func(Of Form), Optional refreshDashboard As Boolean = True)
         If Me.IsDisposed Then
             Return
         End If
 
         Me.Hide()
+        Dim closeAction As WorkspaceCloseAction = WorkspaceCloseAction.ShowDashboard
+        Dim pendingTarget As WorkspaceNavigation.Target = WorkspaceNavigation.Target.None
+
         Try
             Using form As Form = factory()
                 form.ShowDialog()
@@ -1327,7 +1339,26 @@ Public Class MainMenuForm
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error)
         Finally
-            If Not Me.IsDisposed Then
+            If Me.IsDisposed Then
+                closeAction = WorkspaceCloseAction.Disposed
+            Else
+                pendingTarget = WorkspaceNavigation.TryConsumePending()
+                If pendingTarget <> WorkspaceNavigation.Target.None Then
+                    closeAction = WorkspaceCloseAction.NavigatePending
+                ElseIf AppSession.IsCashierSession() Then
+                    closeAction = WorkspaceCloseAction.ReopenPos
+                ElseIf Not AppSession.HasActiveSession() Then
+                    closeAction = WorkspaceCloseAction.PromptLogin
+                Else
+                    closeAction = WorkspaceCloseAction.ShowDashboard
+                End If
+            End If
+        End Try
+
+        Select Case closeAction
+            Case WorkspaceCloseAction.Disposed
+                Return
+            Case WorkspaceCloseAction.NavigatePending
                 Me.Show()
                 Me.ShowInTaskbar = True
                 If AppSession.IsAdmin() Then
@@ -1335,16 +1366,23 @@ Public Class MainMenuForm
                 Else
                     SetActiveNavButton(btnSales)
                 End If
-            End If
-        End Try
+                OpenWorkspaceTarget(pendingTarget)
+                Return
+            Case WorkspaceCloseAction.ReopenPos
+                ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+                Return
+            Case WorkspaceCloseAction.PromptLogin
+                Me.Show()
+                Me.ShowInTaskbar = True
+                PromptLoginOrExit()
+                Return
+            Case WorkspaceCloseAction.ShowDashboard
+                Me.Show()
+                Me.ShowInTaskbar = True
+                SetActiveNavButton(btnDashboard)
+        End Select
 
         If Me.IsDisposed Then
-            Return
-        End If
-
-        Dim pending As WorkspaceNavigation.Target = WorkspaceNavigation.TryConsumePending()
-        If pending <> WorkspaceNavigation.Target.None Then
-            OpenWorkspaceTarget(pending)
             Return
         End If
 
@@ -1679,13 +1717,13 @@ Public Class MainMenuForm
         ShowWorkspaceDialog(Function() New CashierAccountsForm())
     End Sub
 
-    Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+    Friend Function SignOutAndPromptLogin(Optional reopenWorkspace As Boolean = True) As Boolean
         If Not UiTheme.ConfirmAction("Sign out and return to the login screen?") Then
-            Return
+            Return False
         End If
 
         Try
-            AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.GetAuditIdentity())
+            AuditLogger.LogAudit("LOGOUT", "Signed out from workspace.", AppSession.GetAuditIdentity())
         Catch
         End Try
 
@@ -1698,6 +1736,29 @@ Public Class MainMenuForm
             If loginForm.ShowDialog() <> DialogResult.OK Then
                 Me.Opacity = 1
                 Me.ShowInTaskbar = True
+                Return True
+            End If
+        End Using
+
+        Me.Opacity = 1
+        Me.ShowInTaskbar = True
+        ApplyRoleBasedNavigation()
+        RefreshHealthAndDashboard()
+
+        If reopenWorkspace AndAlso AppSession.IsCashierSession() Then
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        End If
+
+        Return True
+    End Function
+
+    Private Sub PromptLoginOrExit()
+        Me.Opacity = 0
+        Me.ShowInTaskbar = False
+
+        Using loginForm As New LoginForm()
+            If loginForm.ShowDialog() <> DialogResult.OK Then
+                Application.Exit()
                 Return
             End If
         End Using
@@ -1707,9 +1768,15 @@ Public Class MainMenuForm
         ApplyRoleBasedNavigation()
         RefreshHealthAndDashboard()
 
-        If Not AppSession.IsAdmin() Then
+        If AppSession.IsCashierSession() Then
             ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        ElseIf AppSession.IsAdmin() Then
+            SetActiveNavButton(btnDashboard)
         End If
+    End Sub
+
+    Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+        SignOutAndPromptLogin()
     End Sub
 
 End Class

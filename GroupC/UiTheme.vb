@@ -434,6 +434,7 @@ Public NotInheritable Class UiTheme
         backButton = CreateSidebarNavButton("← Back to Menu")
         backButton.Dock = DockStyle.Top
         navBottom.Controls.Add(backButton)
+        WorkspaceNavigation.ConfigureSidebarBackButton(backButton, activeTarget)
 
         Dim sidebarTop As New Panel() With {
             .AutoSize = True,

@@ -97,4 +97,70 @@ Public Module WorkspaceNavigation
         hostForm.Close()
     End Sub
 
+    ''' <summary>
+    ''' Sidebar back action: admins return to the dashboard; cashiers stay on POS or go back to POS from receipt screens.
+    ''' </summary>
+    Public Sub HandleBackNavigation(hostForm As Form, currentTarget As Target)
+        If hostForm Is Nothing Then
+            Return
+        End If
+
+        If AppSession.IsAdmin() Then
+            hostForm.Close()
+            Return
+        End If
+
+        Select Case currentTarget
+            Case Target.Sales
+                RequestCashierSignOut(hostForm)
+            Case Target.Receipt
+                RequestNavigate(Target.Sales)
+                hostForm.Close()
+            Case Else
+                RequestNavigate(Target.Sales)
+                hostForm.Close()
+        End Select
+    End Sub
+
+    Private Sub RequestCashierSignOut(hostForm As Form)
+        For Each openForm As Form In Application.OpenForms
+            Dim mainMenu As MainMenuForm = TryCast(openForm, MainMenuForm)
+            If mainMenu IsNot Nothing Then
+                If mainMenu.SignOutAndPromptLogin(reopenWorkspace:=False) AndAlso hostForm IsNot Nothing AndAlso Not hostForm.IsDisposed Then
+                    hostForm.Close()
+                End If
+                Return
+            End If
+        Next
+
+        If hostForm IsNot Nothing AndAlso Not hostForm.IsDisposed Then
+            hostForm.Close()
+        End If
+    End Sub
+
+    ''' <summary>Adjusts sidebar back affordance for cashier sessions (no dashboard).</summary>
+    Public Sub ConfigureSidebarBackButton(backButton As Button, activeTarget As Target)
+        If backButton Is Nothing Then
+            Return
+        End If
+
+        If AppSession.IsAdmin() Then
+            backButton.Text = "← Back to Menu"
+            backButton.Visible = True
+            Return
+        End If
+
+        Select Case activeTarget
+            Case Target.Sales
+                backButton.Text = "Sign out"
+                backButton.Visible = True
+            Case Target.Receipt
+                backButton.Text = "← Back to POS"
+                backButton.Visible = True
+            Case Else
+                backButton.Text = "← Back to POS"
+                backButton.Visible = True
+        End Select
+    End Sub
+
 End Module

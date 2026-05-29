@@ -58,7 +58,8 @@ Public Class SalesForm
     Private Const CartRemoveColumnName As String = "Remove"
     Private Const CartColIndexWidth As Integer = 40
     Private Const CartColPriceWidth As Integer = 88
-    Private Const CartColQtyWidth As Integer = 44
+    Private Const CartColQtyWidth As Integer = 56
+    Private Const PosQuantityInputWidth As Integer = 88
     Private Const CartColSubtotalWidth As Integer = 96
     Private Const CartColRemoveWidth As Integer = 40
     Private Const CartColProductMinWidth As Integer = 130
@@ -301,10 +302,12 @@ Public Class SalesForm
         numQuantity = New NumericUpDown() With {
             .Minimum = MinLineQty,
             .Maximum = MaxLineQty,
-            .TextAlign = HorizontalAlignment.Right,
-            .Width = 60
+            .DecimalPlaces = 0,
+            .Value = MinLineQty,
+            .ThousandsSeparator = False,
+            .TextAlign = HorizontalAlignment.Center
         }
-        UiTheme.ApplyInputStyle(numQuantity)
+        ApplyPosQuantityInput(numQuantity)
 
         btnAdd = New Button() With {
             .Text = "Select a product",
@@ -609,7 +612,7 @@ Public Class SalesForm
         }
         selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, PosQuantityInputWidth))
         selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         Dim lblQtyCaption As New Label() With {
             .Text = "Qty",
@@ -619,8 +622,9 @@ Public Class SalesForm
             .Anchor = AnchorStyles.Right,
             .Margin = New Padding(0, 8, UiTheme.PadTight, 0)
         }
+        numQuantity.Dock = DockStyle.Fill
         numQuantity.Margin = New Padding(0, 4, UiTheme.PadTight, 0)
-        numQuantity.Anchor = AnchorStyles.Right
+        numQuantity.Anchor = AnchorStyles.None
         btnAdd.Margin = New Padding(0, 0, 0, 0)
         btnAdd.Anchor = AnchorStyles.Right
         selectionRight.Controls.Add(lblQtyCaption, 1, 0)
@@ -1290,6 +1294,10 @@ Public Class SalesForm
 
         Dim qtyCol As DataGridViewColumn = dgvProducts.Columns("Quantity")
         qtyCol.HeaderText = "Qty"
+        qtyCol.ValueType = GetType(Integer)
+        qtyCol.DefaultCellStyle.Format = "0"
+        qtyCol.DefaultCellStyle.NullValue = MinLineQty
+        qtyCol.DefaultCellStyle.Padding = New Padding(2, 4, 2, 4)
         ConfigureFixedCartColumn(qtyCol, GetCartHeaderColumnWidth("Qty", CartColQtyWidth), DataGridViewContentAlignment.MiddleCenter, 3)
 
         Dim subtotalCol As DataGridViewColumn = dgvProducts.Columns("Subtotal")
@@ -1353,6 +1361,26 @@ Public Class SalesForm
             dgvProducts.Columns("Subtotal").Width = subtotalWidth
             dgvProducts.Columns("Subtotal").MinimumWidth = subtotalWidth
         End If
+
+        If dgvProducts.Columns.Contains("Quantity") Then
+            Dim qtyWidth As Integer = GetCartHeaderColumnWidth("Qty", CartColQtyWidth)
+            dgvProducts.Columns("Quantity").Width = qtyWidth
+            dgvProducts.Columns("Quantity").MinimumWidth = qtyWidth
+        End If
+    End Sub
+
+    Private Shared Sub ApplyPosQuantityInput(nud As NumericUpDown)
+        If nud Is Nothing Then
+            Return
+        End If
+
+        UiTheme.ApplyInputStyle(nud)
+        nud.DecimalPlaces = 0
+        nud.ThousandsSeparator = False
+        nud.TextAlign = HorizontalAlignment.Center
+        nud.MinimumSize = New Size(PosQuantityInputWidth, UiTheme.InputHeight)
+        nud.Width = PosQuantityInputWidth
+        nud.Height = UiTheme.InputHeight
     End Sub
 
     Private Shared Sub ConfigureFixedCartColumn(
@@ -1807,7 +1835,7 @@ Public Class SalesForm
     End Sub
 
     Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
-        Me.Close()
+        WorkspaceNavigation.HandleBackNavigation(Me, WorkspaceNavigation.Target.Sales)
     End Sub
 
     Private Sub ProductCardScrollPanel_Resize(sender As Object, e As EventArgs)

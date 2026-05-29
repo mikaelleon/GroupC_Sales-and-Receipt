@@ -106,6 +106,20 @@ Public Module AppSession
     End Function
 
     ''' <summary>
+    ''' Returns true when a user has completed sign-in (admin or cashier).
+    ''' </summary>
+    Public Function HasActiveSession() As Boolean
+        Return IsAdmin() OrElse CurrentCashierId.HasValue
+    End Function
+
+    ''' <summary>
+    ''' Returns true when the current session is a signed-in cashier.
+    ''' </summary>
+    Public Function IsCashierSession() As Boolean
+        Return Not IsAdmin() AndAlso CurrentCashierId.HasValue
+    End Function
+
+    ''' <summary>
     ''' Shows a message and returns false when the current user is not an administrator.
     ''' </summary>
     ''' <param name="owner">Optional window for the dialog.</param>

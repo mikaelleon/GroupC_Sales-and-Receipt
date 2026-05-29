@@ -1184,7 +1184,7 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
-        Me.Close()
+        WorkspaceNavigation.HandleBackNavigation(Me, WorkspaceNavigation.Target.Receipt)
     End Sub
 
     Private Sub btnLoadList_Click(sender As Object, e As EventArgs) Handles btnLoadList.Click
