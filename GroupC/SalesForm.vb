@@ -44,24 +44,29 @@ Public Class SalesForm
     Private Const CheckoutSummaryTenderedRowHeight As Integer = 40
     Private Const CheckoutDiscountColumnWidth As Single = 210.0F
     Private Const CheckoutFinalizeColumnWidth As Single = 196.0F
-    Private Const TenderedFieldHeight As Integer = 48
+    Private Const TenderedFieldHeight As Integer = 52
     Private Const SalesInputShellHeight As Integer = 42
     Private Const DiscountPwdPercent As Decimal = 20D
     Private Const DiscountSeniorPercent As Decimal = 20D
     Private Const DiscountMembershipPercent As Decimal = 10D
-    Private Const ProductCardWidth As Integer = 188
-    Private Const ProductCardHeight As Integer = 216
-    Private Const ProductCardImageHeight As Integer = 72
-    Private Const ProductCardNameHeight As Integer = 56
+    Private Const ProductCardWidth As Integer = 184
+    Private Const ProductCardHeight As Integer = 198
+    Private Const ProductCardImageHeight As Integer = 64
+    Private Const ProductCardNameHeight As Integer = 52
     Private Const ProductCardRefreshDelayMs As Integer = 220
-    Private Const CatalogSkeletonCardCount As Integer = 12
+    Private Const CatalogSkeletonCardCount As Integer = 8
     Private Const CartRemoveColumnName As String = "Remove"
     Private Const CartColIndexWidth As Integer = 40
-    Private Const CartColPriceWidth As Integer = 80
-    Private Const CartColQtyWidth As Integer = 50
-    Private Const CartColSubtotalWidth As Integer = 90
+    Private Const CartColPriceWidth As Integer = 88
+    Private Const CartColQtyWidth As Integer = 44
+    Private Const CartColSubtotalWidth As Integer = 96
     Private Const CartColRemoveWidth As Integer = 40
-    Private Const CartColProductMinWidth As Integer = 100
+    Private Const CartColProductMinWidth As Integer = 130
+    Private Const CartGridHeaderHeight As Integer = 48
+    Private Const CheckoutFinalizeRowHeight As Integer = 56
+    Private Const CheckoutSummaryDividerRowHeight As Integer = 17
+    Private Const CheckoutAmountDueRowHeight As Integer = 56
+    Private Const CheckoutTenderedRowHeight As Integer = 56
 
     Private Enum PosDiscountType
         None = 0
@@ -77,6 +82,7 @@ Public Class SalesForm
     Private productCardScrollPanel As Panel
     Private pnlCatalogLoading As Panel
     Private lblCatalogLoading As Label
+    Private prgCatalogLoading As ProgressBar
     Private lblProductResultCount As Label
     Private lblSelectedProduct As Label
     Private lblNoProductCards As Label
@@ -256,22 +262,31 @@ Public Class SalesForm
         }
         pnlCatalogLoading = New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = Color.FromArgb(235, UiTheme.ColBackground),
+            .BackColor = Color.FromArgb(210, UiTheme.ColBackground),
             .Visible = False
         }
         lblCatalogLoading = New Label() With {
             .Text = "Loading products...",
             .AutoSize = True,
-            .ForeColor = UiTheme.ColTextSecondary,
+            .ForeColor = UiTheme.ColTextPrimary,
             .Font = UiTheme.FontBody,
             .BackColor = Color.Transparent
         }
+        prgCatalogLoading = New ProgressBar() With {
+            .Style = ProgressBarStyle.Marquee,
+            .MarqueeAnimationSpeed = 30,
+            .Height = 6,
+            .Width = 180
+        }
+        pnlCatalogLoading.Controls.Add(prgCatalogLoading)
         pnlCatalogLoading.Controls.Add(lblCatalogLoading)
         AddHandler pnlCatalogLoading.Resize,
             Sub()
-                lblCatalogLoading.Location = New Point(
-                    Math.Max(0, (pnlCatalogLoading.ClientSize.Width - lblCatalogLoading.Width) \ 2),
-                    Math.Max(0, (pnlCatalogLoading.ClientSize.Height - lblCatalogLoading.Height) \ 2))
+                Dim centerX As Integer = Math.Max(0, (pnlCatalogLoading.ClientSize.Width - lblCatalogLoading.Width) \ 2)
+                lblCatalogLoading.Location = New Point(centerX, Math.Max(UiTheme.PadSection, (pnlCatalogLoading.ClientSize.Height \ 2) - 24))
+                prgCatalogLoading.Location = New Point(
+                    Math.Max(0, (pnlCatalogLoading.ClientSize.Width - prgCatalogLoading.Width) \ 2),
+                    lblCatalogLoading.Bottom + UiTheme.PadControl)
             End Sub
         lblSelectedProduct = New Label() With {
             .AutoSize = True,
@@ -375,12 +390,13 @@ Public Class SalesForm
 
         btnFinalize = New Button() With {
             .Text = "FINALIZE SALE",
-            .Dock = DockStyle.Top,
+            .Dock = DockStyle.Fill,
             .AutoSize = False,
-            .Height = 44,
+            .Height = CheckoutFinalizeRowHeight,
+            .MinimumSize = New Size(0, CheckoutFinalizeRowHeight),
             .Font = UiTheme.FontSubheading,
             .Cursor = Cursors.Hand,
-            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+            .Margin = New Padding(UiTheme.PadControl, UiTheme.PadTight, UiTheme.PadControl, UiTheme.PadTight)
         }
         UiTheme.ApplyDisabledButton(btnFinalize)
 
@@ -470,7 +486,7 @@ Public Class SalesForm
 
         ConfigureSalesCartGrid()
 
-        statusStrip = New StatusStrip()
+        statusStrip = New StatusStrip() With {.Dock = DockStyle.Bottom}
         statusLabel = New ToolStripStatusLabel("Ready") With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
         statusStrip.Items.Add(statusLabel)
         Try
@@ -514,8 +530,8 @@ Public Class SalesForm
         }
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
         Dim productsHeaderHost As Panel = UiTheme.CreateSectionHeader("Products")
         productsHeaderHost.Dock = DockStyle.Top
@@ -582,22 +598,32 @@ Public Class SalesForm
         selectionLeft.Controls.Add(lblSelectedProduct)
         selectionLeft.Controls.Add(lblStockOnHand)
 
-        Dim selectionRight As New FlowLayoutPanel() With {
-            .FlowDirection = FlowDirection.LeftToRight,
+        Dim selectionRight As New TableLayoutPanel() With {
             .AutoSize = True,
-            .WrapContents = False,
+            .ColumnCount = 4,
+            .RowCount = 1,
             .Dock = DockStyle.Fill,
-            .Anchor = AnchorStyles.Right
+            .Margin = Padding.Empty
         }
-        selectionRight.Controls.Add(New Label() With {
+        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        selectionRight.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        Dim lblQtyCaption As New Label() With {
             .Text = "Qty",
             .AutoSize = True,
-            .Font = UiTheme.FontCaption,
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.ColTextSecondary,
-            .Margin = New Padding(0, 6, UiTheme.PadTight, 0)
-        })
-        selectionRight.Controls.Add(numQuantity)
-        selectionRight.Controls.Add(btnAdd)
+            .Anchor = AnchorStyles.Right,
+            .Margin = New Padding(0, 8, UiTheme.PadTight, 0)
+        }
+        numQuantity.Margin = New Padding(0, 4, UiTheme.PadTight, 0)
+        numQuantity.Anchor = AnchorStyles.Right
+        btnAdd.Margin = New Padding(0, 0, 0, 0)
+        btnAdd.Anchor = AnchorStyles.Right
+        selectionRight.Controls.Add(lblQtyCaption, 1, 0)
+        selectionRight.Controls.Add(numQuantity, 2, 0)
+        selectionRight.Controls.Add(btnAdd, 3, 0)
 
         selectionLayout.Controls.Add(selectionLeft, 0, 0)
         selectionLayout.Controls.Add(selectionRight, 1, 0)
@@ -674,7 +700,7 @@ Public Class SalesForm
         Dim totalsPanel As New Panel() With {
             .Dock = DockStyle.Fill,
             .BackColor = UiTheme.ColSurface,
-            .Padding = New Padding(UiTheme.PadCard)
+            .Padding = New Padding(UiTheme.PadControl)
         }
         Dim totalsTopBorder As New Panel() With {
             .Height = 1,
@@ -682,19 +708,34 @@ Public Class SalesForm
             .BackColor = UiTheme.ColBorder
         }
 
-        Dim checkoutSplit As New TableLayoutPanel() With {
+        Dim checkoutPanelHost As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .Margin = Padding.Empty,
+            .Padding = Padding.Empty
+        }
+        checkoutPanelHost.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        checkoutPanelHost.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutFinalizeRowHeight))
+
+        Dim checkoutSplit As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .ColumnCount = 2,
-            .RowCount = 1
+            .RowCount = 1,
+            .Margin = Padding.Empty
         }
         checkoutSplit.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 42.0F))
         checkoutSplit.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 58.0F))
 
         Dim discountColumn As New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
-            .Dock = DockStyle.Fill,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .AutoScroll = True
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty
         }
         discountColumn.Controls.Add(lblCustomerDiscount)
         ConfigureCheckoutDiscountButton(btnDiscPwd)
@@ -730,7 +771,7 @@ Public Class SalesForm
         taxGroupInner.Controls.Add(numTaxPercent)
         taxGroupInner.Controls.Add(New Label() With {
             .Text = "Custom tax rate (%)",
-            .Font = UiTheme.FontCaption,
+            .Font = UiTheme.FontBodySmall,
             .ForeColor = UiTheme.ColTextSecondary,
             .AutoSize = True,
             .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
@@ -742,18 +783,25 @@ Public Class SalesForm
         Dim totalsColumn As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
-            .RowCount = 9
+            .RowCount = 9,
+            .Margin = Padding.Empty
         }
         totalsColumn.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
         totalsColumn.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 55.0F))
-        For r As Integer = 0 To 8
-            totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        Next
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryDividerRowHeight))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutAmountDueRowHeight))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutTenderedRowHeight))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.Absolute, CheckoutSummaryDividerRowHeight))
+        totalsColumn.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
 
         Dim lblAmountDueCaption As New Label() With {
             .Text = "Amount Due",
             .Font = UiTheme.FontSubheading,
-            .ForeColor = UiTheme.ColTextPrimary,
+            .ForeColor = UiTheme.TextOnAccent,
             .AutoSize = True,
             .Margin = New Padding(UiTheme.PadControl, UiTheme.PadControl, 0, UiTheme.PadControl)
         }
@@ -761,12 +809,15 @@ Public Class SalesForm
         lblTotal.AutoSize = False
         lblTotal.Dock = DockStyle.Fill
         lblTotal.TextAlign = ContentAlignment.MiddleRight
+        lblTotal.ForeColor = UiTheme.TextOnAccent
+        lblTotal.Font = UiTheme.FontHeading
 
         Dim pnlAmountDueBand As New Panel() With {
-            .BackColor = UiTheme.InfoBackground,
+            .BackColor = UiTheme.ColPrimary,
             .Dock = DockStyle.Fill,
-            .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl),
-            .Padding = New Padding(0)
+            .Margin = Padding.Empty,
+            .Padding = New Padding(0),
+            .MinimumSize = New Size(0, CheckoutAmountDueRowHeight)
         }
         Dim amountDueLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
@@ -787,26 +838,40 @@ Public Class SalesForm
         totalsColumn.Controls.Add(lblDiscountValue, 1, 1)
         totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Tax"), 0, 2)
         totalsColumn.Controls.Add(lblTaxValue, 1, 2)
-        totalsColumn.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder, .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)}, 0, 3)
+        totalsColumn.Controls.Add(CreateCheckoutDividerPanel(), 0, 3)
         totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
         totalsColumn.Controls.Add(pnlAmountDueBand, 0, 4)
         totalsColumn.SetColumnSpan(pnlAmountDueBand, 2)
-        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Tendered"), 0, 5)
+
+        Dim lblTenderedCaption As Label = CreateCheckoutSummaryCaption("Tendered")
+        lblTenderedCaption.Dock = DockStyle.Fill
+        totalsColumn.Controls.Add(lblTenderedCaption, 0, 5)
         totalsColumn.Controls.Add(CreateTenderedInputShell(), 1, 5)
-        totalsColumn.Controls.Add(CreateCheckoutSummaryCaption("Change"), 0, 6)
+
+        Dim lblChangeCaption As Label = CreateCheckoutSummaryCaption("Change")
+        lblChangeCaption.Dock = DockStyle.Fill
+        totalsColumn.Controls.Add(lblChangeCaption, 0, 6)
         totalsColumn.Controls.Add(lblChangeValue, 1, 6)
-        totalsColumn.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder, .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)}, 0, 7)
+        totalsColumn.Controls.Add(CreateCheckoutDividerPanel(), 0, 7)
         totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
-        totalsColumn.Controls.Add(btnFinalize, 0, 8)
-        totalsColumn.SetColumnSpan(btnFinalize, 2)
+        totalsColumn.Controls.Add(New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColSurface,
+            .Margin = Padding.Empty
+        }, 0, 8)
+        totalsColumn.SetColumnSpan(totalsColumn.Controls(totalsColumn.Controls.Count - 1), 2)
 
         checkoutSplit.Controls.Add(discountColumn, 0, 0)
         checkoutSplit.Controls.Add(totalsColumn, 1, 0)
+        totalsPanel.AutoScroll = True
         totalsPanel.Controls.Add(checkoutSplit)
         totalsPanel.Controls.Add(totalsTopBorder)
 
+        checkoutPanelHost.Controls.Add(totalsPanel, 0, 0)
+        checkoutPanelHost.Controls.Add(btnFinalize, 0, 1)
+
         rightSplit.Panel1.Controls.Add(cartPanel)
-        rightSplit.Panel2.Controls.Add(totalsPanel)
+        rightSplit.Panel2.Controls.Add(checkoutPanelHost)
 
         posSplit.Panel1.Controls.Add(leftPanel)
         posSplit.Panel2.Controls.Add(rightSplit)
@@ -847,8 +912,17 @@ Public Class SalesForm
             btnRemove,
             btnClear)
 
-        AddHandler Me.Shown, Sub(s, ev) ConfigurePosSplitters(posSplit, rightSplit)
-        AddHandler Me.Resize, Sub(s, ev) ConfigurePosSplitters(posSplit, rightSplit)
+        AddHandler dgvProducts.Resize, Sub(s, ev) ApplySalesCartColumnLayout()
+        AddHandler Me.Shown,
+            Sub(s, ev)
+                ConfigurePosSplitters(posSplit, rightSplit)
+                ApplySalesCartColumnLayout()
+            End Sub
+        AddHandler Me.Resize,
+            Sub(s, ev)
+                ConfigurePosSplitters(posSplit, rightSplit)
+                ApplySalesCartColumnLayout()
+            End Sub
 
         suppressSalesSummary = False
         Me.ResumeLayout(True)
@@ -863,7 +937,7 @@ Public Class SalesForm
         End If
 
         If verticalSplit IsNot Nothing Then
-            UiTheme.ConfigureHorizontalSplitDistance(verticalSplit, 0.62R, 120, 200)
+            UiTheme.ConfigureHorizontalSplitDistance(verticalSplit, 0.52R, 120, 340)
         End If
     End Sub
 
@@ -925,10 +999,6 @@ Public Class SalesForm
             pnlCatalogLoading.Visible = True
             pnlCatalogLoading.BringToFront()
         End If
-
-        If lblProductResultCount IsNot Nothing Then
-            lblProductResultCount.Text = message
-        End If
     End Sub
 
     Private Sub HideCatalogLoading()
@@ -936,6 +1006,10 @@ Public Class SalesForm
 
         If pnlCatalogLoading IsNot Nothing Then
             pnlCatalogLoading.Visible = False
+        End If
+
+        If prgCatalogLoading IsNot Nothing Then
+            prgCatalogLoading.Style = ProgressBarStyle.Marquee
         End If
     End Sub
 
@@ -1140,7 +1214,8 @@ Public Class SalesForm
         If dgvProducts.Rows.Count > 0 Then
             btnFinalize.Enabled = True
             UiTheme.ApplySuccessButton(btnFinalize)
-            btnFinalize.Height = 44
+            btnFinalize.Height = CheckoutFinalizeRowHeight
+            btnFinalize.MinimumSize = New Size(0, CheckoutFinalizeRowHeight)
             btnFinalize.Font = UiTheme.FontSubheading
         Else
             UiTheme.ApplyDisabledButton(btnFinalize)
@@ -1182,10 +1257,11 @@ Public Class SalesForm
         End If
 
         dgvProducts.RowTemplate.Height = 40
-        dgvProducts.ColumnHeadersHeight = 40
+        dgvProducts.ColumnHeadersHeight = CartGridHeaderHeight
         dgvProducts.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
         dgvProducts.DefaultCellStyle.Padding = New Padding(6, 4, 6, 4)
-        dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(4, 4, 4, 4)
+        dgvProducts.ColumnHeadersDefaultCellStyle.Padding = New Padding(6, 8, 6, 8)
+        dgvProducts.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
         dgvProducts.AllowUserToResizeColumns = False
 
         Dim sym As String = AppSettings.Current.CurrencySymbol
@@ -1194,31 +1270,86 @@ Public Class SalesForm
         ConfigureFixedCartColumn(indexCol, CartColIndexWidth, DataGridViewContentAlignment.MiddleCenter, 0)
 
         Dim productCol As DataGridViewColumn = dgvProducts.Columns("ProductName")
+        productCol.HeaderText = "Product"
         productCol.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         productCol.FillWeight = 100
-        productCol.MinimumWidth = CartColProductMinWidth
+        productCol.MinimumWidth = 72
         productCol.Resizable = DataGridViewTriState.False
         productCol.SortMode = DataGridViewColumnSortMode.NotSortable
         productCol.DisplayIndex = 1
         productCol.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
         productCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleLeft
+        productCol.HeaderCell.Style.WrapMode = DataGridViewTriState.False
+        productCol.HeaderCell.Style.Padding = New Padding(4, 0, 4, 0)
 
         Dim priceCol As DataGridViewColumn = dgvProducts.Columns("Price")
-        priceCol.HeaderText = "Price (" & sym & ")"
-        ConfigureFixedCartColumn(priceCol, CartColPriceWidth, DataGridViewContentAlignment.MiddleRight, 2)
+        priceCol.HeaderText = "Price"
+        ConfigureFixedCartColumn(priceCol, GetCartHeaderColumnWidth("Price", CartColPriceWidth), DataGridViewContentAlignment.MiddleRight, 2)
 
         Dim qtyCol As DataGridViewColumn = dgvProducts.Columns("Quantity")
-        ConfigureFixedCartColumn(qtyCol, CartColQtyWidth, DataGridViewContentAlignment.MiddleCenter, 3)
+        qtyCol.HeaderText = "Qty"
+        ConfigureFixedCartColumn(qtyCol, GetCartHeaderColumnWidth("Qty", CartColQtyWidth), DataGridViewContentAlignment.MiddleCenter, 3)
 
         Dim subtotalCol As DataGridViewColumn = dgvProducts.Columns("Subtotal")
-        subtotalCol.HeaderText = "Subtotal (" & sym & ")"
-        ConfigureFixedCartColumn(subtotalCol, CartColSubtotalWidth, DataGridViewContentAlignment.MiddleRight, 4)
+        subtotalCol.HeaderText = "Subtotal"
+        ConfigureFixedCartColumn(subtotalCol, GetCartHeaderColumnWidth("Subtotal", CartColSubtotalWidth), DataGridViewContentAlignment.MiddleRight, 4)
 
         If dgvProducts.Columns.Contains(CartRemoveColumnName) Then
             Dim removeCol As DataGridViewColumn = dgvProducts.Columns(CartRemoveColumnName)
             ConfigureFixedCartColumn(removeCol, CartColRemoveWidth, DataGridViewContentAlignment.MiddleCenter, 5)
             removeCol.HeaderText = ""
             removeCol.DefaultCellStyle.Padding = New Padding(4, 6, 4, 6)
+        End If
+
+        ApplySalesCartColumnLayout()
+    End Sub
+
+    Private Shared Function GetCartHeaderColumnWidth(headerText As String, fallbackWidth As Integer) As Integer
+        Dim measured As Integer = TextRenderer.MeasureText(
+            headerText,
+            UiTheme.FontBodyBold,
+            New Size(Integer.MaxValue, Integer.MaxValue),
+            TextFormatFlags.SingleLine).Width + UiTheme.SpaceLg
+
+        Return Math.Max(fallbackWidth, measured)
+    End Function
+
+    Private Sub ApplySalesCartColumnLayout()
+        If dgvProducts Is Nothing OrElse dgvProducts.IsDisposed OrElse dgvProducts.Columns.Count = 0 Then
+            Return
+        End If
+
+        If dgvProducts.ClientSize.Width <= 0 Then
+            Return
+        End If
+
+        Dim fixedWidth As Integer = CartColIndexWidth +
+            GetCartHeaderColumnWidth("Price", CartColPriceWidth) +
+            GetCartHeaderColumnWidth("Qty", CartColQtyWidth) +
+            GetCartHeaderColumnWidth("Subtotal", CartColSubtotalWidth) +
+            CartColRemoveWidth
+
+        Dim available As Integer = dgvProducts.ClientSize.Width
+        If dgvProducts.Controls.OfType(Of VScrollBar)().Any(Function(sb) sb.Visible) Then
+            available -= SystemInformation.VerticalScrollBarWidth
+        End If
+
+        Dim productWidth As Integer = Math.Max(72, available - fixedWidth)
+        If dgvProducts.Columns.Contains("ProductName") Then
+            dgvProducts.Columns("ProductName").MinimumWidth = 72
+            dgvProducts.Columns("ProductName").Width = productWidth
+        End If
+
+        If dgvProducts.Columns.Contains("Price") Then
+            Dim priceWidth As Integer = GetCartHeaderColumnWidth("Price", CartColPriceWidth)
+            dgvProducts.Columns("Price").Width = priceWidth
+            dgvProducts.Columns("Price").MinimumWidth = priceWidth
+        End If
+
+        If dgvProducts.Columns.Contains("Subtotal") Then
+            Dim subtotalWidth As Integer = GetCartHeaderColumnWidth("Subtotal", CartColSubtotalWidth)
+            dgvProducts.Columns("Subtotal").Width = subtotalWidth
+            dgvProducts.Columns("Subtotal").MinimumWidth = subtotalWidth
         End If
     End Sub
 
@@ -1236,6 +1367,8 @@ Public Class SalesForm
         column.DisplayIndex = displayIndex
         column.DefaultCellStyle.Alignment = alignment
         column.HeaderCell.Style.Alignment = alignment
+        column.HeaderCell.Style.WrapMode = DataGridViewTriState.False
+        column.HeaderCell.Style.Padding = New Padding(4, 0, 4, 0)
     End Sub
 
     Private Sub dgvProducts_CellPainting(sender As Object, e As DataGridViewCellPaintingEventArgs) Handles dgvProducts.CellPainting
@@ -1285,12 +1418,12 @@ Public Class SalesForm
     Private Shared Function CreateCheckoutSummaryCaption(text As String) As Label
         Return New Label() With {
             .Text = text,
-            .Dock = DockStyle.Fill,
-            .AutoSize = False,
+            .AutoSize = True,
+            .Anchor = AnchorStyles.Left Or AnchorStyles.Right,
             .TextAlign = ContentAlignment.MiddleRight,
             .ForeColor = UiTheme.TextSecondary,
-            .Font = New Font("Segoe UI", 10),
-            .Margin = New Padding(0, 0, 10, 0)
+            .Font = UiTheme.FontBody,
+            .Margin = New Padding(0, UiTheme.PadTight, UiTheme.PadControl, UiTheme.PadTight)
         }
     End Function
 
@@ -1299,23 +1432,33 @@ Public Class SalesForm
         Dim fore As Color = If(successColor, UiTheme.Success, UiTheme.TextPrimary)
         Return New Label() With {
             .Text = FormatMoney(0D),
-            .Dock = DockStyle.Fill,
-            .AutoSize = False,
+            .AutoSize = True,
+            .Anchor = AnchorStyles.Right,
             .TextAlign = ContentAlignment.MiddleRight,
             .ForeColor = fore,
-            .Font = New Font("Segoe UI", If(bold, 12.0F, 11.0F), fontStyle),
-            .Margin = Padding.Empty
+            .Font = If(bold, UiTheme.FontBodyBold, UiTheme.FontBody),
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight)
+        }
+    End Function
+
+    Private Shared Function CreateCheckoutDividerPanel() As Panel
+        Return New Panel() With {
+            .Height = 1,
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight),
+            .BackColor = UiTheme.ColBorder
         }
     End Function
 
     Private Function CreateTenderedInputShell() As Panel
         txtAmountTendered.Dock = DockStyle.Fill
         txtAmountTendered.Margin = Padding.Empty
+        txtAmountTendered.Font = UiTheme.FontHeading3
 
         Dim inner As New Panel() With {
             .Dock = DockStyle.Fill,
             .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(8, 4, 8, 4)
+            .Padding = New Padding(UiTheme.PadControl, UiTheme.PadTight, UiTheme.PadControl, UiTheme.PadTight)
         }
         inner.Controls.Add(txtAmountTendered)
 
@@ -1323,9 +1466,9 @@ Public Class SalesForm
             .Dock = DockStyle.Fill,
             .Height = TenderedFieldHeight,
             .MinimumSize = New Size(0, TenderedFieldHeight),
-            .BackColor = UiTheme.CardBorder,
-            .Padding = New Padding(1),
-            .Margin = Padding.Empty
+            .BackColor = UiTheme.ColPrimary,
+            .Padding = New Padding(2),
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight)
         }
         outer.Controls.Add(inner)
         Return outer
@@ -1777,7 +1920,7 @@ Public Class SalesForm
                     .Text = glyph,
                     .Dock = DockStyle.Fill,
                     .TextAlign = ContentAlignment.MiddleCenter,
-                    .Font = New Font(UiTheme.FontBody.FontFamily, 24.0F, FontStyle.Regular),
+                    .Font = New Font(UiTheme.FontBody.FontFamily, 18.0F, FontStyle.Regular),
                     .ForeColor = UiTheme.ColPrimary,
                     .BackColor = UiTheme.SurfaceVariant
                 }
