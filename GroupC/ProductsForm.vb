@@ -944,7 +944,7 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("is_active") Then
             Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
-            activeCol.HeaderText = "Active"
+            activeCol.HeaderText = "Status"
             ConfigureInventoryGridFixedColumn(activeCol, GridActiveColumnWidth, DataGridViewContentAlignment.MiddleCenter, 0)
         End If
 
