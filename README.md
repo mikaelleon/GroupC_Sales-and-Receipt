@@ -6,6 +6,7 @@
 | Document | Description |
 |----------|-------------|
 | This file | Setup, features, POS, receipts, troubleshooting |
+| [DEMO.md](DEMO.md) | Manual smoke-test checklist before presentation |
 | [GroupC/scripts/README.md](GroupC/scripts/README.md) | SQL seed scripts, run order, `sqlcmd` examples |
 
 ## In plain English
@@ -140,8 +141,18 @@ On first successful startup, the app ensures `GroupC_DB` exists, applies schema,
 | **Administrator** | Select **Administrator**, enter the demo password (see below) | All menus: products, categories, cashiers, reports, settings, backup guidance |
 | **Cashier** | Select **Cashier**, enter **username** and **password** | Sales, receipts; no admin screens |
 
-**Demo administrator password** (change before any real deployment): `admin123`  
-Defined in `GroupC/DatabaseConfig.vb` as `HardcodedAdminPassword`.
+**Default administrator password:** `admin123` (hashed in `%LocalAppData%\GroupC\settings.json` on first run). Change it under **Settings** before any real deployment.
+
+**Load demo catalog before a presentation:**
+
+- In the app: **Backup / Restore** → **Load demo catalog** (adds sample categories and products; skips duplicates).
+- Or via SQL:
+
+```powershell
+sqlcmd -S "(localdb)\MSSQLLocalDB" -d GroupC_DB -i "GroupC\scripts\03_seed_data.sql"
+```
+
+**One-click database backup:** **Backup / Restore** → **Run backup now** (writes a `.bak` under your chosen folder, default `Documents\GroupCBackup`).
 
 **Cashier accounts** are not pre-seeded. An administrator must create them under **Manage Cashiers** (`CashierAccountsForm`) before a cashier can sign in. Passwords are stored as salted hashes (`PasswordHasher` / `cashier_accounts` table).
 

@@ -1,6 +1,7 @@
 Imports System.ComponentModel
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
+Imports System.IO
 Imports System.Windows.Forms
 
 ''' <summary>
@@ -11,10 +12,11 @@ Public Class LoginForm
 
     Private Const SecretMaskChar As Char = "*"c
     Private Const SecretPlaceholder As String = "Please enter your password"
-    Private Const LoginCardWidth As Integer = 400
-    Private Const SecretFieldHeight As Integer = 44
-    Private Const SecretToggleWidth As Integer = 44
-    Private Const SecretTextPaddingLeft As Integer = 14
+    Private Const LoginCardContentWidth As Integer = 380
+    Private Const LoginLogoMaxHeight As Integer = 60
+    Private Const SecretFieldHeight As Integer = UiTheme.InputHeight + 2
+    Private Const SecretToggleWidth As Integer = 36
+    Private Const SecretTextPaddingLeft As Integer = UiTheme.PadControl
 
     Private WithEvents radAdmin As RadioButton
     Private WithEvents radCashier As RadioButton
@@ -23,37 +25,37 @@ Public Class LoginForm
     Private lblUsername As Label
     Private txtSecret As TextBox
     Private pnlSecret As Panel
+    Private pnlSecretBorder As Panel
     Private lblSecretCaption As Label
     Private WithEvents pnlToggleSecret As PasswordTogglePanel
     Private lblHint As Label
+    Private lblError As Label
     Private WithEvents btnOk As Button
     Private WithEvents btnCancel As Button
     Private picLoginLogo As PictureBox
 
     Private passwordVisible As Boolean
-    Private Const LoginLogoHeight As Integer = 88
 
     Private Sub LoginForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' 1. FORM SETUP: Full Screen & Responsive
         Me.SuspendLayout()
         Me.Text = AppBranding.WindowTitle("Sign in")
-
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 500, 450)
+        Me.FormBorderStyle = FormBorderStyle.Sizable
+        Me.StartPosition = FormStartPosition.CenterScreen
+        Me.MinimumSize = New Size(420, 480)
+        Me.ClientSize = New Size(480, 640)
         Me.MinimizeBox = True
         Me.MaximizeBox = True
-
         UiTheme.ApplyStandardWindowChrome(Me)
 
-        ' 2. INITIALIZE CONTROLS
         picLoginLogo = New PictureBox() With {
-            .Width = LoginCardWidth,
-            .Height = LoginLogoHeight,
+            .Width = LoginCardContentWidth,
+            .Height = LoginLogoMaxHeight,
             .SizeMode = PictureBoxSizeMode.Zoom,
             .BackColor = Color.Transparent,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg)
+            .Margin = New Padding(0, 0, 0, UiTheme.PadCard)
         }
 
-        Dim loginLogo As Image = LogoBranding.TryGetBrandingLogo()
+        Dim loginLogo As Image = TryLoadLoginLogo()
         Dim hasLogo As Boolean = loginLogo IsNot Nothing
         If hasLogo Then
             picLoginLogo.Image = loginLogo
@@ -63,217 +65,274 @@ Public Class LoginForm
 
         Dim lblTitle As New Label() With {
             .Text = AppBranding.ApplicationName,
-            .Font = UiTheme.FontHeading1,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs),
+            .Font = UiTheme.FontHeading,
+            .ForeColor = UiTheme.ColPrimary,
+            .AutoSize = False,
+            .Width = LoginCardContentWidth,
+            .Height = 28,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
             .Visible = Not hasLogo
         }
 
-        Dim lblSubtitle As New Label() With {
+        Dim cardDivider As New Panel() With {
+            .Height = 1,
+            .Width = LoginCardContentWidth,
+            .BackColor = UiTheme.ColBorder,
+            .Margin = New Padding(0, UiTheme.PadCard, 0, UiTheme.PadCard)
+        }
+
+        Dim lblSignInHeading As New Label() With {
             .Text = "Sign in to continue",
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.TextSecondary,
-            .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .AutoSize = False,
+            .Width = LoginCardContentWidth,
+            .Height = 22,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
 
         Dim lblRole As New Label() With {
-            .Text = "Select Role:",
+            .Text = "Select role:",
             .AutoSize = True,
-            .Font = UiTheme.FontHeading3,
-            .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(0, UiTheme.SpaceLg, 0, UiTheme.SpaceSm)
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight)
         }
 
         radAdmin = New RadioButton() With {
             .Text = "Administrator",
             .AutoSize = True,
             .Checked = True,
-            .ForeColor = UiTheme.TextPrimary,
+            .ForeColor = UiTheme.ColTextPrimary,
             .Font = UiTheme.FontBody,
-            .Margin = New Padding(0, 0, UiTheme.SpaceLg, 0)
+            .Margin = New Padding(0, 0, UiTheme.PadSection, 0),
+            .TabStop = True
         }
         radCashier = New RadioButton() With {
             .Text = "Cashier",
             .AutoSize = True,
-            .ForeColor = UiTheme.TextPrimary,
+            .ForeColor = UiTheme.ColTextPrimary,
             .Font = UiTheme.FontBody,
-            .Margin = New Padding(0)
+            .Margin = New Padding(0),
+            .TabStop = True
         }
 
         Dim pnlRoles As New FlowLayoutPanel() With {
             .AutoSize = True,
             .FlowDirection = FlowDirection.LeftToRight,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
+            .WrapContents = False,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .BackColor = Color.Transparent,
+            .Width = LoginCardContentWidth
         }
         pnlRoles.Controls.Add(radAdmin)
         pnlRoles.Controls.Add(radCashier)
 
         lblUsername = New Label() With {
-            .Text = "Username:",
-            .AutoSize = False,
-            .Width = LoginCardWidth,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
-            .ForeColor = UiTheme.TextPrimary,
-            .Font = UiTheme.FontBody,
+            .Text = "Username",
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight),
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Font = UiTheme.FontBodyBold,
             .Visible = False
         }
 
-        ' --- NEW UNIFORM USERNAME FIELD ---
         txtUsername = New TextBox() With {
             .PlaceholderText = "Cashier username",
-            .Font = UiTheme.FontBody,
             .BorderStyle = BorderStyle.None,
             .Dock = DockStyle.Fill,
-            .Margin = New Padding(SecretTextPaddingLeft, UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm),
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = UiTheme.TextPrimary
+            .Margin = New Padding(SecretTextPaddingLeft, 0, UiTheme.PadControl, 0),
+            .TabStop = True
         }
-
-        Dim usernameLayout As New TableLayoutPanel() With {
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 1,
-            .BackColor = UiTheme.CardSurface,
-            .Margin = New Padding(0),
-            .Padding = New Padding(0)
-        }
-        usernameLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        usernameLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        usernameLayout.Controls.Add(txtUsername, 0, 0)
+        UiTheme.ApplyInputStyle(txtUsername)
 
         Dim usernameInner As New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .MinimumSize = New Size(0, SecretFieldHeight - 2)
+            .BackColor = UiTheme.ColSurface,
+            .MinimumSize = New Size(0, UiTheme.InputHeight),
+            .Padding = New Padding(0, 1, 0, 1)
         }
-        usernameInner.Controls.Add(usernameLayout)
+        usernameInner.Controls.Add(txtUsername)
 
         Dim usernameOuter As New Panel() With {
-            .Width = LoginCardWidth,
+            .Width = LoginCardContentWidth,
             .Height = SecretFieldHeight,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
-            .BackColor = UiTheme.InputBorder,
-            .Padding = New Padding(1) ' Creates the exact 1px uniform border
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .BackColor = UiTheme.ColBorder,
+            .Padding = New Padding(1)
         }
         usernameOuter.Controls.Add(usernameInner)
-        ' ----------------------------------
 
         pnlUsername = New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
             .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
             .Visible = False,
-            .Width = LoginCardWidth
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Width = LoginCardContentWidth,
+            .BackColor = Color.Transparent
         }
-
         pnlUsername.Controls.Add(lblUsername)
-        pnlUsername.Controls.Add(usernameOuter) ' Add the outer panel instead of the raw text box
+        pnlUsername.Controls.Add(usernameOuter)
 
         lblSecretCaption = New Label() With {
-            .Text = "Password:",
-            .AutoSize = False,
-            .Width = LoginCardWidth,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
-            .ForeColor = UiTheme.TextPrimary,
-            .Font = UiTheme.FontBody
+            .Text = "Password",
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, UiTheme.PadTight),
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Font = UiTheme.FontBodyBold
         }
 
         pnlSecret = BuildPasswordField()
 
+        lblError = New Label() With {
+            .Text = String.Empty,
+            .ForeColor = UiTheme.ColDanger,
+            .Font = UiTheme.FontCaption,
+            .AutoSize = True,
+            .Visible = False,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0),
+            .Width = LoginCardContentWidth
+        }
+
         lblHint = New Label() With {
             .Text = "Administrators use the admin password. Cashiers sign in with a registered username and password.",
-            .ForeColor = UiTheme.TextSecondary,
-            .Font = UiTheme.FontBodySmall,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Font = UiTheme.FontCaption,
             .AutoSize = True,
-            .MaximumSize = New Size(LoginCardWidth, 0),
-            .Margin = New Padding(0, UiTheme.SpaceSm, 0, UiTheme.Space2xl)
+            .MaximumSize = New Size(LoginCardContentWidth, 0),
+            .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadControl)
         }
 
         btnOk = New Button() With {
             .Text = "Sign In",
-            .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeightMd),
-            .Cursor = Cursors.Hand,
             .DialogResult = DialogResult.None,
-            .Margin = New Padding(0, 0, UiTheme.SpaceMd, 0)
+            .Margin = New Padding(0, UiTheme.PadSection, 0, UiTheme.PadControl),
+            .TabStop = True,
+            .Width = LoginCardContentWidth,
+            .Height = UiTheme.ButtonHeight
         }
+        UiTheme.ApplyPrimaryButton(btnOk)
+
         btnCancel = New Button() With {
-            .Text = "Cancel",
-            .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightMd),
-            .Cursor = Cursors.Hand,
+            .Text = "Exit",
             .DialogResult = DialogResult.Cancel,
-            .Margin = New Padding(0)
+            .TabStop = True,
+            .Width = LoginCardContentWidth,
+            .Height = UiTheme.ButtonHeight
         }
+        UiTheme.ApplyGhostButton(btnCancel)
 
-        Try
-            UiTheme.ApplyPrimaryButton(btnOk)
-            UiTheme.ApplySecondaryButton(btnCancel)
-        Catch
-        End Try
-
-        Dim pnlButtons As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .FlowDirection = FlowDirection.LeftToRight,
-            .Margin = New Padding(0),
-            .Padding = New Padding(0)
-        }
-        pnlButtons.Controls.Add(btnOk)
-        pnlButtons.Controls.Add(btnCancel)
-
-        ' 3. ASSEMBLE THE "CARD"
-        Dim loginCard As New FlowLayoutPanel() With {
+        Dim cardStack As New FlowLayoutPanel() With {
             .FlowDirection = FlowDirection.TopDown,
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .WrapContents = False,
-            .Padding = New Padding(UiTheme.Space2xl),
-            .Width = LoginCardWidth + (UiTheme.Space2xl * 2),
-            .MaximumSize = New Size(LoginCardWidth + (UiTheme.Space2xl * 2), 0),
-            .BackColor = UiTheme.CardSurface
+            .Width = LoginCardContentWidth,
+            .Padding = Padding.Empty,
+            .BackColor = Color.Transparent
         }
 
-        loginCard.Controls.Add(picLoginLogo)
-        loginCard.Controls.Add(lblTitle)
-        loginCard.Controls.Add(lblSubtitle)
-        loginCard.Controls.Add(lblRole)
-        loginCard.Controls.Add(pnlRoles)
-        loginCard.Controls.Add(pnlUsername)
-        loginCard.Controls.Add(lblSecretCaption)
-        loginCard.Controls.Add(pnlSecret)
-        loginCard.Controls.Add(lblHint)
-        loginCard.Controls.Add(pnlButtons)
+        cardStack.Controls.Add(picLoginLogo)
+        cardStack.Controls.Add(lblTitle)
+        cardStack.Controls.Add(cardDivider)
+        cardStack.Controls.Add(lblSignInHeading)
+        cardStack.Controls.Add(lblRole)
+        cardStack.Controls.Add(pnlRoles)
+        cardStack.Controls.Add(pnlUsername)
+        cardStack.Controls.Add(lblSecretCaption)
+        cardStack.Controls.Add(pnlSecret)
+        cardStack.Controls.Add(lblError)
+        cardStack.Controls.Add(lblHint)
+        cardStack.Controls.Add(btnOk)
+        cardStack.Controls.Add(btnCancel)
 
-        ' 4. THE RESPONSIVE CENTERING GRID
-        ' Because the outer rows/columns are 50%, they act like fluid springs 
-        ' that constantly adjust to window resizing!
+        Dim loginCardOuter As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.ColBorder,
+            .Padding = New Padding(1)
+        }
+
+        Dim loginCardInner As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadCard)
+        }
+        loginCardInner.Controls.Add(cardStack)
+        loginCardOuter.Controls.Add(loginCardInner)
+
         Dim centerGrid As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 3,
-            .RowCount = 3
+            .RowCount = 3,
+            .BackColor = UiTheme.ColBackground
         }
         centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         centerGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-
         centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
         centerGrid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         centerGrid.RowStyles.Add(New RowStyle(SizeType.Percent, 50.0F))
+        centerGrid.Controls.Add(loginCardOuter, 1, 1)
 
-        centerGrid.Controls.Add(loginCard, 1, 1)
-
-        ' 5. FINAL WIRING
         Me.Controls.Clear()
         Me.Controls.Add(centerGrid)
 
         Me.AcceptButton = btnOk
         Me.CancelButton = btnCancel
 
+        radAdmin.TabIndex = 0
+        radCashier.TabIndex = 1
+        txtUsername.TabIndex = 2
+        txtSecret.TabIndex = 3
+        btnOk.TabIndex = 4
+        btnCancel.TabIndex = 5
+
+        AddHandler txtSecret.Enter, Sub(s, ev) ClearLoginError()
+        AddHandler txtUsername.Enter, Sub(s, ev) ClearLoginError()
+
         Me.ResumeLayout(True)
         UpdateRoleFields()
         UpdateHintWrapWidth()
+    End Sub
+
+    Private Shared Function TryLoadLoginLogo() As Image
+        Dim appLogoPath As String = Path.Combine(AppContext.BaseDirectory, "Assets", "AppLogo.png")
+        If File.Exists(appLogoPath) Then
+            Try
+                Using stream As New FileStream(appLogoPath, FileMode.Open, FileAccess.Read, FileShare.Read)
+                    Using temp As Image = Image.FromStream(stream)
+                        Return New Bitmap(temp)
+                    End Using
+                End Using
+            Catch
+            End Try
+        End If
+
+        Return LogoBranding.TryGetBrandingLogo()
+    End Function
+
+    Private Sub ClearLoginError()
+        If lblError Is Nothing Then
+            Return
+        End If
+
+        lblError.Visible = False
+        lblError.Text = String.Empty
+        SetPasswordFieldError(False)
+    End Sub
+
+    Private Sub SetPasswordFieldError(hasError As Boolean)
+        If pnlSecretBorder Is Nothing Then
+            Return
+        End If
+
+        pnlSecretBorder.BackColor = If(hasError, UiTheme.ColDanger, UiTheme.ColBorder)
     End Sub
 
     Private Sub radAdmin_CheckedChanged(sender As Object, e As EventArgs) Handles radAdmin.CheckedChanged
@@ -289,11 +348,12 @@ Public Class LoginForm
             Return
         End If
 
+        ClearLoginError()
+
         Dim cashierMode As Boolean = radCashier IsNot Nothing AndAlso radCashier.Checked
         pnlUsername.Visible = cashierMode
         lblUsername.Visible = cashierMode
         txtUsername.Visible = cashierMode
-
 
         If txtSecret IsNot Nothing Then
             txtSecret.PlaceholderText = If(cashierMode, "Account password", SecretPlaceholder)
@@ -333,10 +393,19 @@ Public Class LoginForm
             Return
         End If
 
-        lblHint.MaximumSize = New Size(LoginCardWidth, 0)
+        lblHint.MaximumSize = New Size(LoginCardContentWidth, 0)
+    End Sub
+
+    Private Sub ShowLoginError(message As String)
+        lblError.Text = message
+        lblError.Visible = True
+        txtSecret.Clear()
+        SetPasswordFieldError(True)
+        txtSecret.Focus()
     End Sub
 
     Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click
+        ClearLoginError()
         Dim secret As String = txtSecret.Text.Trim()
 
         Try
@@ -345,10 +414,11 @@ Public Class LoginForm
         End Try
 
         If radAdmin.Checked Then
-            If Not String.Equals(secret, DatabaseConfig.HardcodedAdminPassword, StringComparison.Ordinal) Then
+            AppSettings.Reload()
+            If Not AdminAuth.ValidatePassword(secret) Then
                 AuditLogger.LogAudit("LOGIN_FAILED", "Invalid administrator password.", "Admin sign-in attempt")
+                ShowLoginError("Invalid administrator password.")
                 MessageBox.Show("Invalid administrator password.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-                txtSecret.Focus()
                 Return
             End If
 
@@ -363,16 +433,16 @@ Public Class LoginForm
             End If
 
             If secret.Length = 0 Then
+                ShowLoginError("Enter your account password.")
                 MessageBox.Show("Enter your account password.", "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-                txtSecret.Focus()
                 Return
             End If
 
             Dim auth As CashierAccountService.CashierLoginResult = CashierAccountService.TryAuthenticate(username, secret)
             If Not auth.Success Then
                 AuditLogger.LogAudit("LOGIN_FAILED", auth.ErrorMessage, "Cashier: " & username)
+                ShowLoginError(auth.ErrorMessage)
                 MessageBox.Show(auth.ErrorMessage, "Sign in", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-                txtSecret.Focus()
                 Return
             End If
 
@@ -401,13 +471,12 @@ Public Class LoginForm
         txtSecret = New TextBox() With {
             .PasswordChar = SecretMaskChar,
             .PlaceholderText = SecretPlaceholder,
-            .Font = UiTheme.FontBody,
             .BorderStyle = BorderStyle.None,
             .Dock = DockStyle.Fill,
-            .Margin = New Padding(SecretTextPaddingLeft, UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm),
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = UiTheme.TextPrimary
+            .Margin = New Padding(SecretTextPaddingLeft, 0, UiTheme.PadControl, 0),
+            .TabStop = True
         }
+        UiTheme.ApplyInputStyle(txtSecret)
 
         pnlToggleSecret = New PasswordTogglePanel() With {
             .Dock = DockStyle.Fill,
@@ -420,7 +489,7 @@ Public Class LoginForm
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
             .RowCount = 1,
-            .BackColor = UiTheme.CardSurface,
+            .BackColor = UiTheme.ColSurface,
             .Margin = New Padding(0),
             .Padding = New Padding(0)
         }
@@ -432,20 +501,28 @@ Public Class LoginForm
 
         Dim inner As New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .MinimumSize = New Size(0, SecretFieldHeight - 2)
+            .BackColor = UiTheme.ColSurface,
+            .MinimumSize = New Size(0, UiTheme.InputHeight),
+            .Padding = New Padding(0, 1, 0, 1)
         }
         inner.Controls.Add(secretLayout)
 
-        Dim outer As New Panel() With {
-            .Width = LoginCardWidth,
+        pnlSecretBorder = New Panel() With {
+            .Width = LoginCardContentWidth,
             .Height = SecretFieldHeight,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm),
-            .BackColor = UiTheme.InputBorder,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .BackColor = UiTheme.ColBorder,
             .Padding = New Padding(1)
         }
-        outer.Controls.Add(inner)
-        Return outer
+        pnlSecretBorder.Controls.Add(inner)
+
+        Dim host As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Width = LoginCardContentWidth
+        }
+        host.Controls.Add(pnlSecretBorder)
+        Return host
     End Function
 
     Private Sub pnlToggleSecret_PasswordVisibilityChanged(sender As Object, visible As Boolean) Handles pnlToggleSecret.PasswordVisibilityChanged
@@ -492,8 +569,8 @@ Public Class LoginForm
             UpdateStyles()
             TabStop = False
             Cursor = Cursors.Hand
-            BackColor = UiTheme.CardSurface
-            Size = New Size(SecretToggleWidth, SecretFieldHeight)
+            BackColor = UiTheme.ColSurface
+            Size = New Size(SecretToggleWidth, UiTheme.InputHeight)
         End Sub
 
         Protected Overrides Sub OnPaint(e As PaintEventArgs)
@@ -503,19 +580,19 @@ Public Class LoginForm
             g.SmoothingMode = SmoothingMode.AntiAlias
             g.PixelOffsetMode = PixelOffsetMode.HighQuality
 
-            Dim iconColor As Color = UiTheme.TextSecondary
+            Dim iconColor As Color = UiTheme.ColTextSecondary
             Dim fillColor As Color = Color.Transparent
 
             If _pressed Then
-                fillColor = Color.FromArgb(56, UiTheme.PrimaryAccent)
-                iconColor = UiTheme.PrimaryAccentPressed
+                fillColor = Color.FromArgb(56, UiTheme.ColPrimary)
+                iconColor = UiTheme.ColPrimaryLight
             ElseIf _hover Then
-                fillColor = Color.FromArgb(38, UiTheme.PrimaryAccent)
-                iconColor = UiTheme.PrimaryAccent
+                fillColor = Color.FromArgb(38, UiTheme.ColPrimary)
+                iconColor = UiTheme.ColPrimary
             End If
 
             Dim bounds As Rectangle = ClientRectangle
-            Dim hitSize As Integer = Math.Min(bounds.Width, bounds.Height) - 10
+            Dim hitSize As Integer = Math.Min(bounds.Width, bounds.Height) - 8
             Dim hit As New Rectangle(
                 bounds.X + ((bounds.Width - hitSize) \ 2),
                 bounds.Y + ((bounds.Height - hitSize) \ 2),

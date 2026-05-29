@@ -13,15 +13,11 @@ Imports Microsoft.Data.SqlClient
 
 Public Class ReceiptForm
 
-    Private Const LeftPanelWidth As Integer = 360
     Private Const PreviewReceiptWidth As Integer = 480
-    Private Const HistoryListWidth As Integer = 312
     Private Const MinPreviewZoom As Single = 0.75F
     Private Const MaxPreviewZoom As Single = 1.5F
     Private Const PreviewZoomStep As Single = 0.1F
-    Private Shared ReadOnly SurfaceGray As Color = Color.FromArgb(&HF5, &HF7, &HFA)
-    Private Shared ReadOnly BorderLight As Color = Color.FromArgb(&HD0, &HDC, &HE8)
-    Private Shared ReadOnly BrandBlueLight As Color = Color.FromArgb(&HE8, &HF4, &HFC)
+    Private Const HistoryPageSize As Integer = 500
 
     Private Enum HistoryDateFilter
         All = 0
@@ -43,6 +39,7 @@ Public Class ReceiptForm
         Public SaleDate As DateTime
         Public TotalAmount As Decimal
         Public CashierHint As String
+        Public IsVoided As Boolean
 
         Public Function MatchesSearch(term As String) As Boolean
             If String.IsNullOrWhiteSpace(term) Then
@@ -74,9 +71,11 @@ Public Class ReceiptForm
             End If
 
             Dim sym As String = AppSettings.Current.CurrencySymbol
+            Dim voidPrefix As String = If(IsVoided, "[VOID] ", String.Empty)
             Return String.Format(
                 CultureInfo.CurrentCulture,
-                "#{0}  {1:MMM d, h:mm tt}  {2}{3:N2}",
+                "{0}#{1}  {2:MMM d, h:mm tt}  {3}{4:N2}",
+                voidPrefix,
                 SaleId,
                 SaleDate,
                 sym,
@@ -95,13 +94,11 @@ Public Class ReceiptForm
     Private lblChipDate As Label
     Private lblChipTotal As Label
     Private lblChipCashier As Label
+    Private lblHistoryEmpty As Label
+    Private formToolTips As ToolTip
     Private pnlEmptyPreview As Panel
     Private pnlReceiptScroll As Panel
     Private pnlReceiptPaper As Panel
-    Private pnlLeft As Panel
-    Private pnlRight As Panel
-    Private pnlBottomBar As Panel
-    Private lblStatus As Label
     Private WithEvents btnPrint As Button
     Private WithEvents btnSave As Button
     Private WithEvents btnSavePdf As Button
@@ -113,6 +110,9 @@ Public Class ReceiptForm
     Private WithEvents btnDuplicate As Button
     Private WithEvents btnExportBatch As Button
     Private WithEvents btnPrintPreview As Button
+    Private WithEvents btnLoadMore As Button
+    Private WithEvents btnVoid As Button
+    Private WithEvents btnBack As Button
     Private WithEvents btnZoomIn As Button
     Private WithEvents btnZoomOut As Button
     Private WithEvents txtHistorySearch As TextBox
@@ -124,7 +124,9 @@ Public Class ReceiptForm
     Private WithEvents printDocument As PrintDocument
 
     Private pnlPageCanvas As Panel
-    Private pnlActionToolbar As FlowLayoutPanel
+    Private pnlActionToolbar As TableLayoutPanel
+    Private WithEvents btnMoreActions As Button
+    Private ctxMoreActions As ContextMenuStrip
     Private pnlCustomRange As Panel
     Private lblZoomPct As Label
     Private ctxReceipt As ContextMenuStrip
@@ -134,6 +136,10 @@ Public Class ReceiptForm
     Private snapshot As ReceiptSnapshot
     Private saleIdForMeta As Integer = -1
     Private currentSaleId As Integer = -1
+    Private currentSaleVoided As Boolean = False
+    Private historySkip As Integer = 0
+    Private historyHasMore As Boolean = False
+    Private pendingReceiptDayFilter As Date? = Nothing
     Private printHelper As ReceiptPrintHelper
     Private suppressHistoryEvent As Boolean
     Private previewZoomScale As Single = 1.0F
@@ -165,10 +171,36 @@ Public Class ReceiptForm
         saleIdForMeta = savedSaleId
     End Sub
 
+    Public Sub ShowReceiptsForDay(day As Date)
+        pendingReceiptDayFilter = day.Date
+    End Sub
+
+    Private Sub ApplyPendingDayFilterIfNeeded()
+        If Not pendingReceiptDayFilter.HasValue Then
+            Return
+        End If
+
+        If cmbDateFilter Is Nothing OrElse dtpFilterFrom Is Nothing OrElse dtpFilterTo Is Nothing Then
+            Return
+        End If
+
+        suppressHistoryEvent = True
+        cmbDateFilter.SelectedIndex = CInt(HistoryDateFilter.CustomRange)
+        dtpFilterFrom.Value = pendingReceiptDayFilter.Value
+        dtpFilterTo.Value = pendingReceiptDayFilter.Value
+        If pnlCustomRange IsNot Nothing Then
+            pnlCustomRange.Visible = True
+        End If
+
+        suppressHistoryEvent = False
+        ApplyHistoryFilters()
+        pendingReceiptDayFilter = Nothing
+    End Sub
+
     Private Sub ReceiptForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.Text = AppBranding.WindowTitle("Receipt Preview")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
@@ -190,13 +222,16 @@ Public Class ReceiptForm
 
         If snapshot IsNot Nothing Then
             FillLineGrid(snapshot)
+            Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+                If(snapshot.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, snapshot.SaleDateTime))
+            receiptText = ReceiptBranding.AlignReceiptDateLine(receiptText, saleWhen)
             ApplyReceiptContent(receiptText, False)
             UpdateSaleMetadataFromSnapshot(snapshot, saleIdForMeta)
             suppressHistoryEvent = False
 
         ElseIf receiptText.Trim().Length > 0 Then
             ApplyReceiptContent(receiptText, False)
-            UpdateSaleMetadataFromText(saleIdForMeta, DateTime.Now, receiptText, Nothing)
+            UpdateSaleMetadataFromText(saleIdForMeta, DateTime.MinValue, receiptText, Nothing)
             suppressHistoryEvent = False
 
         Else
@@ -211,6 +246,8 @@ Public Class ReceiptForm
                 LoadLatestReceiptFromDb()
             End If
         End If
+
+        ApplyPendingDayFilterIfNeeded()
     End Sub
 
     Private Sub SetupForm()
@@ -224,115 +261,121 @@ Public Class ReceiptForm
     Private Sub CreateControls()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = SurfaceGray
+        Me.BackColor = UiTheme.ColBackground
 
         printDocument = New PrintDocument()
 
         cmbHistory = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Visible = False, .Size = New Size(0, 0)}
         lstHistory = New ListBox() With {
             .IntegralHeight = False,
-            .Height = 200,
-            .Width = HistoryListWidth,
+            .Dock = DockStyle.Fill,
             .BorderStyle = BorderStyle.FixedSingle,
             .Font = UiTheme.FontBody,
-            .BackColor = UiTheme.CardSurface,
+            .BackColor = UiTheme.ColSurface,
             .HorizontalScrollbar = True
         }
         txtHistorySearch = New TextBox() With {
-            .Width = HistoryListWidth,
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.TextSecondary,
-            .Text = "Search receipt #, amount, date…"
+            .Dock = DockStyle.Fill,
+            .PlaceholderText = "Search receipt #, amount, date…"
         }
-        AddHandler txtHistorySearch.GotFocus, Sub()
-                                                  If txtHistorySearch.ForeColor = UiTheme.TextSecondary Then
-                                                      txtHistorySearch.Text = String.Empty
-                                                      txtHistorySearch.ForeColor = UiTheme.TextPrimary
-                                                  End If
-                                              End Sub
-        AddHandler txtHistorySearch.LostFocus, Sub()
-                                                   If txtHistorySearch.Text.Trim().Length = 0 Then
-                                                       txtHistorySearch.ForeColor = UiTheme.TextSecondary
-                                                       txtHistorySearch.Text = "Search receipt #, amount, date…"
-                                                   End If
-                                               End Sub
+        UiTheme.ApplyInputStyle(txtHistorySearch)
 
         cmbDateFilter = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
-            .Width = HistoryListWidth,
+            .Dock = DockStyle.Fill,
             .Font = UiTheme.FontBody
         }
         cmbDateFilter.Items.AddRange(New Object() {"All dates", "Today", "This week", "This month", "Custom range"})
         cmbDateFilter.SelectedIndex = 0
+        UiTheme.ApplyInputStyle(cmbDateFilter)
 
         cmbSort = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
-            .Width = HistoryListWidth,
+            .Dock = DockStyle.Fill,
             .Font = UiTheme.FontBody
         }
         cmbSort.Items.AddRange(New Object() {"Newest first", "Oldest first", "Amount: high to low", "Amount: low to high"})
         cmbSort.SelectedIndex = 0
+        UiTheme.ApplyInputStyle(cmbSort)
 
-        dtpFilterFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 148, .Value = DateTime.Today.AddDays(-7)}
-        dtpFilterTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Width = 148, .Value = DateTime.Today}
+        dtpFilterFrom = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Dock = DockStyle.Fill, .Value = DateTime.Today.AddDays(-7)}
+        dtpFilterTo = New DateTimePicker() With {.Format = DateTimePickerFormat.Short, .Dock = DockStyle.Fill, .Value = DateTime.Today}
 
         pnlCustomRange = New Panel() With {
-            .Width = HistoryListWidth,
-            .Height = UiTheme.InputHeight + UiTheme.SpaceSm,
-            .Visible = False
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Visible = False,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
+        Dim rangeLayout As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .ColumnCount = 4,
+            .RowCount = 1,
+            .Margin = Padding.Empty
+        }
+        rangeLayout.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        rangeLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        rangeLayout.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        rangeLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         Dim lblFrom As New Label() With {
             .Text = "From",
             .AutoSize = True,
-            .Location = New Point(0, UiTheme.SpaceSm),
-            .Font = UiTheme.FontBodySmall
+            .Anchor = AnchorStyles.Left,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, UiTheme.PadTight, 0)
         }
-        dtpFilterFrom.Location = New Point(36, UiTheme.SpaceXs)
         Dim lblTo As New Label() With {
             .Text = "To",
             .AutoSize = True,
-            .Location = New Point(168, UiTheme.SpaceSm),
-            .Font = UiTheme.FontBodySmall
+            .Anchor = AnchorStyles.Left,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(UiTheme.PadControl, 0, UiTheme.PadTight, 0)
         }
-        dtpFilterTo.Location = New Point(204, UiTheme.SpaceXs)
-        pnlCustomRange.Controls.AddRange(New Control() {lblFrom, dtpFilterFrom, lblTo, dtpFilterTo})
+        rangeLayout.Controls.Add(lblFrom, 0, 0)
+        rangeLayout.Controls.Add(dtpFilterFrom, 1, 0)
+        rangeLayout.Controls.Add(lblTo, 2, 0)
+        rangeLayout.Controls.Add(dtpFilterTo, 3, 0)
+        pnlCustomRange.Controls.Add(rangeLayout)
 
         btnLoadList = New Button() With {
             .Text = "↻ Refresh",
             .AutoSize = True,
-            .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
+        }
+        btnLoadMore = New Button() With {
+            .Text = "Load more",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Hand,
+            .Enabled = False
         }
         btnExportBatch = New Button() With {
-            .Text = "📦 Export batch",
+            .Text = "Export batch",
             .AutoSize = True,
-            .MinimumSize = New Size(120, UiTheme.ButtonHeightSm),
+            .MinimumSize = New Size(120, UiTheme.ButtonHeight),
             .Cursor = Cursors.Hand
         }
+        UiTheme.ApplySecondaryButton(btnLoadList)
+        UiTheme.ApplySecondaryButton(btnLoadMore)
+        UiTheme.ApplySecondaryAccentButton(btnExportBatch)
 
-        btnPrint = CreateToolbarButton("🖨 Print", True)
-        btnPrintPreview = CreateToolbarButton("👁 Print preview", False)
-        btnReprint = CreateToolbarButton("🔁 Reprint", False)
-        btnSavePdf = CreateToolbarButton("📄 PDF", False)
-        btnSave = CreateToolbarButton("💾 Text", False)
-        btnCopy = CreateToolbarButton("📋 Copy", False)
-        btnEmail = CreateToolbarButton("✉ Email", False)
-        btnDetails = CreateToolbarButton("ℹ Details", False)
-        btnDuplicate = CreateToolbarButton("⧉ Duplicate", False)
+        btnVoid = CreateToolbarButton("Void sale", False)
+        UiTheme.ApplyDangerButton(btnVoid)
+        btnVoid.Visible = AppSession.IsAdmin()
 
-        Dim btnBack As New Button() With {
-            .Text = "← Back to Menu",
-            .AutoSize = True,
-            .MinimumSize = New Size(140, UiTheme.ButtonHeightMd),
-            .Cursor = Cursors.Hand,
-            .FlatStyle = FlatStyle.Flat,
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = UiTheme.SecondaryAccent,
-            .Font = UiTheme.FontBody
-        }
-        btnBack.FlatAppearance.BorderSize = 1
-        btnBack.FlatAppearance.BorderColor = BorderLight
-        AddHandler btnBack.Click, Sub(s, ev) Me.Close()
+        btnPrint = CreateToolbarButton("Print", True)
+        btnPrintPreview = CreateToolbarButton("Print preview", False)
+        btnReprint = CreateToolbarButton("Reprint", False)
+        btnSavePdf = CreateToolbarButton("Save PDF", False)
+        btnSave = CreateToolbarButton("Save text", False)
+        btnCopy = CreateToolbarButton("Copy", False)
+        btnEmail = CreateToolbarButton("Email", False)
+        btnDetails = CreateToolbarButton("Details", False)
+        btnDuplicate = CreateToolbarButton("Duplicate", False)
 
         lblSaleMeta = New Label() With {.Visible = False, .AutoSize = True}
 
@@ -341,15 +384,15 @@ Public Class ReceiptForm
         picReceiptLogo = New PictureBox() With {
             .Size = New Size(PreviewReceiptWidth, ReceiptBranding.ReceiptLogoHeight),
             .SizeMode = PictureBoxSizeMode.Zoom,
-            .BackColor = Color.White,
-            .Margin = New Padding(0, 0, 0, 8)
+            .BackColor = UiTheme.ColSurface,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
 
         rtbReceipt = New RichTextBox() With {
             .Width = PreviewReceiptWidth,
-            .Font = New Font("Courier New", 10.0F),
+            .Font = UiTheme.FontMono,
             .ReadOnly = True,
-            .BackColor = UiTheme.CardSurface,
+            .BackColor = UiTheme.ColSurface,
             .BorderStyle = BorderStyle.None,
             .ScrollBars = RichTextBoxScrollBars.Both,
             .WordWrap = False,
@@ -367,205 +410,77 @@ Public Class ReceiptForm
         dgvLines.Columns.Add("UnitPrice", "Unit price")
         dgvLines.Columns.Add("LineTotal", "Line total")
 
-        btnLoadList.FlatStyle = FlatStyle.Flat
-        btnExportBatch.FlatStyle = FlatStyle.Flat
-        btnExportBatch.FlatAppearance.BorderSize = 1
-        btnExportBatch.FlatAppearance.BorderColor = BorderLight
-        btnExportBatch.BackColor = UiTheme.CardSurface
-        btnExportBatch.ForeColor = UiTheme.SecondaryAccent
-        btnExportBatch.Font = UiTheme.FontBody
-        btnLoadList.FlatAppearance.BorderSize = 1
-        btnLoadList.FlatAppearance.BorderColor = BorderLight
-        btnLoadList.BackColor = UiTheme.CardSurface
-        btnLoadList.ForeColor = UiTheme.SecondaryAccent
-        btnLoadList.Font = UiTheme.FontBody
-
         statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
         statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Visible = False}
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
         statusStrip.Items.Add(statusLabel)
+        Try
+            UiTheme.ApplyStatusStripTheme(statusStrip)
+        Catch
+        End Try
 
-        lblStatus = New Label() With {
-            .AutoSize = True,
-            .Anchor = AnchorStyles.Right Or AnchorStyles.Top,
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.TextSecondary
-        }
-
-        pnlBottomBar = New Panel() With {
-            .Height = 60,
-            .BackColor = UiTheme.CardSurface
-        }
-        AddHandler pnlBottomBar.Paint, Sub(s, e)
-                                           Using pen As New Pen(BorderLight, 1.0F)
-                                               e.Graphics.DrawLine(pen, 0, 0, pnlBottomBar.Width, 0)
-                                           End Using
-                                       End Sub
-        pnlBottomBar.Controls.Add(lblStatus)
-        AddHandler pnlBottomBar.Resize, Sub()
-                                            lblStatus.Location = New Point(
-                                                pnlBottomBar.Width - lblStatus.Width - 24,
-                                                (pnlBottomBar.Height - lblStatus.Height) \ 2)
-                                        End Sub
-
-        pnlLeft = New Panel() With {
-            .Width = LeftPanelWidth,
-            .MinimumSize = New Size(LeftPanelWidth, 0),
-            .MaximumSize = New Size(LeftPanelWidth, 9999),
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(UiTheme.SpaceXl, UiTheme.SpaceLg, UiTheme.SpaceXl, 0)
-        }
-        AddHandler pnlLeft.Paint, Sub(s, e)
-                                      Using pen As New Pen(BorderLight, 1.0F)
-                                          e.Graphics.DrawLine(pen, pnlLeft.Width - 1, 0, pnlLeft.Width - 1, pnlLeft.Height)
-                                      End Using
-                                  End Sub
-
-        Dim leftStack As New TableLayoutPanel() With {
-            .Dock = DockStyle.Top,
-            .AutoSize = True,
-            .ColumnCount = 1,
-            .Width = HistoryListWidth
-        }
-        leftStack.Controls.Add(New Label() With {
-            .Text = "Receipts",
-            .AutoSize = True,
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
-        }, 0, 0)
-        leftStack.Controls.Add(New Label() With {
-            .Text = "Select a past sale to preview, print, or export.",
-            .AutoSize = True,
-            .MaximumSize = New Size(HistoryListWidth, 0),
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
-        }, 0, 1)
-        leftStack.Controls.Add(New Label() With {
-            .Text = "Search & filters",
-            .AutoSize = True,
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.SecondaryAccent,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
-        }, 0, 2)
-        txtHistorySearch.Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        leftStack.Controls.Add(txtHistorySearch, 0, 3)
-        cmbDateFilter.Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
-        leftStack.Controls.Add(cmbDateFilter, 0, 4)
-        leftStack.Controls.Add(pnlCustomRange, 0, 5)
-        cmbSort.Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        leftStack.Controls.Add(cmbSort, 0, 6)
-        leftStack.Controls.Add(New Label() With {
-            .Text = "Receipt history",
-            .AutoSize = True,
-            .Font = UiTheme.FontBody,
-            .ForeColor = UiTheme.SecondaryAccent,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
-        }, 0, 7)
-        leftStack.Controls.Add(lstHistory, 0, 8)
-        Dim pnlListActions As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .WrapContents = False,
-            .Margin = New Padding(0, UiTheme.SpaceSm, 0, 0)
-        }
-        pnlListActions.Controls.AddRange(New Control() {btnLoadList, btnExportBatch})
-        leftStack.Controls.Add(pnlListActions, 0, 9)
-        pnlSaleChip.Margin = New Padding(0, UiTheme.SpaceMd, 0, UiTheme.SpaceSm)
-        leftStack.Controls.Add(pnlSaleChip, 0, 10)
-
-        Dim pnlLeftFooter As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
-            .AutoSize = True,
-            .Padding = New Padding(0, 0, 0, UiTheme.SpaceLg)
-        }
-        btnBack.Margin = New Padding(0, UiTheme.SpaceXl, 0, 0)
-        pnlLeftFooter.Controls.Add(btnBack)
-
-        Dim pnlLeftBody As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True}
-        pnlLeftBody.Controls.Add(leftStack)
-        pnlLeft.Controls.Add(pnlLeftBody)
-        pnlLeft.Controls.Add(pnlLeftFooter)
-
-        BuildEmptyPreviewPanel()
-        BuildPreviewArea()
-
-        pnlRight = New Panel() With {.BackColor = SurfaceGray, .Padding = New Padding(24)}
-        Dim rightStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4}
-        rightStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        rightStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        rightStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        rightStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        rightStack.Controls.Add(New Label() With {
-            .Text = "Receipt preview",
-            .AutoSize = True,
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(0, 0, 0, 4)
-        }, 0, 0)
-        Dim pnlPreviewHeader As New FlowLayoutPanel() With {
-            .AutoSize = True,
-            .WrapContents = False,
-            .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, 8)
-        }
-        Dim lblPreviewHint As New Label() With {
-            .Text = "Monospace receipt layout. Use zoom and print preview for page layout.",
-            .AutoSize = True,
-            .MaximumSize = New Size(520, 0),
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 6, 12, 0)
-        }
         btnZoomOut = CreateToolbarButton("−", False)
-        btnZoomOut.Size = New Size(36, 32)
+        btnZoomOut.MinimumSize = New Size(UiTheme.ButtonHeight, UiTheme.ButtonHeight)
         btnZoomIn = CreateToolbarButton("+", False)
-        btnZoomIn.Size = New Size(36, 32)
+        btnZoomIn.MinimumSize = New Size(UiTheme.ButtonHeight, UiTheme.ButtonHeight)
         lblZoomPct = New Label() With {
             .Text = "100%",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(8, 8, 8, 0)
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Margin = New Padding(UiTheme.PadControl, UiTheme.PadControl, UiTheme.PadControl, 0)
         }
         chkSimulatePage = New CheckBox() With {
             .Text = "Show page margins",
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 9.0F),
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(16, 8, 0, 0)
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(UiTheme.PadSection, UiTheme.PadControl, 0, 0)
         }
-        pnlPreviewHeader.Controls.Add(lblPreviewHint)
-        pnlPreviewHeader.Controls.Add(btnZoomOut)
-        pnlPreviewHeader.Controls.Add(lblZoomPct)
-        pnlPreviewHeader.Controls.Add(btnZoomIn)
-        pnlPreviewHeader.Controls.Add(chkSimulatePage)
-        rightStack.Controls.Add(pnlPreviewHeader, 0, 1)
 
-        pnlActionToolbar = New FlowLayoutPanel() With {
+        pnlActionToolbar = New TableLayoutPanel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Padding = Padding.Empty,
+            .ColumnCount = 1,
+            .RowCount = 1,
+            .BackColor = Color.Transparent
+        }
+        pnlActionToolbar.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        Dim primaryToolbar As New FlowLayoutPanel() With {
             .AutoSize = True,
             .WrapContents = True,
-            .Dock = DockStyle.Top,
-            .Margin = New Padding(0, 0, 0, 8),
-            .Padding = New Padding(0, 0, 0, 4)
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Margin = Padding.Empty,
+            .Padding = Padding.Empty,
+            .BackColor = Color.Transparent
         }
-        pnlActionToolbar.Controls.AddRange(New Control() {
-            btnPrint, btnPrintPreview, btnReprint, btnSavePdf, btnSave, btnCopy, btnEmail, btnDetails, btnDuplicate
-        })
-        rightStack.Controls.Add(pnlActionToolbar, 0, 2)
+        primaryToolbar.Controls.AddRange(New Control() {btnPrint, btnSavePdf, btnCopy})
 
-        Dim previewCard As Panel = UiTheme.CreateCardPanel(New Padding(12))
-        previewCard.Dock = DockStyle.Fill
-        previewCard.Margin = New Padding(0)
-        Dim cardHost As Panel = UiTheme.GetCardContentHost(previewCard)
-        cardHost.Padding = Padding.Empty
-        pnlReceiptScroll.Dock = DockStyle.Fill
-        pnlEmptyPreview.Dock = DockStyle.Fill
-        cardHost.Controls.Add(pnlReceiptScroll)
-        cardHost.Controls.Add(pnlEmptyPreview)
-        rightStack.Controls.Add(previewCard, 0, 3)
+        btnMoreActions = CreateToolbarButton("More ▾", False)
+        UiTheme.ApplySecondaryButton(btnMoreActions)
+        primaryToolbar.Controls.Add(btnMoreActions)
 
-        pnlRight.Controls.Add(rightStack)
+        ctxMoreActions = New ContextMenuStrip()
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Print preview", Nothing, Sub(s, ev) btnPrintPreview.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Reprint", Nothing, Sub(s, ev) btnReprint.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Save text", Nothing, Sub(s, ev) btnSave.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Email", Nothing, Sub(s, ev) btnEmail.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Details", Nothing, Sub(s, ev) btnDetails.PerformClick()))
+        ctxMoreActions.Items.Add(New ToolStripMenuItem("Duplicate", Nothing, Sub(s, ev) btnDuplicate.PerformClick()))
+        If btnVoid.Visible Then
+            ctxMoreActions.Items.Add(New ToolStripSeparator())
+            ctxMoreActions.Items.Add(New ToolStripMenuItem("Void sale", Nothing, Sub(s, ev) btnVoid.PerformClick()))
+        End If
+        AddHandler btnMoreActions.Click, AddressOf btnMoreActions_Click
+
+        pnlActionToolbar.Controls.Add(primaryToolbar, 0, 0)
+
+        BuildEmptyPreviewPanel()
+        BuildPreviewArea()
 
         ctxReceipt = BuildReceiptContextMenu()
         rtbReceipt.ContextMenuStrip = ctxReceipt
@@ -580,117 +495,291 @@ Public Class ReceiptForm
         AddHandler btnZoomIn.Click, AddressOf btnZoomIn_Click
         AddHandler btnZoomOut.Click, AddressOf btnZoomOut_Click
 
-        Me.Controls.Clear()
-        Me.Controls.Add(pnlRight)
-        Me.Controls.Add(pnlLeft)
-        Me.Controls.Add(pnlBottomBar)
+        ' -----------------------------------------------------------
+        ' SHARED SHELL + RECEIPT SPLIT LAYOUT
+        ' -----------------------------------------------------------
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        pnlBottomBar.Dock = DockStyle.Bottom
-        pnlLeft.Dock = DockStyle.Left
-        pnlRight.Dock = DockStyle.Fill
-        pnlBottomBar.BringToFront()
+        Dim sidebar As Panel = UiTheme.BuildWorkspaceSidebarShell(WorkspaceNavigation.Target.Receipt, Me, btnBack)
 
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Receipt Preview", AppSession.GetReceiptOperatorName())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+
+        Dim receiptSplit As SplitContainer = UiTheme.CreateVerticalSplit()
+
+        ' --- LEFT: filters + history ---
+        Dim leftCard As Panel = UiTheme.CreateCard()
+        leftCard.Dock = DockStyle.Fill
+        Dim leftCardHost As Panel = leftCard
+        Try
+            leftCardHost = UiTheme.GetCardContentHost(leftCard)
+        Catch
+        End Try
+
+        Dim leftLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 11,
+            .Margin = Padding.Empty
+        }
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        leftLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        leftLayout.Controls.Add(UiTheme.CreateSectionHeader("Receipts"), 0, 0)
+        leftLayout.Controls.Add(UiTheme.CreateSecondaryLabel("Select a past sale to preview, print, or export."), 0, 1)
+        leftLayout.Controls.Add(UiTheme.CreateSectionHeader("Search & filters"), 0, 2)
+        txtHistorySearch.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        leftLayout.Controls.Add(txtHistorySearch, 0, 3)
+        cmbDateFilter.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        leftLayout.Controls.Add(cmbDateFilter, 0, 4)
+        leftLayout.Controls.Add(pnlCustomRange, 0, 5)
+        cmbSort.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        leftLayout.Controls.Add(cmbSort, 0, 6)
+        leftLayout.Controls.Add(UiTheme.CreateSectionHeader("Receipt history"), 0, 7)
+
+        lblHistoryEmpty = UiTheme.CreateEmptyStateLabel("No receipts match the current filters.")
+        lblHistoryEmpty.Visible = False
+        Dim historyListHost As New Panel() With {.Dock = DockStyle.Fill}
+        historyListHost.Controls.Add(lstHistory)
+        lblHistoryEmpty.Dock = DockStyle.Fill
+        historyListHost.Controls.Add(lblHistoryEmpty)
+        leftLayout.Controls.Add(historyListHost, 0, 8)
+        Dim pnlListActions As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = False,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        }
+        pnlListActions.Controls.AddRange(New Control() {btnLoadList, btnLoadMore, btnExportBatch})
+        leftLayout.Controls.Add(pnlListActions, 0, 9)
+        pnlSaleChip.Dock = DockStyle.Top
+        pnlSaleChip.Margin = New Padding(0, UiTheme.PadControl, 0, 0)
+        leftLayout.Controls.Add(pnlSaleChip, 0, 10)
+        leftCardHost.Controls.Add(leftLayout)
+        receiptSplit.Panel1.Controls.Add(leftCard)
+
+        ' --- RIGHT: preview ---
+        Dim previewCard As Panel = UiTheme.CreateCard()
+        previewCard.Dock = DockStyle.Fill
+        Dim previewCardHost As Panel = previewCard
+        Try
+            previewCardHost = UiTheme.GetCardContentHost(previewCard)
+        Catch
+        End Try
+
+        Dim rightLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = Padding.Empty
+        }
+        rightLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        rightLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        rightLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        rightLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+
+        rightLayout.Controls.Add(UiTheme.CreateSectionHeader("Receipt preview"), 0, 0)
+
+        Dim pnlPreviewHeader As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = False,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+        Dim lblPreviewHint As Label = UiTheme.CreateSecondaryLabel("Monospace receipt layout. Use zoom and print preview for page layout.")
+        lblPreviewHint.MaximumSize = New Size(520, 0)
+        lblPreviewHint.Font = New Font(UiTheme.FontBody.FontFamily, UiTheme.FontBody.Size, FontStyle.Italic)
+        lblPreviewHint.Margin = New Padding(0, UiTheme.PadTight, UiTheme.PadSection, 0)
+        pnlPreviewHeader.Controls.Add(lblPreviewHint)
+        pnlPreviewHeader.Controls.Add(btnZoomOut)
+        pnlPreviewHeader.Controls.Add(lblZoomPct)
+        pnlPreviewHeader.Controls.Add(btnZoomIn)
+        pnlPreviewHeader.Controls.Add(chkSimulatePage)
+        rightLayout.Controls.Add(pnlPreviewHeader, 0, 1)
+        rightLayout.Controls.Add(pnlActionToolbar, 0, 2)
+
+        Dim previewHost As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        pnlReceiptScroll.Dock = DockStyle.Fill
+        pnlEmptyPreview.Dock = DockStyle.Fill
+        previewHost.Controls.Add(pnlReceiptScroll)
+        previewHost.Controls.Add(pnlEmptyPreview)
+        rightLayout.Controls.Add(previewHost, 0, 3)
+        previewCardHost.Controls.Add(rightLayout)
+        receiptSplit.Panel2.Controls.Add(previewCard)
+
+        contentArea.Controls.Add(receiptSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
+
+        AddHandler receiptSplit.SplitterMoved, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
         AddHandler pnlReceiptScroll.Resize, AddressOf LayoutReceiptPaper
 
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnEmail, "Open your email client with this receipt (may fail for very long receipts)")
+        formToolTips.SetToolTip(btnZoomIn, "Zoom in on the receipt preview")
+        formToolTips.SetToolTip(btnZoomOut, "Zoom out on the receipt preview")
+        formToolTips.SetToolTip(btnExportBatch, "Export multiple receipts at once")
+        formToolTips.SetToolTip(btnLoadList, "Reload receipt history from the database")
+
+        UiTheme.AssignTabOrder(
+            txtHistorySearch,
+            cmbDateFilter,
+            dtpFilterFrom,
+            dtpFilterTo,
+            cmbSort,
+            lstHistory,
+            btnLoadList,
+            btnExportBatch,
+            btnPrint,
+            btnPrintPreview,
+            btnSavePdf,
+            btnSave,
+            btnCopy,
+            btnEmail,
+            btnDetails,
+            btnDuplicate,
+            btnZoomOut,
+            btnZoomIn,
+            chkSimulatePage)
+
         Me.ResumeLayout(True)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureReceiptSplit(receiptSplit)
         UpdatePreviewVisibility(True)
         ClearSaleMetadata()
     End Sub
 
+    Private Sub ConfigureReceiptSplit(receiptSplit As SplitContainer)
+        UiTheme.ConfigureSplitDistance(receiptSplit, 0.32R, 240, 300)
+    End Sub
+
     Private Sub BuildSaleChipPanel()
         pnlSaleChip = New Panel() With {
-            .Height = 96,
-            .Width = HistoryListWidth,
-            .BackColor = BrandBlueLight,
-            .Visible = False
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.InfoBackground,
+            .Visible = False,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
         AddHandler pnlSaleChip.Paint, Sub(s, e)
-                                          Using pen As New Pen(BorderLight, 1.0F)
+                                          Using pen As New Pen(UiTheme.ColBorder, 1.0F)
                                               e.Graphics.DrawRectangle(pen, 0, 0, pnlSaleChip.Width - 1, pnlSaleChip.Height - 1)
                                           End Using
                                       End Sub
 
+        Dim chipLayout As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = Padding.Empty
+        }
         lblChipSaleId = New Label() With {
-            .Location = New Point(12, 10),
-            .Size = New Size(248, 22),
-            .Font = New Font("Segoe UI", 11.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary
+            .AutoSize = True,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
         lblChipDate = New Label() With {
-            .Location = New Point(12, 32),
-            .Size = New Size(248, 18),
-            .Font = New Font("Segoe UI", 9.0F),
-            .ForeColor = UiTheme.TextSecondary
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
         lblChipTotal = New Label() With {
-            .Location = New Point(12, 52),
-            .Size = New Size(248, 20),
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.SecondaryAccent
+            .AutoSize = True,
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColPrimary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
         lblChipCashier = New Label() With {
-            .Location = New Point(12, 72),
-            .Size = New Size(248, 18),
-            .Font = New Font("Segoe UI", 9.0F),
-            .ForeColor = UiTheme.TextSecondary
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = Padding.Empty
         }
-        pnlSaleChip.Controls.AddRange(New Control() {lblChipSaleId, lblChipDate, lblChipTotal, lblChipCashier})
+        chipLayout.Controls.Add(lblChipSaleId, 0, 0)
+        chipLayout.Controls.Add(lblChipDate, 0, 1)
+        chipLayout.Controls.Add(lblChipTotal, 0, 2)
+        chipLayout.Controls.Add(lblChipCashier, 0, 3)
+        pnlSaleChip.Controls.Add(chipLayout)
     End Sub
 
     Private Sub BuildEmptyPreviewPanel()
         pnlEmptyPreview = New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = SurfaceGray,
+            .BackColor = UiTheme.ColBackground,
             .Visible = True
         }
 
-        Dim lblEmptyTitle As New Label() With {
-            .Text = "No receipt loaded",
-            .Width = 340,
-            .Height = 30,
-            .AutoSize = False,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Regular),
-            .ForeColor = UiTheme.TextPrimary
+        Dim emptyLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3
         }
-        Dim lblEmptySub As New Label() With {
-            .Text = "Choose a sale from the history list on the left to preview its receipt.",
-            .Width = 420,
-            .Height = 40,
-            .AutoSize = False,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Italic),
-            .ForeColor = UiTheme.TextSecondary
-        }
+        emptyLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 45.0F))
+        emptyLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        emptyLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 55.0F))
 
-        pnlEmptyPreview.Controls.AddRange(New Control() {lblEmptyTitle, lblEmptySub})
-        AddHandler pnlEmptyPreview.Resize, Sub()
-                                               Dim cx As Integer = pnlEmptyPreview.Width \ 2
-                                               Dim cy As Integer = pnlEmptyPreview.Height \ 2
-                                               lblEmptyTitle.Location = New Point(cx - 170, cy - 36)
-                                               lblEmptySub.Location = New Point(cx - 210, cy)
-                                           End Sub
+        Dim lblEmptyTitle As Label = UiTheme.CreateEmptyStateLabel("No receipt loaded")
+        lblEmptyTitle.Font = UiTheme.FontHeading
+        lblEmptyTitle.Dock = DockStyle.Top
+        lblEmptyTitle.TextAlign = ContentAlignment.BottomCenter
+
+        Dim lblEmptySub As Label = UiTheme.CreateEmptyStateLabel("Choose a sale from the history list on the left to preview its receipt.")
+        lblEmptySub.Dock = DockStyle.Top
+        lblEmptySub.Margin = New Padding(UiTheme.PadSection, UiTheme.PadControl, UiTheme.PadSection, 0)
+
+        emptyLayout.Controls.Add(New Panel(), 0, 0)
+        emptyLayout.Controls.Add(lblEmptyTitle, 0, 1)
+        emptyLayout.Controls.Add(lblEmptySub, 0, 2)
+        pnlEmptyPreview.Controls.Add(emptyLayout)
     End Sub
 
     Private Sub BuildPreviewArea()
         pnlReceiptScroll = New Panel() With {
             .AutoScroll = True,
-            .BackColor = SurfaceGray,
+            .BackColor = UiTheme.ColBackground,
             .Visible = False
         }
 
         pnlPageCanvas = New Panel() With {
             .AutoSize = True,
-            .BackColor = SurfaceGray,
-            .Padding = New Padding(24, 24, 24, 24)
+            .BackColor = UiTheme.ColBackground,
+            .Padding = New Padding(UiTheme.PadPage)
         }
         AddHandler pnlPageCanvas.Paint, AddressOf pnlPageCanvas_Paint
 
         pnlReceiptPaper = New Panel() With {
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            .BackColor = Color.White,
-            .Padding = New Padding(20, 28, 20, 36),
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadSection, UiTheme.PadPage, UiTheme.PadSection, UiTheme.PadPage),
             .BorderStyle = BorderStyle.FixedSingle,
             .MinimumSize = New Size(PreviewReceiptWidth + 40, ReceiptBranding.PreviewMinPaperHeight)
         }
@@ -698,7 +787,7 @@ Public Class ReceiptForm
             .AutoSize = True,
             .ColumnCount = 1,
             .Width = PreviewReceiptWidth,
-            .BackColor = Color.White
+            .BackColor = UiTheme.ColSurface
         }
         receiptStack.Controls.Add(picReceiptLogo, 0, 0)
         receiptStack.Controls.Add(rtbReceipt, 0, 1)
@@ -732,33 +821,16 @@ Public Class ReceiptForm
     End Sub
 
     Private Sub ShowStatus(message As String, isError As Boolean)
-        If lblStatus Is Nothing Then
+        If statusLabel Is Nothing OrElse statusClearTimer Is Nothing Then
             Return
         End If
 
-        statusClearTimer.Stop()
-        If String.IsNullOrWhiteSpace(message) Then
-            lblStatus.Text = String.Empty
-            lblStatus.ForeColor = UiTheme.TextSecondary
-            Return
-        End If
-
-        lblStatus.Text = message
-        lblStatus.ForeColor = If(isError, UiTheme.Danger, UiTheme.Success)
-        If lblStatus.Parent IsNot Nothing Then
-            lblStatus.Location = New Point(
-                lblStatus.Parent.Width - lblStatus.Width - 24,
-                (lblStatus.Parent.Height - lblStatus.Height) \ 2)
-        End If
-        statusClearTimer.Start()
+        FormStatusHelper.ShowTimedStatus(statusLabel, statusClearTimer, message, isError)
     End Sub
 
     Private Sub statusClearTimer_Tick(sender As Object, e As EventArgs) Handles statusClearTimer.Tick
         statusClearTimer.Stop()
-        If lblStatus IsNot Nothing Then
-            lblStatus.Text = String.Empty
-            lblStatus.ForeColor = UiTheme.TextSecondary
-        End If
+        FormStatusHelper.ResetTimedStatus(statusLabel)
     End Sub
 
     Private Sub FillLineGrid(detail As ReceiptSnapshot)
@@ -861,7 +933,31 @@ Public Class ReceiptForm
         Dim sym As String = If(detail.CurrencySymbol, AppSettings.Current.CurrencySymbol)
         Dim cashier As String = If(String.IsNullOrWhiteSpace(detail.CashierName), "—", detail.CashierName.Trim())
         Dim saleLabel As String = If(saleId >= 0, "Sale #" & saleId.ToString(CultureInfo.InvariantCulture), "Current sale")
-        ApplySaleMetadata(saleLabel, DateTime.Now, detail.GrandTotal, sym, cashier)
+        Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+            If(detail.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, detail.SaleDateTime))
+        ApplySaleMetadata(saleLabel, saleWhen, detail.GrandTotal, sym, cashier)
+    End Sub
+
+    Private Shared Function ReadStoredSaleDate(raw As Object) As DateTime
+        If raw Is Nothing OrElse raw Is DBNull.Value Then
+            Return DateTime.MinValue
+        End If
+
+        Return ReceiptBranding.NormalizeStoredSaleDate(Convert.ToDateTime(raw, CultureInfo.InvariantCulture))
+    End Function
+
+    Private Sub ApplyLoadedReceipt(saleId As Integer, storedSaleDate As Object, storedReceiptText As Object, totalAmount As Object)
+        Dim sdt As DateTime = ReadStoredSaleDate(storedSaleDate)
+        Dim total As Decimal = If(totalAmount Is Nothing OrElse totalAmount Is DBNull.Value,
+            0D,
+            Convert.ToDecimal(totalAmount, CultureInfo.InvariantCulture))
+        receiptText = Convert.ToString(storedReceiptText)
+        If sdt <> DateTime.MinValue Then
+            receiptText = ReceiptBranding.AlignReceiptDateLine(receiptText, sdt)
+        End If
+
+        ApplyReceiptContent(receiptText, False)
+        UpdateSaleMetadataFromText(saleId, sdt, receiptText, total)
     End Sub
 
     Private Sub UpdateSaleMetadataFromText(saleId As Integer, saleDate As DateTime, receiptText As String, totalAmount As Decimal?)
@@ -924,29 +1020,40 @@ Public Class ReceiptForm
         Return rtbReceipt.Text
     End Function
 
-    Private Sub LoadHistoryCombo()
-        allHistoryItems.Clear()
-        allHistoryItems.Add(New SaleListItem With {.SaleId = -1, .SaleDate = DateTime.MinValue, .TotalAmount = 0D})
+    Private Sub LoadHistoryCombo(Optional reset As Boolean = True)
+        If reset Then
+            allHistoryItems.Clear()
+            allHistoryItems.Add(New SaleListItem With {.SaleId = -1, .SaleDate = DateTime.MinValue, .TotalAmount = 0D})
+            historySkip = 0
+            historyHasMore = False
+        End If
+
+        Dim loadedThisPage As Integer = 0
 
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT TOP 500 sale_id, sale_date, total_amount, receipt_text FROM sales " &
-                    "WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
-                    "ORDER BY sale_date DESC, sale_id DESC;"
+                    "SELECT sale_id, sale_date, total_amount, receipt_text, ISNULL(is_voided, 0) AS is_voided " &
+                    "FROM sales WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
+                    "ORDER BY sale_date DESC, sale_id DESC " &
+                    "OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;"
 
                 Using command As New SqlCommand(query, connection)
+                    command.Parameters.AddWithValue("@skip", historySkip)
+                    command.Parameters.AddWithValue("@take", HistoryPageSize)
                     Using reader As SqlDataReader = command.ExecuteReader()
                         While reader.Read()
                             Dim receiptSnippet As String = reader("receipt_text").ToString()
                             allHistoryItems.Add(New SaleListItem With {
                                 .SaleId = Convert.ToInt32(reader("sale_id")),
-                                .SaleDate = Convert.ToDateTime(reader("sale_date")),
+                                .SaleDate = ReadStoredSaleDate(reader("sale_date")),
                                 .TotalAmount = Convert.ToDecimal(reader("total_amount")),
-                                .CashierHint = TryParseCashierFromReceipt(receiptSnippet)
+                                .CashierHint = TryParseCashierFromReceipt(receiptSnippet),
+                                .IsVoided = Convert.ToBoolean(reader("is_voided"))
                             })
+                            loadedThisPage += 1
                         End While
                     End Using
                 End Using
@@ -954,7 +1061,28 @@ Public Class ReceiptForm
         Catch
         End Try
 
+        historySkip += loadedThisPage
+        historyHasMore = loadedThisPage >= HistoryPageSize
+        UpdateLoadMoreButton()
         ApplyHistoryFilters()
+    End Sub
+
+    Private Sub UpdateLoadMoreButton()
+        If btnLoadMore Is Nothing Then
+            Return
+        End If
+
+        btnLoadMore.Enabled = historyHasMore
+        btnLoadMore.Text = If(historyHasMore, "Load more", "All loaded")
+    End Sub
+
+    Private Sub UpdateVoidButtonState()
+        If btnVoid Is Nothing Then
+            Return
+        End If
+
+        btnVoid.Visible = AppSession.IsAdmin()
+        btnVoid.Enabled = AppSession.IsAdmin() AndAlso currentSaleId > 0 AndAlso Not currentSaleVoided
     End Sub
 
     Private Sub ApplyHistoryFilters()
@@ -1007,6 +1135,17 @@ Public Class ReceiptForm
         End If
 
         suppressHistoryEvent = False
+        UpdateHistoryEmptyState()
+    End Sub
+
+    Private Sub UpdateHistoryEmptyState()
+        If lstHistory Is Nothing OrElse lblHistoryEmpty Is Nothing Then
+            Return
+        End If
+
+        Dim isEmpty As Boolean = lstHistory.Items.Count = 0
+        lblHistoryEmpty.Visible = isEmpty
+        lstHistory.Visible = Not isEmpty
     End Sub
 
     Private Function GetHistorySearchTerm() As String
@@ -1014,12 +1153,7 @@ Public Class ReceiptForm
             Return String.Empty
         End If
 
-        Dim text As String = txtHistorySearch.Text.Trim()
-        If txtHistorySearch.ForeColor = UiTheme.TextSecondary OrElse text = "Search receipt #, amount, date…" Then
-            Return String.Empty
-        End If
-
-        Return text
+        Return txtHistorySearch.Text.Trim()
     End Function
 
     Private Function ItemPassesDateFilter(item As SaleListItem, filterKind As HistoryDateFilter) As Boolean
@@ -1049,9 +1183,13 @@ Public Class ReceiptForm
         End If
     End Sub
 
+    Private Sub btnBack_Click(sender As Object, e As EventArgs) Handles btnBack.Click
+        Me.Close()
+    End Sub
+
     Private Sub btnLoadList_Click(sender As Object, e As EventArgs) Handles btnLoadList.Click
         suppressHistoryEvent = True
-        LoadHistoryCombo()
+        LoadHistoryCombo(reset:=True)
         If lstHistory.Items.Count > 0 Then
             lstHistory.SelectedIndex = 0
             cmbHistory.SelectedIndex = 0
@@ -1060,6 +1198,109 @@ Public Class ReceiptForm
         suppressHistoryEvent = False
         ProcessHistorySelection()
         ShowStatus("Sales list refreshed.", False)
+    End Sub
+
+    Private Sub btnLoadMore_Click(sender As Object, e As EventArgs) Handles btnLoadMore.Click
+        LoadHistoryCombo(reset:=False)
+        ShowStatus("Loaded more receipts.", False)
+    End Sub
+
+    Private Sub btnVoid_Click(sender As Object, e As EventArgs) Handles btnVoid.Click
+        If Not AppSession.IsAdmin() Then
+            Return
+        End If
+
+        If currentSaleId <= 0 Then
+            MessageBox.Show("Select a saved sale to void.", "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        If currentSaleVoided Then
+            MessageBox.Show("This sale is already voided.", "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction(
+            "Void sale #" & currentSaleId.ToString(CultureInfo.InvariantCulture) &
+            "? Stock will be restored and the sale excluded from revenue reports.") Then
+            Return
+        End If
+
+        Try
+            VoidSale(currentSaleId)
+            LoadHistoryCombo(reset:=True)
+            LoadReceiptBySaleId(currentSaleId)
+            ShowStatus("Sale voided. Stock restored.", False)
+        Catch ex As Exception
+            MessageBox.Show("Could not void sale: " & ex.Message, "Void sale", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ErrorLogger.Log(ex, NameOf(ReceiptForm) & "." & NameOf(btnVoid_Click))
+        End Try
+    End Sub
+
+    Private Sub VoidSale(saleId As Integer)
+        Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+            connection.Open()
+
+            Using transaction As SqlTransaction = connection.BeginTransaction()
+                Dim alreadyVoided As Boolean
+                Using checkCmd As New SqlCommand("SELECT ISNULL(is_voided, 0) FROM sales WHERE sale_id = @id;", connection, transaction)
+                    checkCmd.Parameters.AddWithValue("@id", saleId)
+                    Dim result As Object = checkCmd.ExecuteScalar()
+                    If result Is Nothing OrElse result Is DBNull.Value Then
+                        Throw New InvalidOperationException("Sale not found.")
+                    End If
+
+                    alreadyVoided = Convert.ToBoolean(result)
+                End Using
+
+                If alreadyVoided Then
+                    Throw New InvalidOperationException("Sale is already voided.")
+                End If
+
+                Dim items As New List(Of (Name As String, Qty As Integer))()
+                Using itemsCmd As New SqlCommand(
+                    "SELECT product_name, quantity FROM sale_items WHERE sale_id = @id;",
+                    connection,
+                    transaction)
+                    itemsCmd.Parameters.AddWithValue("@id", saleId)
+                    Using reader As SqlDataReader = itemsCmd.ExecuteReader()
+                        While reader.Read()
+                            items.Add((reader("product_name").ToString(), Convert.ToInt32(reader("quantity"))))
+                        End While
+                    End Using
+                End Using
+
+                For Each item In items
+                    Using restoreCmd As New SqlCommand(
+                        "UPDATE products SET stock_quantity = stock_quantity + @qty, updated_at = SYSUTCDATETIME() " &
+                        "WHERE product_name = @name;",
+                        connection,
+                        transaction)
+                        restoreCmd.Parameters.AddWithValue("@name", item.Name)
+                        restoreCmd.Parameters.AddWithValue("@qty", item.Qty)
+                        restoreCmd.ExecuteNonQuery()
+                    End Using
+                Next
+
+                Using voidCmd As New SqlCommand(
+                    "UPDATE sales SET is_voided = 1, receipt_text = receipt_text + @banner WHERE sale_id = @id;",
+                    connection,
+                    transaction)
+                    voidCmd.Parameters.AddWithValue("@id", saleId)
+                    voidCmd.Parameters.AddWithValue("@banner", Environment.NewLine & Environment.NewLine & "*** VOIDED ***")
+                    voidCmd.ExecuteNonQuery()
+                End Using
+
+                AuditLogger.LogSale(connection, "VOID", saleId, "Sale voided from ReceiptForm")
+                AuditLogger.LogAudit(
+                    connection,
+                    "SALE_VOIDED",
+                    "Voided sale #" & saleId.ToString(CultureInfo.InvariantCulture),
+                    AppSession.CurrentRole)
+
+                transaction.Commit()
+            End Using
+        End Using
     End Sub
 
     Private Sub lstHistory_SelectedIndexChanged(sender As Object, e As EventArgs) Handles lstHistory.SelectedIndexChanged
@@ -1105,7 +1346,7 @@ Public Class ReceiptForm
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT TOP 1 sale_id, sale_date, receipt_text, total_amount " &
+                    "SELECT TOP 1 sale_id, sale_date, receipt_text, total_amount, ISNULL(is_voided, 0) AS is_voided " &
                     "FROM sales " &
                     "WHERE receipt_text IS NOT NULL AND receipt_text <> '' " &
                     "ORDER BY sale_date DESC, sale_id DESC;"
@@ -1114,12 +1355,10 @@ Public Class ReceiptForm
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
                             Dim sid As Integer = Convert.ToInt32(reader("sale_id"))
-                            Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
-                            Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
-                            receiptText = reader("receipt_text").ToString()
-                            ApplyReceiptContent(receiptText, False)
-                            UpdateSaleMetadataFromText(sid, sdt, receiptText, total)
+                            currentSaleVoided = Convert.ToBoolean(reader("is_voided"))
+                            ApplyLoadedReceipt(sid, reader("sale_date"), reader("receipt_text"), reader("total_amount"))
                             LoadSaleLinesIntoGrid(connection, sid)
+                            UpdateVoidButtonState()
                         Else
                             dgvLines.Rows.Clear()
                             ApplyReceiptContent("No saved receipt found. Finalize a sale from the Sales / Cart screen first.", True)
@@ -1140,17 +1379,19 @@ Public Class ReceiptForm
                 connection.Open()
 
                 Dim query As String =
-                    "SELECT sale_id, sale_date, receipt_text, total_amount FROM sales WHERE sale_id = @id;"
+                    "SELECT sale_id, sale_date, receipt_text, total_amount, ISNULL(is_voided, 0) AS is_voided FROM sales WHERE sale_id = @id;"
 
                 Using command As New SqlCommand(query, connection)
                     command.Parameters.AddWithValue("@id", saleId)
                     Using reader As SqlDataReader = command.ExecuteReader()
                         If reader.Read() Then
-                            Dim sdt As DateTime = Convert.ToDateTime(reader("sale_date"))
-                            Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
-                            receiptText = reader("receipt_text").ToString()
-                            ApplyReceiptContent(receiptText, False)
-                            UpdateSaleMetadataFromText(saleId, sdt, receiptText, total)
+                            currentSaleVoided = Convert.ToBoolean(reader("is_voided"))
+                            ApplyLoadedReceipt(
+                                Convert.ToInt32(reader("sale_id")),
+                                reader("sale_date"),
+                                reader("receipt_text"),
+                                reader("total_amount"))
+                            UpdateVoidButtonState()
                         Else
                             dgvLines.Rows.Clear()
                             ApplyReceiptContent("Receipt not found for this sale id.", True)
@@ -1186,6 +1427,14 @@ Public Class ReceiptForm
                 End While
             End Using
         End Using
+    End Sub
+
+    Private Sub btnMoreActions_Click(sender As Object, e As EventArgs)
+        If ctxMoreActions Is Nothing OrElse btnMoreActions Is Nothing Then
+            Return
+        End If
+
+        ctxMoreActions.Show(btnMoreActions, New Point(0, btnMoreActions.Height))
     End Sub
 
     Private Sub btnPrint_Click(sender As Object, e As EventArgs) Handles btnPrint.Click
@@ -1275,10 +1524,11 @@ Public Class ReceiptForm
         End If
 
         Dim subject As String = Uri.EscapeDataString(If(currentSaleId > 0, "Receipt #" & currentSaleId.ToString(CultureInfo.InvariantCulture), "Receipt"))
-        Dim body As String = Uri.EscapeDataString(ReceiptBranding.GetReceiptText(GetFullReceiptSource()))
+        Dim bodyText As String = ReceiptBranding.GetReceiptText(GetFullReceiptSource())
         Try
-            Process.Start(New ProcessStartInfo("mailto:?subject=" & subject & "&body=" & body) With {.UseShellExecute = True})
-            ShowStatus("Email client opened.", False)
+            Clipboard.SetText(bodyText)
+            Process.Start(New ProcessStartInfo("mailto:?subject=" & subject) With {.UseShellExecute = True})
+            ShowStatus("Receipt copied to clipboard. Paste it into your email message.", False)
         Catch ex As Exception
             MessageBox.Show("Could not open email: " & ex.Message, "Receipt", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
@@ -1420,9 +1670,9 @@ Public Class ReceiptForm
         Dim btn As New Button() With {
             .Text = caption,
             .AutoSize = True,
-            .MinimumSize = New Size(88, 34),
-            .Padding = New Padding(8, 4, 8, 4),
-            .Margin = New Padding(0, 0, 8, 8),
+            .MinimumSize = New Size(88, UiTheme.ButtonHeight),
+            .Padding = New Padding(UiTheme.PadControl, UiTheme.PadTight, UiTheme.PadControl, UiTheme.PadTight),
+            .Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadControl),
             .Cursor = Cursors.Hand
         }
         If primary Then
