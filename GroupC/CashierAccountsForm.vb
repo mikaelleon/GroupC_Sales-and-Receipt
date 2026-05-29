@@ -11,16 +11,10 @@ Imports Microsoft.Data.SqlClient
 Public Class CashierAccountsForm
     Inherits Form
 
-    Private Shared ReadOnly SurfaceGray As Color = Color.FromArgb(&HF5, &HF7, &HFA)
-    Private Shared ReadOnly BrandBlue As Color = UiTheme.SecondaryAccent
-    Private Shared ReadOnly BrandBlueLight As Color = Color.FromArgb(&HE8, &HF4, &HFC)
-    Private Shared ReadOnly BorderLight As Color = Color.FromArgb(&HD0, &HDC, &HE8)
-    Private Shared ReadOnly SuccessGreen As Color = UiTheme.Success
-    Private Shared ReadOnly SuccessBg As Color = Color.FromArgb(&HE8, &HF5, &HEE)
-    Private Shared ReadOnly MutedBg As Color = Color.FromArgb(&HF1, &HF5, &HF9)
-    Private Shared ReadOnly DangerBg As Color = Color.FromArgb(&HFE, &HE2, &HE2)
-    Private Const StatusClearMs As Integer = 4000
-    Private Const LeftPanelWidth As Integer = 340
+    Private Shared ReadOnly SuccessGreen As Color = UiTheme.ColAccent
+    Private Shared ReadOnly SuccessBg As Color = UiTheme.SuccessLight
+    Private Shared ReadOnly MutedBg As Color = UiTheme.SurfaceVariant
+    Private Shared ReadOnly DangerBg As Color = UiTheme.DangerLight
     Private Const FieldWidth As Integer = 292
     Private Const FieldHeight As Integer = 40
     Private Const FieldShellHeight As Integer = 42
@@ -40,7 +34,6 @@ Public Class CashierAccountsForm
     Private WithEvents btnBack As Button
 
     Private lblInputError As Label
-    Private lblStatus As Label
     Private lblNoSelection As Label
     Private lblPassHint As Label
     Private lblPassMatch As Label
@@ -49,16 +42,14 @@ Public Class CashierAccountsForm
     Private WithEvents btnClearSelection As Button
     Private pnlSelectedChip As Panel
     Private pnlEmptyState As Panel
-    Private pnlLeft As Panel
     Private pnlLeftBody As Panel
     Private leftStack As TableLayoutPanel
-    Private pnlRight As Panel
-    Private pnlToolbar As Panel
-    Private pnlBottomBar As Panel
-    Private pnlAvatar As Panel
     Private picEmptyIcon As PictureBox
     Private lblEmptyTitle As Label
     Private lblEmptySub As Label
+    Private pnlAvatar As Panel
+    Private statusStrip As StatusStrip
+    Private statusLabel As ToolStripStatusLabel
     Private toolTips As ToolTip
     Private WithEvents statusClearTimer As Timer
     Private WithEvents fieldHighlightTimer As Timer
@@ -72,23 +63,23 @@ Public Class CashierAccountsForm
     Private highlightRestore As Dictionary(Of TextBox, Color)
 
     Private Sub CashierAccountsForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        Me.Text = "International Bookstore — Manage Cashiers"
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
-        Me.BackColor = SurfaceGray
+        Me.Text = AppBranding.WindowTitle("Manage Cashiers")
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 800, 560)
+        Me.BackColor = UiTheme.ColBackground
         Me.Font = UiTheme.StandardUiFont
         Me.AcceptButton = Nothing
         Me.CancelButton = Nothing
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
-            Me.BackColor = SurfaceGray
+            Me.BackColor = UiTheme.ColBackground
         Catch
         End Try
 
-        statusClearTimer = New Timer() With {.Interval = StatusClearMs}
+        statusClearTimer = New Timer() With {.Interval = FormStatusHelper.StatusShowMilliseconds}
         fieldHighlightTimer = New Timer() With {.Interval = 3000}
         highlightRestore = New Dictionary(Of TextBox, Color)()
-        toolTips = New ToolTip() With {.AutoPopDelay = 8000, .InitialDelay = 400, .ReshowDelay = 200, .ShowAlways = True}
+        toolTips = UiTheme.CreateStandardToolTip()
 
         Try
             DatabaseInitializer.EnsureDatabase()
@@ -113,7 +104,7 @@ Public Class CashierAccountsForm
     Private Sub BuildLayout()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = SurfaceGray
+        Me.BackColor = UiTheme.ColBackground
 
         txtUsername = CreateStyledTextBox(CashierAccountService.MaxUsernameLength, "3–50 chars, letters/numbers/_")
         txtDisplayName = CreateStyledTextBox(CashierAccountService.MaxDisplayNameLength, "Shown on receipts")
@@ -125,52 +116,34 @@ Public Class CashierAccountsForm
         cmbFilter = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Width = 190,
-            .Height = FieldHeight,
-            .FlatStyle = FlatStyle.Flat,
-            .BackColor = UiTheme.CardSurface,
             .Font = UiTheme.FontBody
         }
         cmbFilter.Items.AddRange(New Object() {"Active cashiers", "Inactive cashiers", "All cashiers"})
+        UiTheme.ApplyInputStyle(cmbFilter)
 
-        btnRegister = New Button() With {.Text = "+ Register Cashier", .Size = New Size(FieldWidth, UiTheme.ButtonHeightLg), .Cursor = Cursors.Hand}
-        btnUpdateDisplay = New Button() With {.Text = "✏ Update Display Name", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
-        btnResetPassword = New Button() With {.Text = "🔑 Reset Password", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
-        btnDeactivate = New Button() With {.Text = "⊘ Deactivate Account", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "✓ Reactivate Account", .Size = New Size(FieldWidth, UiTheme.ButtonHeightMd), .Visible = False, .Cursor = Cursors.Hand}
+        btnRegister = New Button() With {.Text = "Register Cashier", .AutoSize = True, .MinimumSize = New Size(FieldWidth, UiTheme.ButtonHeightLg), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, UiTheme.PadSection, 0, 0)}
+        btnUpdateDisplay = New Button() With {.Text = "Update display name", .AutoSize = True, .MinimumSize = New Size(FieldWidth, UiTheme.ButtonHeight), .Visible = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
+        btnResetPassword = New Button() With {.Text = "Reset password", .AutoSize = True, .MinimumSize = New Size(FieldWidth, UiTheme.ButtonHeight), .Visible = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
+        btnDeactivate = New Button() With {.Text = "Deactivate account", .AutoSize = True, .MinimumSize = New Size(FieldWidth, UiTheme.ButtonHeight), .Visible = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
+        btnReactivate = New Button() With {.Text = "Reactivate account", .AutoSize = True, .MinimumSize = New Size(FieldWidth, UiTheme.ButtonHeight), .Visible = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = Padding.Empty}
         btnRefresh = New Button() With {
-            .Text = "↻  Refresh",
-            .Size = New Size(100, FieldHeight),
-            .Cursor = Cursors.Hand,
-            .FlatStyle = FlatStyle.Flat,
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = ColorTranslator.FromHtml("#1B7EC2"),
-            .Font = UiTheme.FontBody
+            .Text = "Refresh",
+            .AutoSize = True,
+            .MinimumSize = New Size(100, UiTheme.ButtonHeight),
+            .Cursor = Cursors.Hand
         }
-        btnRefresh.FlatAppearance.BorderSize = 1
-        btnRefresh.FlatAppearance.BorderColor = BorderLight
-
-        btnBack = New Button() With {
-            .Text = "← Back to Menu",
-            .Size = New Size(150, UiTheme.ButtonHeightMd),
-            .Location = New Point(24, 10),
-            .Cursor = Cursors.Hand,
-            .FlatStyle = FlatStyle.Flat,
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = ColorTranslator.FromHtml("#1B7EC2"),
-            .Font = UiTheme.FontBody
-        }
-        btnBack.FlatAppearance.BorderSize = 1
-        btnBack.FlatAppearance.BorderColor = BorderLight
+        UiTheme.ApplySecondaryButton(btnRefresh)
         btnShowPass = New Button() With {
             .Text = "👁",
-            .Size = New Size(36, FieldHeight),
+            .MinimumSize = New Size(36, UiTheme.InputHeight),
             .FlatStyle = FlatStyle.Flat,
-            .BackColor = UiTheme.CardSurface,
-            .ForeColor = UiTheme.TextSecondary,
+            .BackColor = UiTheme.ColSurface,
+            .ForeColor = UiTheme.ColTextSecondary,
             .Cursor = Cursors.Hand,
             .TabStop = False
         }
         btnShowPass.FlatAppearance.BorderSize = 0
+        UiTheme.ApplyGhostButton(btnShowPass)
 
         UiTheme.ApplyPrimaryButton(btnRegister)
         UiTheme.ApplySecondaryButton(btnUpdateDisplay)
@@ -182,7 +155,7 @@ Public Class CashierAccountsForm
         SetupDataGridView()
         AddHandler dgvCashiers.DataBindingComplete, AddressOf dgvCashiers_DataBindingComplete
 
-        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False}
+        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.ColDanger, .Visible = False, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
         lblPassHint = New Label() With {
             .Text = "Minimum 6 characters",
             .AutoSize = True,
@@ -199,93 +172,69 @@ Public Class CashierAccountsForm
             .Text = "Select a cashier from the list to manage their account.",
             .AutoSize = True,
             .MaximumSize = New Size(FieldWidth, 0),
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-            .ForeColor = UiTheme.TextSecondary
+            .Font = New Font(UiTheme.FontBody.FontFamily, UiTheme.FontBody.Size, FontStyle.Italic),
+            .ForeColor = UiTheme.ColTextSecondary
         }
 
         pnlSelectedChip = New Panel() With {
-            .Height = 40,
-            .Width = FieldWidth,
-            .BackColor = BrandBlueLight,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .BackColor = UiTheme.InfoBackground,
             .Visible = False,
-            .Margin = New Padding(0, 0, 0, 8)
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Padding = New Padding(UiTheme.PadControl)
         }
         AddHandler pnlSelectedChip.Paint, AddressOf SelectedChip_Paint
 
         pnlAvatar = New Panel() With {
             .Size = New Size(28, 28),
-            .Location = New Point(6, 6),
-            .BackColor = Color.Transparent
+            .BackColor = Color.Transparent,
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
         AddHandler pnlAvatar.Paint, AddressOf Avatar_Paint
 
         lblChipUsername = New Label() With {
-            .AutoSize = False,
-            .Location = New Point(40, 0),
-            .Size = New Size(170, 40),
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
             .TextAlign = ContentAlignment.MiddleLeft,
-            .Font = New Font("Segoe UI", 10.0F),
-            .ForeColor = UiTheme.TextPrimary
+            .Font = UiTheme.FontBodyBold,
+            .ForeColor = UiTheme.ColTextPrimary
         }
 
         btnClearSelection = New Button() With {
             .Text = "×",
-            .Size = New Size(28, 28),
-            .Location = New Point(FieldWidth - 34, 6),
+            .MinimumSize = New Size(28, 28),
             .FlatStyle = FlatStyle.Flat,
             .BackColor = Color.Transparent,
-            .ForeColor = UiTheme.TextSecondary,
+            .ForeColor = UiTheme.ColTextSecondary,
             .Cursor = Cursors.Hand,
-            .TabStop = False
+            .TabStop = False,
+            .Margin = New Padding(UiTheme.PadTight, 0, 0, 0)
         }
         btnClearSelection.FlatAppearance.BorderSize = 0
 
-        pnlSelectedChip.Controls.Add(pnlAvatar)
-        pnlSelectedChip.Controls.Add(lblChipUsername)
-        pnlSelectedChip.Controls.Add(btnClearSelection)
+        Dim chipLayout As New TableLayoutPanel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .ColumnCount = 3,
+            .RowCount = 1,
+            .Margin = Padding.Empty
+        }
+        chipLayout.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        chipLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        chipLayout.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        chipLayout.Controls.Add(pnlAvatar, 0, 0)
+        chipLayout.Controls.Add(lblChipUsername, 1, 0)
+        chipLayout.Controls.Add(btnClearSelection, 2, 0)
+        pnlSelectedChip.Controls.Add(chipLayout)
 
         BuildEmptyStatePanel()
         AnchorLeftPanelTextBoxes()
 
-        pnlBottomBar = New Panel() With {
-            .Dock = DockStyle.Bottom,
-            .Height = 56,
-            .BackColor = Color.White
-        }
-        AddHandler pnlBottomBar.Paint, Sub(s, e)
-                                           Using pen As New Pen(BorderLight, 1.0F)
-                                               e.Graphics.DrawLine(pen, 0, 0, pnlBottomBar.Width, 0)
-                                           End Using
-                                       End Sub
-
-        lblStatus = New Label() With {
-            .AutoSize = True,
-            .Anchor = AnchorStyles.Right Or AnchorStyles.Top,
-            .Font = New Font("Segoe UI", 9.0F, FontStyle.Italic),
-            .ForeColor = UiTheme.TextSecondary,
-            .Text = String.Empty
-        }
-        pnlBottomBar.Controls.Add(lblStatus)
-        AddHandler pnlBottomBar.Resize, Sub()
-                                            lblStatus.Location = New Point(
-                                                pnlBottomBar.Width - lblStatus.Width - 24,
-                                                (pnlBottomBar.Height - lblStatus.Height) \ 2)
-                                        End Sub
-
-        pnlLeft = New Panel() With {
-            .Dock = DockStyle.Left,
-            .Width = LeftPanelWidth,
-            .MinimumSize = New Size(LeftPanelWidth, 0),
-            .MaximumSize = New Size(LeftPanelWidth, 9999),
-            .BackColor = Color.White,
-            .AutoScroll = False,
-            .Padding = New Padding(20, 20, 20, 0)
-        }
-        AddHandler pnlLeft.Paint, Sub(s, e)
-                                      Using pen As New Pen(BorderLight, 1.0F)
-                                          e.Graphics.DrawLine(pen, pnlLeft.Width - 1, 0, pnlLeft.Width - 1, pnlLeft.Height)
-                                      End Using
-                                  End Sub
+        statusStrip = New StatusStrip()
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
+        statusStrip.Items.Add(statusLabel)
+        UiTheme.ApplyStatusStripTheme(statusStrip)
 
         leftStack = New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
@@ -297,16 +246,16 @@ Public Class CashierAccountsForm
             .Margin = Padding.Empty,
             .Padding = Padding.Empty
         }
-        leftStack.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
+        leftStack.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        UiTheme.ConfigureAutoSizeRows(leftStack, 13)
 
-        leftStack.Controls.Add(CreateTitleLabel("Cashier Accounts"), 0, 0)
+        leftStack.Controls.Add(UiTheme.CreateSectionHeader("Cashier accounts"), 0, 0)
         leftStack.Controls.Add(CreateSubtitleLabel(
             "Register usernames and passwords for cashiers. Only administrators can manage accounts."), 0, 1)
-        leftStack.Controls.Add(CreateDivider(), 0, 2)
 
-        leftStack.Controls.Add(CreateSectionLabel("New Account"), 0, 3)
-        leftStack.Controls.Add(CreateFieldGroup("Username", txtUsername), 0, 4)
-        leftStack.Controls.Add(CreateFieldGroup("Display name (optional)", txtDisplayName), 0, 5)
+        leftStack.Controls.Add(CreateSectionLabel("New account"), 0, 2)
+        leftStack.Controls.Add(CreateFieldGroup("Username", txtUsername), 0, 3)
+        leftStack.Controls.Add(CreateFieldGroup("Display name (optional)", txtDisplayName), 0, 4)
 
         Dim passGroup As New TableLayoutPanel() With {
             .AutoSize = True,
@@ -324,7 +273,7 @@ Public Class CashierAccountsForm
         passGroup.Controls.Add(CreateFieldCaption("Password"), 0, 0)
         passGroup.Controls.Add(CreatePasswordRow(txtPassword, btnShowPass), 0, 1)
         passGroup.Controls.Add(lblPassHint, 0, 2)
-        leftStack.Controls.Add(passGroup, 0, 6)
+        leftStack.Controls.Add(passGroup, 0, 5)
 
         Dim confirmGroup As New TableLayoutPanel() With {
             .AutoSize = True,
@@ -342,104 +291,132 @@ Public Class CashierAccountsForm
         confirmGroup.Controls.Add(CreateFieldCaption("Confirm password"), 0, 0)
         confirmGroup.Controls.Add(CreatePasswordRow(txtConfirmPassword, Nothing), 0, 1)
         confirmGroup.Controls.Add(lblPassMatch, 0, 2)
-        leftStack.Controls.Add(confirmGroup, 0, 7)
+        leftStack.Controls.Add(confirmGroup, 0, 6)
 
-        btnRegister.Margin = New Padding(0, 20, 0, 0)
-        leftStack.Controls.Add(btnRegister, 0, 8)
-        leftStack.Controls.Add(CreateDividerWithLabel("— Account actions —", New Padding(0, 16, 0, 12)), 0, 9)
-        leftStack.Controls.Add(pnlSelectedChip, 0, 10)
-        leftStack.Controls.Add(lblNoSelection, 0, 11)
+        leftStack.Controls.Add(btnRegister, 0, 7)
+        leftStack.Controls.Add(UiTheme.CreateSectionHeader("Account actions"), 0, 8)
+        leftStack.Controls.Add(pnlSelectedChip, 0, 9)
+        leftStack.Controls.Add(lblNoSelection, 0, 10)
 
-        Dim actionStack As New FlowLayoutPanel() With {
-            .FlowDirection = FlowDirection.TopDown,
+        Dim actionStack As New TableLayoutPanel() With {
             .AutoSize = True,
-            .WrapContents = False,
-            .Margin = Padding.Empty,
-            .Width = FieldWidth,
-            .MaximumSize = New Size(FieldWidth, 0)
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
-        btnUpdateDisplay.Margin = New Padding(0, 8, 0, 0)
-        btnResetPassword.Margin = New Padding(0, 8, 0, 0)
-        btnDeactivate.Margin = New Padding(0, 8, 0, 0)
-        btnReactivate.Margin = New Padding(0, 8, 0, 0)
-        actionStack.Controls.Add(btnUpdateDisplay)
-        actionStack.Controls.Add(btnResetPassword)
-        actionStack.Controls.Add(btnDeactivate)
-        actionStack.Controls.Add(btnReactivate)
-        leftStack.Controls.Add(actionStack, 0, 12)
-        leftStack.Controls.Add(lblInputError, 0, 13)
-
-        Dim pnlLeftFooter As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
-            .AutoSize = True,
-            .FlowDirection = FlowDirection.TopDown,
-            .WrapContents = False,
-            .Padding = New Padding(0, 0, 0, 20)
-        }
-        btnBack.Margin = New Padding(0, 30, 0, 0)
-        pnlLeftFooter.Controls.Add(btnBack)
+        actionStack.Controls.Add(btnUpdateDisplay, 0, 0)
+        actionStack.Controls.Add(btnResetPassword, 0, 1)
+        actionStack.Controls.Add(btnDeactivate, 0, 2)
+        actionStack.Controls.Add(btnReactivate, 0, 3)
+        leftStack.Controls.Add(actionStack, 0, 11)
+        leftStack.Controls.Add(lblInputError, 0, 12)
 
         pnlLeftBody = New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .Padding = Padding.Empty}
         pnlLeftBody.Controls.Add(leftStack)
 
-        pnlLeft.Controls.Add(pnlLeftBody)
-        pnlLeft.Controls.Add(pnlLeftFooter)
-
-        pnlRight = New Panel() With {
-            .Dock = DockStyle.Fill,
-            .BackColor = SurfaceGray,
-            .Padding = Padding.Empty
-        }
-
-        pnlToolbar = New Panel() With {
+        Dim toolbar As New TableLayoutPanel() With {
             .Dock = DockStyle.Top,
-            .Height = 56,
-            .BackColor = Color.White,
-            .Padding = New Padding(24, 0, 24, 0)
-        }
-        AddHandler pnlToolbar.Paint, Sub(s, e)
-                                         Using pen As New Pen(BorderLight, 1.0F)
-                                             e.Graphics.DrawLine(pen, 0, pnlToolbar.Height - 1, pnlToolbar.Width, pnlToolbar.Height - 1)
-                                         End Using
-                                     End Sub
-
-        Dim lblShow As New Label() With {
-            .Text = "Show:",
             .AutoSize = True,
-            .ForeColor = ColorTranslator.FromHtml("#5A6A7A"),
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Regular)
+            .ColumnCount = 4,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        cmbFilter.Anchor = AnchorStyles.Left Or AnchorStyles.Top
-        btnRefresh.Anchor = AnchorStyles.Left Or AnchorStyles.Top
-        pnlToolbar.Controls.Add(lblShow)
-        pnlToolbar.Controls.Add(cmbFilter)
-        pnlToolbar.Controls.Add(btnRefresh)
-        CenterToolbarControls(lblShow)
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.InputHeight + UiTheme.PadControl))
 
-        dgvCashiers.Margin = New Padding(24, 0, 24, 0)
+        Dim lblShow As Label = UiTheme.CreateSecondaryLabel("Show")
+        lblShow.Margin = New Padding(0, UiTheme.PadTight, UiTheme.PadControl, 0)
+        lblShow.Anchor = AnchorStyles.Left
+        cmbFilter.Dock = DockStyle.Fill
+        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        btnRefresh.Dock = DockStyle.Fill
+        toolbar.Controls.Add(lblShow, 0, 0)
+        toolbar.Controls.Add(cmbFilter, 1, 0)
+        toolbar.Controls.Add(New Panel(), 2, 0)
+        toolbar.Controls.Add(btnRefresh, 3, 0)
 
-        pnlRight.Controls.Clear()
-        pnlRight.Controls.Add(dgvCashiers)
-        pnlRight.Controls.Add(pnlEmptyState)
-        pnlRight.Controls.Add(pnlToolbar)
-
-        pnlToolbar.Dock = DockStyle.Top
+        Dim gridHost As New Panel() With {.Dock = DockStyle.Fill}
+        Dim gridCard As Panel = UiTheme.CreateCard()
+        gridCard.Dock = DockStyle.Fill
+        Dim gridCardHost As Panel = gridCard
+        Try
+            gridCardHost = UiTheme.GetCardContentHost(gridCard)
+        Catch
+        End Try
         dgvCashiers.Dock = DockStyle.Fill
+        dgvCashiers.Margin = Padding.Empty
+        gridCardHost.Controls.Add(dgvCashiers)
+        gridHost.Controls.Add(gridCard)
         pnlEmptyState.Dock = DockStyle.Fill
+        gridHost.Controls.Add(pnlEmptyState)
 
-        If pnlBottomBar.Parent IsNot Nothing Then
-            pnlBottomBar.Parent.Controls.Remove(pnlBottomBar)
-        End If
+        Dim listLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty
+        }
+        listLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        listLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        listLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        listLayout.Controls.Add(UiTheme.CreateSectionHeader("Cashier roster"), 0, 0)
+        listLayout.Controls.Add(toolbar, 0, 1)
+        listLayout.Controls.Add(gridHost, 0, 2)
 
-        Me.Controls.Clear()
-        Me.Controls.Add(pnlRight)
-        Me.Controls.Add(pnlLeft)
-        Me.Controls.Add(pnlBottomBar)
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        pnlBottomBar.Dock = DockStyle.Bottom
-        pnlLeft.Dock = DockStyle.Left
-        pnlRight.Dock = DockStyle.Fill
-        pnlBottomBar.BringToFront()
+        Dim sidebar As Panel = UiTheme.BuildWorkspaceSidebarShell(WorkspaceNavigation.Target.Cashiers, Me, btnBack)
+
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Manage Cashiers", AppSession.GetAuditIdentity())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+
+        Dim cashiersSplit As SplitContainer = UiTheme.CreateVerticalSplit()
+
+        Dim editorCard As Panel = UiTheme.CreateCard()
+        editorCard.Dock = DockStyle.Fill
+        Dim editorCardHost As Panel = editorCard
+        Try
+            editorCardHost = UiTheme.GetCardContentHost(editorCard)
+        Catch
+        End Try
+        editorCardHost.Controls.Add(pnlLeftBody)
+        cashiersSplit.Panel1.Controls.Add(editorCard)
+
+        Dim listCard As Panel = UiTheme.CreateCard()
+        listCard.Dock = DockStyle.Fill
+        Dim listCardHost As Panel = listCard
+        Try
+            listCardHost = UiTheme.GetCardContentHost(listCard)
+        Catch
+        End Try
+        listCardHost.Controls.Add(listLayout)
+        cashiersSplit.Panel2.Controls.Add(listCard)
+
+        contentArea.Controls.Add(cashiersSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
+
+        AddHandler cashiersSplit.SplitterMoved, Sub(s, ev) ConfigureCashiersSplit(cashiersSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigureCashiersSplit(cashiersSplit)
 
         Me.AcceptButton = btnRegister
 
@@ -449,10 +426,30 @@ Public Class CashierAccountsForm
 
         SetNewAccountMode()
         UpdateSelectionUi()
+
+        UiTheme.AssignTabOrder(
+            txtUsername,
+            txtDisplayName,
+            txtPassword,
+            txtConfirmPassword,
+            btnRegister,
+            btnUpdateDisplay,
+            btnResetPassword,
+            btnDeactivate,
+            btnReactivate,
+            cmbFilter,
+            btnRefresh,
+            dgvCashiers,
+            btnBack)
+
         Me.ResumeLayout(True)
-        pnlBottomBar.PerformLayout()
+        AddHandler Me.Shown, Sub(s, ev) ConfigureCashiersSplit(cashiersSplit)
         SyncLeftPanelLayout()
         AddHandler pnlLeftBody.Resize, AddressOf SyncLeftPanelLayout
+    End Sub
+
+    Private Sub ConfigureCashiersSplit(cashiersSplit As SplitContainer)
+        UiTheme.ConfigureSplitDistance(cashiersSplit, 0.36R, 260, 300)
     End Sub
 
     Private Sub SyncLeftPanelLayout()
@@ -489,7 +486,7 @@ Public Class CashierAccountsForm
             .DataPropertyName = "username",
             .Width = 160
         }
-        colUser.DefaultCellStyle.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
+        colUser.DefaultCellStyle.Font = UiTheme.FontBodyBold
 
         Dim colDisplay As New DataGridViewTextBoxColumn() With {
             .Name = "colDisplayName",
@@ -497,7 +494,7 @@ Public Class CashierAccountsForm
             .DataPropertyName = "display_name",
             .Width = 160
         }
-        colDisplay.DefaultCellStyle.ForeColor = ColorTranslator.FromHtml("#5A6A7A")
+        colDisplay.DefaultCellStyle.ForeColor = UiTheme.ColTextSecondary
 
         Dim colStatus As New DataGridViewTextBoxColumn() With {
             .Name = "colStatus",
@@ -535,41 +532,41 @@ Public Class CashierAccountsForm
         colReg.DisplayIndex = 5
 
         With dgvCashiers
-            .BackgroundColor = Color.White
+            .BackgroundColor = UiTheme.ColSurface
             .BorderStyle = BorderStyle.None
             .CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
-            .GridColor = BorderLight
+            .GridColor = UiTheme.ColBorder
             .RowHeadersVisible = False
             .ColumnHeadersVisible = True
-            .ColumnHeadersHeight = 40
+            .ColumnHeadersHeight = UiTheme.GridHeaderHeight
             .ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
             .AllowUserToAddRows = False
             .AllowUserToResizeRows = False
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect
             .MultiSelect = False
             .ReadOnly = True
-            .Font = New Font("Segoe UI", 10.0F)
-            .RowTemplate.Height = 52
+            .Font = UiTheme.FontBody
+            .RowTemplate.Height = UiTheme.GridRowHeight + 12
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
             .ScrollBars = ScrollBars.Both
             .EnableHeadersVisualStyles = False
         End With
 
-        UiTheme.ApplyDataGridViewChrome(dgvCashiers)
+        UiTheme.ApplyGridStyle(dgvCashiers)
         GridDisplayHelper.ApplyStandardBoundGridDisplay(dgvCashiers)
 
-        dgvCashiers.ColumnHeadersDefaultCellStyle.BackColor = SurfaceGray
-        dgvCashiers.ColumnHeadersDefaultCellStyle.ForeColor = ColorTranslator.FromHtml("#5A6A7A")
-        dgvCashiers.ColumnHeadersDefaultCellStyle.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
-        dgvCashiers.ColumnHeadersDefaultCellStyle.Padding = New Padding(12, 0, 0, 0)
+        dgvCashiers.ColumnHeadersDefaultCellStyle.BackColor = UiTheme.ColBackground
+        dgvCashiers.ColumnHeadersDefaultCellStyle.ForeColor = UiTheme.ColTextSecondary
+        dgvCashiers.ColumnHeadersDefaultCellStyle.Font = UiTheme.FontCaption
+        dgvCashiers.ColumnHeadersDefaultCellStyle.Padding = New Padding(UiTheme.PadControl, 0, 0, 0)
 
-        dgvCashiers.DefaultCellStyle.BackColor = Color.White
-        dgvCashiers.DefaultCellStyle.ForeColor = ColorTranslator.FromHtml("#1A2332")
-        dgvCashiers.DefaultCellStyle.SelectionBackColor = BrandBlueLight
-        dgvCashiers.DefaultCellStyle.SelectionForeColor = ColorTranslator.FromHtml("#1A2332")
-        dgvCashiers.DefaultCellStyle.Padding = New Padding(12, 0, 12, 0)
+        dgvCashiers.DefaultCellStyle.BackColor = UiTheme.ColSurface
+        dgvCashiers.DefaultCellStyle.ForeColor = UiTheme.ColTextPrimary
+        dgvCashiers.DefaultCellStyle.SelectionBackColor = UiTheme.InfoBackground
+        dgvCashiers.DefaultCellStyle.SelectionForeColor = UiTheme.ColTextPrimary
+        dgvCashiers.DefaultCellStyle.Padding = New Padding(UiTheme.PadControl, 0, UiTheme.PadControl, 0)
 
-        dgvCashiers.AlternatingRowsDefaultCellStyle.BackColor = ColorTranslator.FromHtml("#FAFBFD")
+        dgvCashiers.AlternatingRowsDefaultCellStyle.BackColor = UiTheme.SurfaceVariant
 
         AddHandler dgvCashiers.CellPainting, AddressOf dgvCashiers_StatusCellPainting
     End Sub
@@ -580,7 +577,7 @@ Public Class CashierAccountsForm
 
     Private Function CreateStyledTextBox(maxLength As Integer, placeholder As String) As TextBox
         Dim tb As New TextBox() With {
-            .Font = New Font("Segoe UI", 10.5F),
+            .Font = UiTheme.FontBody,
             .BorderStyle = BorderStyle.None,
             .Dock = DockStyle.Fill,
             .Margin = Padding.Empty,
@@ -592,7 +589,7 @@ Public Class CashierAccountsForm
         If Not String.IsNullOrEmpty(placeholder) Then
             tb.PlaceholderText = placeholder
         End If
-        UiTheme.ApplyFilledTextInputVisual(tb)
+        UiTheme.ApplyInputStyle(tb)
         Return tb
     End Function
 
@@ -605,9 +602,9 @@ Public Class CashierAccountsForm
             .Dock = DockStyle.Fill,
             .ColumnCount = If(toggleBtn Is Nothing, 1, 2),
             .RowCount = 1,
-            .BackColor = UiTheme.CardSurface,
+            .BackColor = UiTheme.ColSurface,
             .Margin = Padding.Empty,
-            .Padding = New Padding(10, 6, If(toggleBtn Is Nothing, 10, 4), 6)
+            .Padding = New Padding(UiTheme.PadControl, UiTheme.PadTight, If(toggleBtn Is Nothing, UiTheme.PadControl, UiTheme.PadTight), UiTheme.PadTight)
         }
         inner.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         inner.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
@@ -627,26 +624,14 @@ Public Class CashierAccountsForm
 
         Dim outer As New Panel() With {
             .Dock = DockStyle.Top,
-            .Width = FieldWidth,
             .Height = FieldShellHeight,
-            .MinimumSize = New Size(FieldWidth, FieldShellHeight),
-            .MaximumSize = New Size(FieldWidth, FieldShellHeight),
-            .BackColor = BorderLight,
+            .MinimumSize = New Size(0, FieldShellHeight),
+            .BackColor = UiTheme.ColBorder,
             .Padding = New Padding(1),
-            .Margin = Padding.Empty
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
         outer.Controls.Add(inner)
         Return outer
-    End Function
-
-    Private Shared Function CreateTitleLabel(text As String) As Label
-        Return New Label() With {
-            .Text = text,
-            .AutoSize = True,
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Bold),
-            .ForeColor = UiTheme.TextPrimary,
-            .Margin = New Padding(0, 0, 0, 4)
-        }
     End Function
 
     Private Shared Function CreateSubtitleLabel(text As String) As Label
@@ -654,8 +639,9 @@ Public Class CashierAccountsForm
             .Text = text,
             .AutoSize = True,
             .MaximumSize = New Size(FieldWidth, 0),
-            .Font = New Font("Segoe UI", 9.0F),
-            .ForeColor = UiTheme.TextSecondary
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadSection)
         }
     End Function
 
@@ -663,9 +649,9 @@ Public Class CashierAccountsForm
         Return New Label() With {
             .Text = text,
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Bold),
-            .ForeColor = BrandBlue,
-            .Margin = New Padding(0, 0, 0, 12)
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColPrimary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
     End Function
 
@@ -673,9 +659,9 @@ Public Class CashierAccountsForm
         Return New Label() With {
             .Text = text,
             .AutoSize = True,
-            .Font = New Font("Segoe UI", 9.0F),
-            .ForeColor = UiTheme.TextSecondary,
-            .Margin = New Padding(0, 0, 0, 4)
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
     End Function
 
@@ -684,14 +670,12 @@ Public Class CashierAccountsForm
             .AutoSize = True,
             .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .ColumnCount = 1,
-            .Margin = New Padding(0, 0, 0, 12),
-            .Width = FieldWidth,
-            .MaximumSize = New Size(FieldWidth, 0),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
             .Dock = DockStyle.Top
         }
         panel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         panel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        panel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, FieldWidth))
+        panel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         panel.Controls.Add(CreateFieldCaption(caption), 0, 0)
         panel.Controls.Add(CreateTextFieldShell(textBox), 0, 1)
         Return panel
@@ -702,45 +686,13 @@ Public Class CashierAccountsForm
     End Function
 
     Private Shared Function CreateDivider() As Panel
-        Return New Panel() With {
-            .Height = 1,
-            .Dock = DockStyle.Top,
-            .BackColor = BorderLight,
-            .Margin = New Padding(0, 16, 0, 16)
-        }
-    End Function
-
-    Private Shared Function CreateDividerWithLabel(text As String, margin As Padding) As Panel
-        Dim host As New Panel() With {
-            .Height = 28,
-            .Width = FieldWidth,
-            .Margin = margin
-        }
-        Dim line As New Panel() With {
-            .Height = 1,
-            .BackColor = BorderLight,
-            .Width = FieldWidth,
-            .Location = New Point(0, 13)
-        }
-        Dim lbl As New Label() With {
-            .Text = text,
-            .AutoSize = False,
-            .Width = FieldWidth,
-            .Height = 28,
-            .BackColor = Color.White,
-            .ForeColor = ColorTranslator.FromHtml("#5A6A7A"),
-            .Font = New Font("Segoe UI", 8.5F, FontStyle.Regular),
-            .TextAlign = ContentAlignment.MiddleCenter
-        }
-        host.Controls.Add(line)
-        host.Controls.Add(lbl)
-        Return host
+        Return UiTheme.CreateDivider()
     End Function
 
     Private Sub BuildEmptyStatePanel()
         pnlEmptyState = New Panel() With {
             .Dock = DockStyle.Fill,
-            .BackColor = SurfaceGray,
+            .BackColor = UiTheme.ColBackground,
             .Visible = True
         }
 
@@ -752,24 +704,10 @@ Public Class CashierAccountsForm
         }
         AddHandler picEmptyIcon.Paint, AddressOf picEmptyIcon_Paint
 
-        lblEmptyTitle = New Label() With {
-            .Text = "No cashier accounts yet",
-            .Width = 340,
-            .Height = 30,
-            .AutoSize = False,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 14.0F, FontStyle.Regular),
-            .ForeColor = ColorTranslator.FromHtml("#1A2332")
-        }
-        lblEmptySub = New Label() With {
-            .Text = "Use the form on the left to register the first cashier.",
-            .Width = 420,
-            .Height = 40,
-            .AutoSize = False,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 10.0F, FontStyle.Italic),
-            .ForeColor = ColorTranslator.FromHtml("#5A6A7A")
-        }
+        lblEmptyTitle = UiTheme.CreateEmptyStateLabel("No cashier accounts yet")
+        lblEmptyTitle.Font = UiTheme.FontHeading
+        lblEmptySub = UiTheme.CreateEmptyStateLabel("Use the form on the left to register the first cashier.")
+        lblEmptySub.Margin = New Padding(UiTheme.PadSection, UiTheme.PadControl, UiTheme.PadSection, 0)
 
         pnlEmptyState.Controls.AddRange(New Control() {picEmptyIcon, lblEmptyTitle, lblEmptySub})
         AddHandler pnlEmptyState.Resize, AddressOf EmptyState_Resize
@@ -779,7 +717,7 @@ Public Class CashierAccountsForm
     Private Sub picEmptyIcon_Paint(sender As Object, e As PaintEventArgs)
         Dim g As Graphics = e.Graphics
         g.SmoothingMode = SmoothingMode.AntiAlias
-        Dim c As Color = ColorTranslator.FromHtml("#A8BED4")
+        Dim c As Color = UiTheme.ColTextSecondary
 
         Using br As New SolidBrush(c)
             g.FillEllipse(br, 2, 0, 18, 18)
@@ -803,22 +741,6 @@ Public Class CashierAccountsForm
         lblEmptySub.Location = New Point(cx - 210, startY + 106)
     End Sub
 
-    Private Sub CenterToolbarControls(lblShow As Label)
-        If pnlToolbar Is Nothing Then
-            Return
-        End If
-
-        lblShow.Location = New Point(0, (pnlToolbar.Height - lblShow.Height) \ 2)
-        cmbFilter.Location = New Point(lblShow.Right + 10, (pnlToolbar.Height - cmbFilter.Height) \ 2)
-        btnRefresh.Location = New Point(cmbFilter.Right + 10, (pnlToolbar.Height - btnRefresh.Height) \ 2)
-
-        AddHandler pnlToolbar.Resize, Sub()
-                                          lblShow.Location = New Point(0, (pnlToolbar.Height - lblShow.Height) \ 2)
-                                          cmbFilter.Location = New Point(lblShow.Right + 10, (pnlToolbar.Height - cmbFilter.Height) \ 2)
-                                          btnRefresh.Location = New Point(cmbFilter.Right + 10, (pnlToolbar.Height - btnRefresh.Height) \ 2)
-                                      End Sub
-    End Sub
-
     Private Sub WireTooltips()
         toolTips.SetToolTip(btnShowPass, "Show / hide password")
         toolTips.SetToolTip(btnRefresh, "Reload cashier list")
@@ -830,7 +752,7 @@ Public Class CashierAccountsForm
     Private Sub SelectedChip_Paint(sender As Object, e As PaintEventArgs)
         Dim panel As Panel = DirectCast(sender, Panel)
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
-        Using pen As New Pen(BorderLight)
+        Using pen As New Pen(UiTheme.ColBorder)
             Using path As GraphicsPath = CreateRoundedRect(New Rectangle(0, 0, panel.Width - 1, panel.Height - 1), 6)
                 e.Graphics.DrawPath(pen, path)
             End Using
@@ -840,15 +762,15 @@ Public Class CashierAccountsForm
     Private Sub Avatar_Paint(sender As Object, e As PaintEventArgs)
         Dim initials As String = GetInitials(selectedDisplayName, selectedUsername)
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias
-        Using brush As New SolidBrush(BrandBlue)
+        Using brush As New SolidBrush(UiTheme.ColPrimary)
             e.Graphics.FillEllipse(brush, 0, 0, 27, 27)
         End Using
         TextRenderer.DrawText(
             e.Graphics,
             initials,
-            New Font("Segoe UI", 9.0F, FontStyle.Bold),
+            UiTheme.FontBodyBold,
             New Rectangle(0, 0, 28, 28),
-            Color.White,
+            UiTheme.ColTextOnDark,
             TextFormatFlags.HorizontalCenter Or TextFormatFlags.VerticalCenter)
     End Sub
 
@@ -1244,12 +1166,7 @@ Public Class CashierAccountsForm
         End If
 
         Dim username As String = If(String.IsNullOrEmpty(selectedUsername), "this cashier", selectedUsername)
-        Dim result As DialogResult = MessageBox.Show(
-            "Deactivate '" & username & "'? They will no longer be able to sign in.",
-            "Confirm deactivation",
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Warning)
-        If result <> DialogResult.OK Then
+        If Not UiTheme.ConfirmAction("Deactivate '" & username & "'? They will no longer be able to sign in.") Then
             Return
         End If
 
@@ -1268,6 +1185,10 @@ Public Class CashierAccountsForm
         Dim id As Integer? = GetSelectedCashierId()
         If Not id.HasValue Then
             ShowInputError("Select an inactive cashier to reactivate.")
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction("Reactivate this cashier account? They will be able to sign in again.") Then
             Return
         End If
 
@@ -1356,28 +1277,12 @@ Public Class CashierAccountsForm
     End Sub
 
     Private Sub ShowStatus(message As String, isError As Boolean)
-        statusClearTimer.Stop()
-        If String.IsNullOrWhiteSpace(message) Then
-            lblStatus.Text = String.Empty
-            lblStatus.ForeColor = UiTheme.TextSecondary
-            Return
-        End If
-
-        lblStatus.Text = message
-        lblStatus.ForeColor = If(isError, UiTheme.Danger, SuccessGreen)
-        If lblStatus.Parent IsNot Nothing Then
-            lblStatus.Location = New Point(
-                lblStatus.Parent.Width - lblStatus.Width - 24,
-                (lblStatus.Parent.Height - lblStatus.Height) \ 2)
-        End If
-        statusClearTimer.Interval = StatusClearMs
-        statusClearTimer.Start()
+        FormStatusHelper.ShowTimedStatus(statusLabel, statusClearTimer, message, isError)
     End Sub
 
     Private Sub statusClearTimer_Tick(sender As Object, e As EventArgs) Handles statusClearTimer.Tick
         statusClearTimer.Stop()
-        lblStatus.Text = String.Empty
-        lblStatus.ForeColor = UiTheme.TextSecondary
+        FormStatusHelper.ResetTimedStatus(statusLabel)
     End Sub
 
     Private Shared Function PromptDisplayName(current As String) As String

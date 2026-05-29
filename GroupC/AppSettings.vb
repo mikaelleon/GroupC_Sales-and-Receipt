@@ -104,6 +104,14 @@ Public NotInheritable Class AppSettings
             data.StockThreshold = 5
         End If
 
+        If data.DefaultTaxPercent < 0D Then
+            data.DefaultTaxPercent = 0D
+        ElseIf data.DefaultTaxPercent > 100D Then
+            data.DefaultTaxPercent = 100D
+        End If
+
+        AdminAuth.EnsureDefaultPasswordHash(data)
+
         Return data
     End Function
 
@@ -158,5 +166,20 @@ Public Class AppSettingsData
     ''' Gets or sets the stock quantity threshold for low-stock alerts (products at or below this level).
     ''' </summary>
     Public Property StockThreshold As Integer
+
+    ''' <summary>
+    ''' Gets or sets the default VAT/tax percentage applied on the Point of Sale screen.
+    ''' </summary>
+    Public Property DefaultTaxPercent As Decimal
+
+    ''' <summary>
+    ''' Gets or sets the salt used for the administrator password hash.
+    ''' </summary>
+    Public Property AdminPasswordSalt As String
+
+    ''' <summary>
+    ''' Gets or sets the hashed administrator password.
+    ''' </summary>
+    Public Property AdminPasswordHash As String
 
 End Class

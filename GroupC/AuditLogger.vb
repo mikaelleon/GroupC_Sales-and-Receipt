@@ -1,4 +1,5 @@
 Imports System.Data
+Imports System.Globalization
 Imports Microsoft.Data.SqlClient
 
 ''' <summary>
@@ -130,6 +131,53 @@ Public NotInheritable Class AuditLogger
                 cmd.Parameters.AddWithValue("@performed_by", If(performedBy, String.Empty))
                 cmd.ExecuteNonQuery()
             End Using
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Logs a manual stock quantity change when the stock_adjustments table exists.
+    ''' </summary>
+    Public Shared Sub LogStockAdjustment(
+        connection As SqlConnection,
+        productId As Integer,
+        productName As String,
+        oldQuantity As Integer,
+        newQuantity As Integer,
+        adjustedBy As String,
+        Optional note As String = Nothing)
+        Try
+            If connection Is Nothing OrElse connection.State <> ConnectionState.Open Then
+                Return
+            End If
+
+            If ObjectExists(connection, "stock_adjustments") = False Then
+                Return
+            End If
+
+            Dim sql As String =
+                "INSERT INTO stock_adjustments (product_id, product_name, old_quantity, new_quantity, adjusted_by, note) " &
+                "VALUES (@product_id, @product_name, @old_quantity, @new_quantity, @adjusted_by, @note);"
+
+            Using cmd As New SqlCommand(sql, connection)
+                cmd.Parameters.AddWithValue("@product_id", productId)
+                cmd.Parameters.AddWithValue("@product_name", productName)
+                cmd.Parameters.AddWithValue("@old_quantity", oldQuantity)
+                cmd.Parameters.AddWithValue("@new_quantity", newQuantity)
+                cmd.Parameters.AddWithValue("@adjusted_by", If(adjustedBy, String.Empty))
+                cmd.Parameters.AddWithValue("@note", If(note, String.Empty))
+                cmd.ExecuteNonQuery()
+            End Using
+
+            Dim detail As String = String.Format(
+                CultureInfo.InvariantCulture,
+                "Product #{0} {1}: {2} -> {3}",
+                productId,
+                productName,
+                oldQuantity,
+                newQuantity)
+
+            LogAudit(connection, "STOCK_ADJUSTED", detail, adjustedBy)
         Catch
         End Try
     End Sub

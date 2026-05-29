@@ -38,6 +38,32 @@ Public Module AppSession
     End Sub
 
     ''' <summary>
+    ''' Resets all session fields (call on sign-out and before a new sign-in).
+    ''' </summary>
+    Public Sub ClearSession()
+        CurrentRole = RoleCashier
+        ClearCashierIdentity()
+    End Sub
+
+    ''' <summary>
+    ''' Starts an administrator session after successful sign-in.
+    ''' </summary>
+    Public Sub BeginAdminSession()
+        ClearCashierIdentity()
+        CurrentRole = RoleAdmin
+    End Sub
+
+    ''' <summary>
+    ''' Starts a cashier session after successful sign-in.
+    ''' </summary>
+    Public Sub BeginCashierSession(cashierId As Integer, username As String, displayName As String)
+        CurrentRole = RoleCashier
+        CurrentCashierId = cashierId
+        CurrentUsername = username
+        CurrentCashierDisplayName = displayName
+    End Sub
+
+    ''' <summary>
     ''' Name printed on sales receipts for the current operator.
     ''' </summary>
     Public Function GetReceiptOperatorName() As String
@@ -77,6 +103,20 @@ Public Module AppSession
     ''' <returns>True if <see cref="CurrentRole"/> is admin.</returns>
     Public Function IsAdmin() As Boolean
         Return String.Equals(CurrentRole, RoleAdmin, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ''' <summary>
+    ''' Returns true when a user has completed sign-in (admin or cashier).
+    ''' </summary>
+    Public Function HasActiveSession() As Boolean
+        Return IsAdmin() OrElse CurrentCashierId.HasValue
+    End Function
+
+    ''' <summary>
+    ''' Returns true when the current session is a signed-in cashier.
+    ''' </summary>
+    Public Function IsCashierSession() As Boolean
+        Return Not IsAdmin() AndAlso CurrentCashierId.HasValue
     End Function
 
     ''' <summary>

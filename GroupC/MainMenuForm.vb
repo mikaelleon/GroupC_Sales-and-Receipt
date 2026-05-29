@@ -2,6 +2,7 @@
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
 Imports System.Globalization
+Imports System.IO
 Imports System.Linq
 Imports System.Windows.Forms
 Imports Microsoft.Data.SqlClient
@@ -27,6 +28,7 @@ Public Class MainMenuForm
     Private Const ChartPresetThisMonth As String = "This month"
     Private Const ChartPresetCustom As String = "Custom range"
 
+    Private WithEvents btnDashboard As Button
     Private WithEvents btnProducts As Button
     Private WithEvents btnCategories As Button
     Private WithEvents btnCashierAccounts As Button
@@ -37,7 +39,22 @@ Public Class MainMenuForm
     Private WithEvents btnBackup As Button
     Private WithEvents btnLogout As Button
 
-    Private lblDbHealth As Label
+    Private lblSidebarStoreName As Label
+    Private lblPageTitle As Label
+    Private pnlDashboardContent As Panel
+    Private pendingCashierPosLaunch As Boolean
+    Private lblStatusDot As Label
+    Private lblStatusText As Label
+    Private pnlSystemStatus As FlowLayoutPanel
+    Private Enum DashboardStockHealth
+        Healthy = 0
+        Watch = 1
+        Low = 2
+    End Enum
+
+    Private pnlStockCard As Panel
+    Private lblStockCardTitle As Label
+    Private lblStockCardSubtitle As Label
     Private lblDashProducts As Label
     Private lblDashSalesToday As Label
     Private lblDashLastSale As Label
@@ -70,12 +87,13 @@ Public Class MainMenuForm
     Private statusLabel As ToolStripStatusLabel
 
     Private closeDueToLoginFail As Boolean
+    Private currentStockHealth As DashboardStockHealth = DashboardStockHealth.Healthy
 
     Private Sub MainMenuForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ' 1. FORM SETUP (Full Screen & Responsive)
         Me.SuspendLayout()
         Me.Text = AppBranding.WindowTitle("Dashboard")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 960, 600)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 900, 600)
 
         ' THE FIX: Hide the Main Menu completely before Login
         Me.Opacity = 0
@@ -135,6 +153,11 @@ Public Class MainMenuForm
             Me.Close()
             Return
         End If
+
+        If pendingCashierPosLaunch Then
+            pendingCashierPosLaunch = False
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        End If
     End Sub
 
     ' -----------------------------------------------------------
@@ -143,12 +166,46 @@ Public Class MainMenuForm
     Private Sub InitializeControls()
         dbHealthTooltip = New ToolTip()
 
-        ' Dashboard Labels
-        lblDbHealth = New Label() With {
+        lblSidebarStoreName = New Label() With {
+            .Text = AppSettings.Current.StoreName,
+            .Font = UiTheme.FontSubheading,
+            .ForeColor = UiTheme.ColTextOnDark,
             .AutoSize = True,
-            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Top,
+            .Padding = New Padding(UiTheme.PadCard),
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+
+        lblStatusDot = New Label() With {
+            .Text = "●",
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, UiTheme.PadTight, 0)
+        }
+        lblStatusText = New Label() With {
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
             .Text = "System Status: Loading..."
         }
+        pnlSystemStatus = New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .WrapContents = False,
+            .BackColor = Color.Transparent,
+            .Margin = New Padding(0)
+        }
+        pnlSystemStatus.Controls.Add(New Label() With {
+            .Text = "System Status:",
+            .AutoSize = True,
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .Margin = New Padding(0, 0, UiTheme.PadTight, 0)
+        })
+        pnlSystemStatus.Controls.Add(lblStatusDot)
+        pnlSystemStatus.Controls.Add(lblStatusText)
+
         lblDashProducts = CreateDashValueLabel("—")
         lblDashSalesToday = CreateDashValueLabel("—")
         lblDashLastSale = CreateDashValueLabel("—")
@@ -159,7 +216,7 @@ Public Class MainMenuForm
 
         ' Chart host — Paint handler keeps vectors sharp on resize (no stretched bitmap)
         pnlSalesChart = New Panel() With {
-            .BackColor = UiTheme.CardSurface,
+            .BackColor = UiTheme.ColSurface,
             .Dock = DockStyle.Fill,
             .MinimumSize = New Size(280, 220)
         }
@@ -169,45 +226,48 @@ Public Class MainMenuForm
         dtpChartFrom = New DateTimePicker() With {
             .Format = DateTimePickerFormat.Short,
             .Width = 118,
-            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs)
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
         dtpChartTo = New DateTimePicker() With {
             .Format = DateTimePickerFormat.Short,
             .Width = 118,
-            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs)
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
+        UiTheme.ApplyInputStyle(dtpChartFrom)
+        UiTheme.ApplyInputStyle(dtpChartTo)
         dtpChartFrom.Value = DateTime.Today.AddDays(-6)
         dtpChartTo.Value = DateTime.Today
 
         cmbChartPreset = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Width = 140,
-            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs),
-            .Font = UiTheme.FontBody
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
+        UiTheme.ApplyInputStyle(cmbChartPreset)
         cmbChartPreset.Items.AddRange(New Object() {ChartPresetLast7, ChartPresetLast14, ChartPresetLast30, ChartPresetThisMonth, ChartPresetCustom})
 
         cmbChartSort = New ComboBox() With {
             .DropDownStyle = ComboBoxStyle.DropDownList,
             .Width = 170,
-            .Margin = New Padding(0, UiTheme.SpaceXs, UiTheme.SpaceMd, UiTheme.SpaceXs),
-            .Font = UiTheme.FontBody
+            .Margin = New Padding(0, 0, UiTheme.PadControl, 0)
         }
+        UiTheme.ApplyInputStyle(cmbChartSort)
         cmbChartSort.Items.AddRange(New Object() {"Date (oldest first)", "Date (newest first)", "Highest day", "Lowest day"})
 
         btnApplyChart = New Button() With {
             .Text = "Apply",
             .AutoSize = True,
-            .MinimumSize = New Size(88, UiTheme.ButtonHeightSm),
-            .Margin = New Padding(UiTheme.SpaceSm, 0, 0, 0)
+            .MinimumSize = New Size(88, UiTheme.ButtonHeight),
+            .Margin = New Padding(UiTheme.PadControl, 0, 0, 0)
         }
         UiTheme.ApplyPrimaryButton(btnApplyChart)
 
         lblChartFilterError = New Label() With {
             .AutoSize = True,
-            .ForeColor = UiTheme.Danger,
+            .ForeColor = UiTheme.ColDanger,
+            .Font = UiTheme.FontCaption,
             .Visible = False,
-            .Margin = New Padding(0, 4, 0, 0)
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
         }
 
         suppressChartPresetEvents = True
@@ -216,6 +276,7 @@ Public Class MainMenuForm
         suppressChartPresetEvents = False
 
         ' Buttons
+        btnDashboard = CreateNavButton("&Dashboard")
         btnProducts = CreateNavButton("&Manage Products")
         btnCategories = CreateNavButton("Manage &Categories")
         btnCashierAccounts = CreateNavButton("Manage &Cashiers")
@@ -226,19 +287,19 @@ Public Class MainMenuForm
         btnBackup = CreateNavButton("&Backup / Restore")
         btnLogout = CreateNavButton("Log &out")
 
-        ' THE FIX: Hierarchical theming for a professional look
-        Try
-            UiTheme.ApplyPrimaryButton(btnSales)
-            UiTheme.ApplyPrimaryButton(btnProducts)
-            UiTheme.ApplyPrimaryButton(btnCategories)
-            UiTheme.ApplyPrimaryButton(btnCashierAccounts)
-            UiTheme.ApplySecondaryAccentButton(btnReceipt)
-            UiTheme.ApplySecondaryAccentButton(btnReports)
-            UiTheme.ApplySecondaryButton(btnSettings)
-            UiTheme.ApplySecondaryButton(btnBackup)
-            UiTheme.ApplyDangerButton(btnLogout)
-        Catch
-        End Try
+        StyleSidebarNavButton(btnDashboard)
+        StyleSidebarNavButton(btnProducts)
+        StyleSidebarNavButton(btnCategories)
+        StyleSidebarNavButton(btnCashierAccounts)
+        StyleSidebarNavButton(btnSales)
+        StyleSidebarNavButton(btnReceipt)
+        StyleSidebarNavButton(btnReports)
+        StyleSidebarUtilityButton(btnSettings)
+        StyleSidebarUtilityButton(btnBackup)
+        StyleSidebarLogoutButton(btnLogout)
+
+        btnDashboard.Enabled = False
+        SetActiveNavButton(btnDashboard)
 
         ApplyRoleBasedNavigation()
 
@@ -257,245 +318,434 @@ Public Class MainMenuForm
     Private Sub SetupResponsiveLayout()
         Me.Controls.Clear()
 
-        ' 1. Root Layout: 2 Columns
-        ' We use margin 0 to ensure it touches the absolute edges of the screen
         Dim rootTable As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 2,
             .RowCount = 1,
-            .BackColor = UiTheme.FormBackground,
-            .Margin = New Padding(0)
+            .BackColor = UiTheme.ColBackground,
+            .Margin = Padding.Empty,
+            .Padding = Padding.Empty
         }
-        ' Make the sidebar a bit wider (260px) for a premium feel
-        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 260.0F))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
         rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        ' 2. Left Sidebar (Navigation)
-        ' Give it a distinct white background to stand out from the gray dashboard
-        Dim navContainer As New Panel() With {
-            .Dock = DockStyle.Fill,
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(UiTheme.SpaceSm, UiTheme.SpaceLg, UiTheme.SpaceSm, UiTheme.SpaceLg)
-        }
-
-        Dim navLayout As New TableLayoutPanel() With {
+        Dim sidebar As Panel = UiTheme.BuildSidebar()
+        Dim sidebarStack As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .BackColor = UiTheme.CardSurface,
-            .Margin = Padding.Empty
+            .BackColor = UiTheme.ColPrimary,
+            .Padding = Padding.Empty
         }
-        navLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        navLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        navLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sidebarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        Dim flowNavMain As New FlowLayoutPanel() With {
-            .FlowDirection = FlowDirection.TopDown,
-            .WrapContents = False,
-            .AutoScroll = True,
+        Dim sidebarTop As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
             .Dock = DockStyle.Top,
-            .AutoSize = True,
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(0)
+            .BackColor = Color.Transparent
         }
-        flowNavMain.HorizontalScroll.Enabled = False
-        flowNavMain.HorizontalScroll.Visible = False
 
-        Dim flowNavBottom As New FlowLayoutPanel() With {
-            .FlowDirection = FlowDirection.TopDown,
-            .WrapContents = False,
-            .AutoScroll = False,
-            .Dock = DockStyle.Bottom,
+        Dim navMain As New Panel() With {
             .AutoSize = True,
-            .BackColor = UiTheme.CardSurface,
-            .Padding = New Padding(0, UiTheme.SpaceLg, 0, 0)
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Top,
+            .BackColor = Color.Transparent
         }
-        flowNavBottom.HorizontalScroll.Enabled = False
-        flowNavBottom.HorizontalScroll.Visible = False
-
-        Dim mainNavButtons = {btnProducts, btnCategories, btnCashierAccounts, btnSales, btnReceipt, btnReports}
-        For Each btn In mainNavButtons
-            If btn IsNot Nothing Then
-                btn.Width = 220
-                btn.Height = UiTheme.ButtonHeightLg
-                btn.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
-                flowNavMain.Controls.Add(btn)
+        For Each entry As WorkspaceNavigation.NavEntry In WorkspaceNavigation.EnumerateSidebarDockAddOrder()
+            Dim navBtn As Button = GetNavButtonForTarget(entry.Target)
+            If navBtn IsNot Nothing AndAlso navBtn.Visible Then
+                navBtn.Dock = DockStyle.Top
+                navMain.Controls.Add(navBtn)
             End If
         Next
+        If btnDashboard IsNot Nothing Then
+            btnDashboard.Dock = DockStyle.Top
+            navMain.Controls.Add(btnDashboard)
+        End If
 
+        lblSidebarStoreName.Dock = DockStyle.Top
+        sidebarTop.Controls.Add(navMain)
+        sidebarTop.Controls.Add(lblSidebarStoreName)
+
+        Dim navBottom As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .Dock = DockStyle.Bottom,
+            .BackColor = Color.Transparent,
+            .Padding = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadCard)
+        }
+        navBottom.Controls.Add(UiTheme.CreateSidebarSeparator())
         Dim bottomNavButtons = {btnSettings, btnBackup, btnLogout}
         For Each btn In bottomNavButtons
             If btn IsNot Nothing Then
-                btn.Width = 220
-                btn.Height = UiTheme.ButtonHeightMd
-                btn.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
-                flowNavBottom.Controls.Add(btn)
+                btn.Dock = DockStyle.Top
+                navBottom.Controls.Add(btn)
             End If
         Next
 
-        navLayout.Controls.Add(flowNavMain, 0, 0)
-        navLayout.Controls.Add(New Panel() With {.Dock = DockStyle.Fill}, 0, 1)
-        navLayout.Controls.Add(flowNavBottom, 0, 2)
-        navContainer.Controls.Add(navLayout)
+        sidebarStack.Controls.Add(sidebarTop, 0, 0)
+        sidebarStack.Controls.Add(UiTheme.CreateSidebarSpacer(), 0, 1)
+        sidebarStack.Controls.Add(navBottom, 0, 2)
+        sidebar.Controls.Add(sidebarStack)
 
-        ' 3. Right Dashboard Container
-        ' Generous padding creates modern "breathing room" around the edges
-        Dim dashLayout As New TableLayoutPanel() With {
+        Dim rightColumn As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColBackground
+        }
+
+        Dim topBar As New Panel() With {
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .MinimumSize = New Size(0, UiTheme.TopBarMinHeight),
+            .Dock = DockStyle.Top,
+            .BackColor = UiTheme.ColSurface,
+            .Padding = New Padding(UiTheme.PadPage, UiTheme.PadControl, UiTheme.PadPage, UiTheme.PadControl)
+        }
+        Dim topBarStack As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty,
+            .BackColor = Color.Transparent
+        }
+        topBarStack.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        topBarStack.RowStyles.Add(New RowStyle(SizeType.Absolute, 1))
+
+        Dim lblPageTitleLocal As New Label() With {
+            .Text = "Dashboard",
+            .Font = UiTheme.FontDisplay,
+            .ForeColor = UiTheme.ColTextPrimary,
+            .AutoSize = True,
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty
+        }
+        lblPageTitle = lblPageTitleLocal
+        pnlSystemStatus.Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        pnlSystemStatus.Dock = DockStyle.Fill
+
+        topBarStack.Controls.Add(lblPageTitleLocal, 0, 0)
+        topBarStack.Controls.Add(pnlSystemStatus, 0, 1)
+        topBarStack.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder}, 0, 2)
+        topBar.Controls.Add(topBarStack)
+
+        Dim contentArea As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .BackColor = UiTheme.ColBackground,
+            .Padding = New Padding(UiTheme.PadPage)
+        }
+
+        Dim contentLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
             .ColumnCount = 1,
             .RowCount = 3,
-            .Padding = New Padding(UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.Space2xl, UiTheme.SpaceLg)
+            .BackColor = UiTheme.ColBackground
         }
-        dashLayout.RowCount = 4
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Header
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Cards
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize)) ' Chart filters
-        dashLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F)) ' Chart
+        contentLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        contentLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        contentLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
-        ' --- Header Section ---
-        ' Professional title above the database health label
-        Dim headerLayout As New TableLayoutPanel() With {
-            .AutoSize = True,
-            .Dock = DockStyle.Fill,
-            .ColumnCount = 1,
-            .RowCount = 2,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXl)
-        }
-        Dim lblTitle As New Label() With {
-            .Text = AppBranding.ApplicationName,
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
-            .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
-        }
-        lblDbHealth.Margin = New Padding(0)
-        lblDbHealth.Font = UiTheme.FontBodySmall
-
-        headerLayout.Controls.Add(lblTitle, 0, 0)
-        headerLayout.Controls.Add(lblDbHealth, 0, 1)
-        dashLayout.Controls.Add(headerLayout, 0, 0)
-
-        ' --- Metric Cards Section (2×3 KPI grid) ---
         Dim cardsLayout As New TableLayoutPanel() With {
             .Dock = DockStyle.Fill,
-            .ColumnCount = 2,
-            .RowCount = 3,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceLg),
+            .ColumnCount = 5,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadSection),
             .AutoSize = True
         }
-        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
-        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        cardsLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
+        For i As Integer = 0 To 4
+            cardsLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 20.0F))
+        Next
         cardsLayout.Controls.Add(CreateDashCard("Active products", lblDashProducts), 0, 0)
         cardsLayout.Controls.Add(CreateDashCard("Today's sales", lblDashSalesToday), 1, 0)
-        cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 0, 1)
-        cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 1, 1)
-        cardsLayout.Controls.Add(CreateDashCard("Low stock alert", lblDashLowStock), 0, 2)
+        cardsLayout.Controls.Add(CreateDashCard("Period sales", lblDashSevenDay), 2, 0)
+        cardsLayout.Controls.Add(CreateDashCard("Last sale", lblDashLastSale), 3, 0)
+        cardsLayout.Controls.Add(CreateStockDashCard(), 4, 0)
 
-        dashLayout.Controls.Add(cardsLayout, 0, 1)
+        Dim salesCard As Panel = UiTheme.CreateCard(False)
+        salesCard.Dock = DockStyle.Fill
+        salesCard.Padding = New Padding(UiTheme.PadCard)
 
-        ' --- Chart filters ---
-        Dim filterCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceMd))
-        filterCard.Dock = DockStyle.Fill
-        filterCard.Margin = New Padding(0, 0, 0, UiTheme.SpaceMd)
-        Dim filterInner As Panel = UiTheme.GetCardContentHost(filterCard)
-        If filterInner IsNot Nothing Then
-            Dim filterStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .AutoSize = True}
-            filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-            filterStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        Dim salesHeader As Label = UiTheme.CreateHeadingLabel("Sales Overview", 3)
+        salesHeader.Dock = DockStyle.Top
+        salesHeader.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        salesHeader.Font = UiTheme.FontSubheading
+        salesHeader.ForeColor = UiTheme.ColTextSecondary
 
-            Dim filterBar As New FlowLayoutPanel() With {
-                .AutoSize = True,
-                .WrapContents = True,
-                .FlowDirection = FlowDirection.LeftToRight,
-                .Margin = New Padding(0)
-            }
-            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("From"))
-            filterBar.Controls.Add(dtpChartFrom)
-            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("To"))
-            filterBar.Controls.Add(dtpChartTo)
-            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Preset"))
-            filterBar.Controls.Add(cmbChartPreset)
-            filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Sort"))
-            filterBar.Controls.Add(cmbChartSort)
-            filterBar.Controls.Add(btnApplyChart)
+        Dim filterBar As New FlowLayoutPanel() With {
+            .AutoSize = True,
+            .WrapContents = True,
+            .FlowDirection = FlowDirection.LeftToRight,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl),
+            .Padding = Padding.Empty
+        }
+        filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("From"))
+        filterBar.Controls.Add(dtpChartFrom)
+        filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("To"))
+        filterBar.Controls.Add(dtpChartTo)
+        filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Preset"))
+        filterBar.Controls.Add(cmbChartPreset)
+        filterBar.Controls.Add(UiTheme.CreateSecondaryLabel("Sort"))
+        filterBar.Controls.Add(cmbChartSort)
+        filterBar.Controls.Add(btnApplyChart)
 
-            filterStack.Controls.Add(filterBar, 0, 0)
-            filterStack.Controls.Add(lblChartFilterError, 0, 1)
-            filterInner.Controls.Add(filterStack)
-        End If
+        Dim filterDivider As Panel = UiTheme.CreateDivider()
+        filterDivider.Dock = DockStyle.Top
+        filterDivider.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
 
-        dashLayout.Controls.Add(filterCard, 0, 2)
+        Dim filterErrorHost As New Panel() With {
+            .AutoSize = True,
+            .Dock = DockStyle.Top,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        }
+        filterErrorHost.Controls.Add(lblChartFilterError)
 
-        ' --- Chart Section (card + paint panel) ---
-        Dim chartCard As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceLg))
-        chartCard.Dock = DockStyle.Fill
-        chartCard.Margin = New Padding(0)
-        chartCard.MinimumSize = New Size(0, 280)
-        Dim chartInner As Panel = UiTheme.GetCardContentHost(chartCard)
-        If chartInner IsNot Nothing Then
-            pnlSalesChart.Dock = DockStyle.Fill
-            chartInner.Controls.Add(pnlSalesChart)
-        End If
+        salesCard.Controls.Add(pnlSalesChart)
+        salesCard.Controls.Add(filterErrorHost)
+        salesCard.Controls.Add(filterDivider)
+        salesCard.Controls.Add(filterBar)
+        salesCard.Controls.Add(salesHeader)
 
-        dashLayout.Controls.Add(chartCard, 0, 3)
+        Dim futureSpacer As New Panel() With {
+            .Dock = DockStyle.Fill,
+            .Height = 1,
+            .MinimumSize = New Size(0, 0),
+            .BackColor = Color.Transparent
+        }
 
-        ' 4. Final Assembly
-        rootTable.Controls.Add(navContainer, 0, 0)
-        rootTable.Controls.Add(dashLayout, 1, 0)
+        contentLayout.Controls.Add(cardsLayout, 0, 0)
+        contentLayout.Controls.Add(salesCard, 0, 1)
+        contentLayout.Controls.Add(futureSpacer, 0, 2)
+        contentArea.Controls.Add(contentLayout)
+        pnlDashboardContent = contentArea
+
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
 
         Me.Controls.Add(rootTable)
         Me.Controls.Add(statusStrip)
+
+        dbHealthTooltip.SetToolTip(pnlSystemStatus, "Checking database connection…")
+    End Sub
+
+    Private Sub StyleSidebarNavButton(btn As Button)
+        If btn Is Nothing Then
+            Return
+        End If
+
+        Dim styled As Button = UiTheme.CreateSidebarNavButton(btn.Text)
+        btn.FlatStyle = styled.FlatStyle
+        btn.BackColor = styled.BackColor
+        btn.ForeColor = styled.ForeColor
+        btn.Font = styled.Font
+        btn.TextAlign = styled.TextAlign
+        btn.Padding = styled.Padding
+        btn.Cursor = styled.Cursor
+        btn.FlatAppearance.BorderSize = 0
+        btn.FlatAppearance.MouseOverBackColor = UiTheme.ColPrimaryLight
+        btn.UseCompatibleTextRendering = False
+        btn.Width = UiTheme.SidebarWidth
+        btn.Height = 44
+    End Sub
+
+    Private Sub StyleSidebarUtilityButton(btn As Button)
+        StyleSidebarNavButton(btn)
+        btn.ForeColor = UiTheme.ColTextOnDark
+    End Sub
+
+    Private Sub StyleSidebarLogoutButton(btn As Button)
+        StyleSidebarNavButton(btn)
+        btn.ForeColor = UiTheme.ColDangerLight
+        AddHandler btn.MouseEnter, Sub(s, e) btn.BackColor = Color.FromArgb(80, UiTheme.ColDanger)
+        AddHandler btn.MouseLeave, Sub(s, e)
+                                       If Not Object.Equals(btn.Tag, "active") Then
+                                           btn.BackColor = Color.Transparent
+                                       End If
+                                   End Sub
     End Sub
 
     Private Function CreateNavButton(text As String) As Button
-        ' Removed automatic theme application here so we can customize them in InitializeControls
-        Dim button As New Button() With {
-            .Text = text,
-            .Width = 220,
-            .Height = UiTheme.ButtonHeightLg,
-            .Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs),
-            .Cursor = Cursors.Hand,
-            .Font = UiTheme.FontButton
-        }
-        Return button
+        Return UiTheme.CreateSidebarNavButton(text)
+    End Function
+
+    Private Function GetNavButtonForTarget(target As WorkspaceNavigation.Target) As Button
+        Select Case target
+            Case WorkspaceNavigation.Target.Products
+                Return btnProducts
+            Case WorkspaceNavigation.Target.Categories
+                Return btnCategories
+            Case WorkspaceNavigation.Target.Cashiers
+                Return btnCashierAccounts
+            Case WorkspaceNavigation.Target.Sales
+                Return btnSales
+            Case WorkspaceNavigation.Target.Receipt
+                Return btnReceipt
+            Case WorkspaceNavigation.Target.Reports
+                Return btnReports
+            Case Else
+                Return Nothing
+        End Select
     End Function
 
     Private Function CreateDashCard(title As String, valueLabel As Label) As Panel
-        Dim outer As Panel = UiTheme.CreateCardPanel(New Padding(UiTheme.SpaceLg))
-        outer.Margin = New Padding(UiTheme.SpaceSm, UiTheme.SpaceXs, UiTheme.SpaceSm, UiTheme.SpaceXs)
-        outer.MinimumSize = New Size(160, 100)
-        outer.Dock = DockStyle.Fill
+        Dim card As Panel = UiTheme.CreateCard(False)
+        card.Margin = New Padding(UiTheme.PadTight, 0, UiTheme.PadTight, UiTheme.PadControl)
+        card.Dock = DockStyle.Fill
+        card.MinimumSize = New Size(140, 96)
 
-        Dim inner As Panel = UiTheme.GetCardContentHost(outer)
-        If inner Is Nothing Then
-            Return outer
-        End If
+        Dim inner As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 2,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
 
         Dim lblTitle As New Label() With {
             .Text = title,
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.TextSecondary,
-            .Dock = DockStyle.Top,
-            .Height = 24
+            .Font = UiTheme.FontCaption,
+            .ForeColor = UiTheme.ColTextSecondary,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
         }
 
-        valueLabel.Dock = DockStyle.Fill
+        valueLabel.Dock = DockStyle.None
+        valueLabel.AutoSize = True
         valueLabel.TextAlign = ContentAlignment.MiddleLeft
-        valueLabel.Font = UiTheme.FontHeading2
-        valueLabel.ForeColor = UiTheme.PrimaryAccent
+        valueLabel.Font = UiTheme.FontHeading
+        valueLabel.ForeColor = UiTheme.ColTextPrimary
+        valueLabel.Margin = New Padding(0)
 
-        inner.Controls.Add(lblTitle)
-        inner.Controls.Add(valueLabel)
-        Return outer
+        inner.Controls.Add(lblTitle, 0, 0)
+        inner.Controls.Add(valueLabel, 0, 1)
+        card.Controls.Add(inner)
+        Return card
     End Function
 
     Private Function CreateDashValueLabel(initial As String) As Label
         Return New Label() With {.Text = initial, .AutoSize = False}
     End Function
+
+    Private Function CreateStockDashCard() As Panel
+        pnlStockCard = UiTheme.CreateStatusCard()
+        pnlStockCard.Dock = DockStyle.Fill
+        pnlStockCard.Margin = New Padding(UiTheme.PadTight, 0, UiTheme.PadTight, UiTheme.PadControl)
+        pnlStockCard.MinimumSize = New Size(140, 96)
+        pnlStockCard.Cursor = Cursors.Default
+
+        Dim inner As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .BackColor = Color.Transparent,
+            .Margin = Padding.Empty
+        }
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        inner.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+        lblStockCardTitle = New Label() With {
+            .Text = "Stock health",
+            .Font = UiTheme.FontCaption,
+            .AutoSize = True,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+        }
+
+        lblDashLowStock.AutoSize = True
+        lblDashLowStock.TextAlign = ContentAlignment.MiddleLeft
+        lblDashLowStock.Font = UiTheme.FontHeading
+        lblDashLowStock.Margin = New Padding(0)
+
+        lblStockCardSubtitle = New Label() With {
+            .Text = "All products healthy",
+            .Font = UiTheme.FontBodySmall,
+            .AutoSize = True,
+            .Margin = New Padding(0, UiTheme.PadTight, 0, 0)
+        }
+
+        inner.Controls.Add(lblStockCardTitle, 0, 0)
+        inner.Controls.Add(lblDashLowStock, 0, 1)
+        inner.Controls.Add(lblStockCardSubtitle, 0, 2)
+        pnlStockCard.Controls.Add(inner)
+
+        WireStockCardClickEvents(pnlStockCard)
+        ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
+        Return pnlStockCard
+    End Function
+
+    Private Sub WireStockCardClickEvents(root As Control)
+        AddHandler root.Click, AddressOf pnlStockCard_Click
+        For Each child As Control In root.Controls
+            WireStockCardClickEvents(child)
+        Next
+    End Sub
+
+    Private Sub ApplyStockCardHealth(level As DashboardStockHealth, lowCount As Integer, watchCount As Integer)
+        currentStockHealth = level
+
+        Dim backColor As Color
+        Dim foreColor As Color
+        Dim title As String
+        Dim valueText As String
+        Dim subtitle As String
+        Dim clickable As Boolean
+
+        Select Case level
+            Case DashboardStockHealth.Low
+                backColor = UiTheme.ColDanger
+                foreColor = UiTheme.ColTextOnDark
+                title = "Low stock items"
+                valueText = lowCount.ToString(CultureInfo.CurrentCulture)
+                subtitle = "View products →"
+                clickable = True
+            Case DashboardStockHealth.Watch
+                backColor = UiTheme.ColStockWatch
+                foreColor = UiTheme.ColTextPrimary
+                title = "Stock watch"
+                valueText = watchCount.ToString(CultureInfo.CurrentCulture)
+                subtitle = "Approaching threshold"
+                clickable = True
+            Case Else
+                backColor = UiTheme.ColAccent
+                foreColor = UiTheme.ColTextOnDark
+                title = "Stock health"
+                valueText = "OK"
+                subtitle = "All products healthy"
+                clickable = False
+        End Select
+
+        If lblStockCardTitle IsNot Nothing Then
+            lblStockCardTitle.Text = title
+        End If
+
+        If lblDashLowStock IsNot Nothing Then
+            lblDashLowStock.Text = valueText
+        End If
+
+        If lblStockCardSubtitle IsNot Nothing Then
+            lblStockCardSubtitle.Text = subtitle
+        End If
+
+        If pnlStockCard IsNot Nothing Then
+            pnlStockCard.Cursor = If(clickable, Cursors.Hand, Cursors.Default)
+            UiTheme.ApplyStatusCardTheme(pnlStockCard, backColor, foreColor)
+        End If
+    End Sub
 
     ' -----------------------------------------------------------
     ' DATA & CHART METHODS
@@ -508,9 +758,13 @@ Public Class MainMenuForm
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
 
-                lblDbHealth.Text = "System Status: Online"
-                lblDbHealth.ForeColor = UiTheme.Success
-                dbHealthTooltip.SetToolTip(lblDbHealth, "Connected to " & DatabaseConfig.DatabaseName)
+                lblStatusText.Text = "Online"
+                lblStatusDot.ForeColor = UiTheme.ColAccent
+                dbHealthTooltip.SetToolTip(pnlSystemStatus, "Connected to " & DatabaseConfig.DatabaseName)
+
+                If lblSidebarStoreName IsNot Nothing Then
+                    lblSidebarStoreName.Text = AppSettings.Current.StoreName
+                End If
 
                 Dim sym As String = AppSettings.Current.CurrencySymbol
 
@@ -521,20 +775,27 @@ Public Class MainMenuForm
                 End Using
                 lblDashProducts.Text = activeCount.ToString(CultureInfo.CurrentCulture)
 
-                Dim todaySql As String = "SELECT ISNULL(SUM(total_amount), 0) FROM sales WHERE CAST(sale_date AS DATE) = CAST(GETDATE() AS DATE);"
+                Dim todayRange = ReceiptBranding.GetUtcRangeForLocalDay(DateTime.Today)
+                Dim todaySql As String =
+                    "SELECT ISNULL(SUM(total_amount), 0) FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @start AND sale_date < @end;"
                 Dim todayTotal As Decimal = 0D
                 Using cmd As New SqlCommand(todaySql, connection)
+                    cmd.Parameters.AddWithValue("@start", todayRange.UtcStart)
+                    cmd.Parameters.AddWithValue("@end", todayRange.UtcEndExclusive)
                     todayTotal = Convert.ToDecimal(cmd.ExecuteScalar())
                 End Using
                 lblDashSalesToday.Text = sym & todayTotal.ToString("N2", CultureInfo.CurrentCulture)
 
                 Dim lastSaleSql As String =
-                    "SELECT TOP 1 sale_id, sale_date, total_amount FROM sales ORDER BY sale_id DESC;"
+                    "SELECT TOP 1 sale_id, sale_date, total_amount FROM sales " &
+                    "WHERE ISNULL(is_voided, 0) = 0 ORDER BY sale_id DESC;"
                 Using cmd As New SqlCommand(lastSaleSql, connection)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         If reader.Read() Then
                             Dim saleId As Integer = Convert.ToInt32(reader("sale_id"))
-                            Dim saleWhen As DateTime = Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)
+                            Dim saleWhen As DateTime = ReceiptBranding.NormalizeStoredSaleDate(
+                                Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture))
                             Dim lastAmt As Decimal = Convert.ToDecimal(reader("total_amount"))
                             Dim lastSaleWhen As String = saleWhen.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture)
                             lblDashLastSale.Text = "#" & saleId.ToString(CultureInfo.CurrentCulture)
@@ -548,14 +809,34 @@ Public Class MainMenuForm
                     End Using
                 End Using
 
-                Dim lowStockSql As String = "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_quantity <= @threshold;"
+                Dim threshold As Integer = Math.Max(AppSettings.Current.StockThreshold, 1)
+                Dim watchThreshold As Integer = threshold * 2
+
+                Dim lowStockSql As String =
+                    "SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock_quantity <= @threshold;"
                 Dim lowStockCount As Integer = 0
                 Using cmd As New SqlCommand(lowStockSql, connection)
-                    cmd.Parameters.AddWithValue("@threshold", AppSettings.Current.StockThreshold)
+                    cmd.Parameters.AddWithValue("@threshold", threshold)
                     lowStockCount = Convert.ToInt32(cmd.ExecuteScalar())
                 End Using
-                lblDashLowStock.Text = lowStockCount.ToString(CultureInfo.CurrentCulture)
-                lblDashLowStock.ForeColor = If(lowStockCount > 0, UiTheme.Danger, UiTheme.Success)
+
+                Dim watchStockSql As String =
+                    "SELECT COUNT(*) FROM products WHERE is_active = 1 " &
+                    "AND stock_quantity > @threshold AND stock_quantity <= @watchThreshold;"
+                Dim watchStockCount As Integer = 0
+                Using cmd As New SqlCommand(watchStockSql, connection)
+                    cmd.Parameters.AddWithValue("@threshold", threshold)
+                    cmd.Parameters.AddWithValue("@watchThreshold", watchThreshold)
+                    watchStockCount = Convert.ToInt32(cmd.ExecuteScalar())
+                End Using
+
+                If lowStockCount > 0 Then
+                    ApplyStockCardHealth(DashboardStockHealth.Low, lowStockCount, watchStockCount)
+                ElseIf watchStockCount > 0 Then
+                    ApplyStockCardHealth(DashboardStockHealth.Watch, lowStockCount, watchStockCount)
+                Else
+                    ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
+                End If
 
                 LoadChartDataForRange(connection, sym, chartRangeStart, chartRangeEnd)
                 chartLoadFailed = False
@@ -570,15 +851,15 @@ Public Class MainMenuForm
             InvalidateSalesChart()
         Catch ex As Exception
             lastErr = ex.Message
-            lblDbHealth.Text = "System Status: Offline"
-            lblDbHealth.ForeColor = UiTheme.Danger
-            dbHealthTooltip.SetToolTip(lblDbHealth, lastErr)
+            lblStatusText.Text = "Offline"
+            lblStatusDot.ForeColor = UiTheme.ColDanger
+            dbHealthTooltip.SetToolTip(pnlSystemStatus, lastErr)
             lblDashProducts.Text = "—"
             lblDashSalesToday.Text = "—"
             lblDashLastSale.Text = "—"
             lblDashSevenDay.Text = "—"
             lblDashLowStock.Text = "—"
-            lblDashLowStock.ForeColor = UiTheme.TextPrimary
+            ApplyStockCardHealth(DashboardStockHealth.Healthy, 0, 0)
             chartDataLoaded = False
             chartLoadFailed = True
             chartPeriodTotal = 0D
@@ -743,22 +1024,22 @@ Public Class MainMenuForm
             chartPoints.Add(New ChartDayPoint With {.Day = start.AddDays(offset), .Amount = 0D})
         Next
 
-        Dim rangeEndExclusive As Date = [end].AddDays(1)
+        Dim utcRange = ReceiptBranding.GetUtcRangeForLocalDates(start, [end])
         Dim aggSql As String =
-            "SELECT CAST(sale_date AS DATE) AS sale_day, SUM(total_amount) AS day_total " &
-            "FROM sales WHERE sale_date >= @start AND sale_date < @end_ex " &
-            "GROUP BY CAST(sale_date AS DATE) ORDER BY sale_day;"
+            "SELECT sale_date, total_amount FROM sales " &
+            "WHERE ISNULL(is_voided, 0) = 0 AND sale_date >= @start AND sale_date < @end_ex;"
 
         Using cmd As New SqlCommand(aggSql, connection)
-            cmd.Parameters.AddWithValue("@start", start)
-            cmd.Parameters.AddWithValue("@end_ex", rangeEndExclusive)
+            cmd.Parameters.AddWithValue("@start", utcRange.UtcStart)
+            cmd.Parameters.AddWithValue("@end_ex", utcRange.UtcEndExclusive)
             Using reader As SqlDataReader = cmd.ExecuteReader()
                 While reader.Read()
-                    Dim d As DateTime = Convert.ToDateTime(reader("sale_day"), CultureInfo.InvariantCulture).Date
-                    Dim total As Decimal = Convert.ToDecimal(reader("day_total"))
+                    Dim localDay As Date = ReceiptBranding.NormalizeStoredSaleDate(
+                        Convert.ToDateTime(reader("sale_date"), CultureInfo.InvariantCulture)).Date
+                    Dim total As Decimal = Convert.ToDecimal(reader("total_amount"))
                     For Each pt As ChartDayPoint In chartPoints
-                        If pt.Day.Date = d Then
-                            pt.Amount = total
+                        If pt.Day.Date = localDay Then
+                            pt.Amount += total
                             chartPeriodTotal += total
                             Exit For
                         End If
@@ -1011,47 +1292,137 @@ Public Class MainMenuForm
     ' -----------------------------------------------------------
     ' BUTTON CLICK HANDLERS
     ' -----------------------------------------------------------
+
+    Private Sub pnlStockCard_Click(sender As Object, e As EventArgs)
+        If currentStockHealth = DashboardStockHealth.Healthy Then
+            Return
+        End If
+
+        If Not AppSession.RequireAdmin(Me) Then
+            Return
+        End If
+
+        ShowWorkspaceDialog(Function()
+                                Dim form As New ProductsForm()
+                                form.OpenWithLowStockFilter = True
+                                Return form
+                            End Function)
+    End Sub
+
+    Private Enum WorkspaceCloseAction
+        None
+        Disposed
+        NavigatePending
+        ReopenPos
+        PromptLogin
+        ShowDashboard
+    End Enum
+
+    Private Sub ShowWorkspaceDialog(factory As Func(Of Form), Optional refreshDashboard As Boolean = True)
+        If Me.IsDisposed Then
+            Return
+        End If
+
+        Me.Hide()
+        Dim closeAction As WorkspaceCloseAction = WorkspaceCloseAction.ShowDashboard
+        Dim pendingTarget As WorkspaceNavigation.Target = WorkspaceNavigation.Target.None
+
+        Try
+            Using form As Form = factory()
+                form.ShowDialog()
+            End Using
+        Catch ex As Exception
+            ErrorLogger.Log(ex, NameOf(MainMenuForm) & "." & NameOf(ShowWorkspaceDialog))
+            MessageBox.Show(
+                "Could not open this screen." & Environment.NewLine & ex.Message,
+                AppBranding.ApplicationName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error)
+        Finally
+            If Me.IsDisposed Then
+                closeAction = WorkspaceCloseAction.Disposed
+            Else
+                pendingTarget = WorkspaceNavigation.TryConsumePending()
+                If pendingTarget <> WorkspaceNavigation.Target.None Then
+                    closeAction = WorkspaceCloseAction.NavigatePending
+                ElseIf AppSession.IsCashierSession() Then
+                    closeAction = WorkspaceCloseAction.ReopenPos
+                ElseIf Not AppSession.HasActiveSession() Then
+                    closeAction = WorkspaceCloseAction.PromptLogin
+                Else
+                    closeAction = WorkspaceCloseAction.ShowDashboard
+                End If
+            End If
+        End Try
+
+        Select Case closeAction
+            Case WorkspaceCloseAction.Disposed
+                Return
+            Case WorkspaceCloseAction.NavigatePending
+                Me.Show()
+                Me.ShowInTaskbar = True
+                If AppSession.IsAdmin() Then
+                    SetActiveNavButton(btnDashboard)
+                Else
+                    SetActiveNavButton(btnSales)
+                End If
+                OpenWorkspaceTarget(pendingTarget)
+                Return
+            Case WorkspaceCloseAction.ReopenPos
+                ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+                Return
+            Case WorkspaceCloseAction.PromptLogin
+                Me.Show()
+                Me.ShowInTaskbar = True
+                PromptLoginOrExit()
+                Return
+            Case WorkspaceCloseAction.ShowDashboard
+                Me.Show()
+                Me.ShowInTaskbar = True
+                SetActiveNavButton(btnDashboard)
+        End Select
+
+        If Me.IsDisposed Then
+            Return
+        End If
+
+        If refreshDashboard Then
+            RefreshHealthAndDashboard()
+        End If
+    End Sub
+
+    Private Sub OpenWorkspaceTarget(target As WorkspaceNavigation.Target)
+        Select Case target
+            Case WorkspaceNavigation.Target.Products
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New ProductsForm())
+            Case WorkspaceNavigation.Target.Categories
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New CategoriesForm())
+            Case WorkspaceNavigation.Target.Cashiers
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New CashierAccountsForm())
+            Case WorkspaceNavigation.Target.Sales
+                ShowWorkspaceDialog(Function() New SalesForm())
+            Case WorkspaceNavigation.Target.Receipt
+                ShowWorkspaceDialog(Function() New ReceiptForm(), refreshDashboard:=False)
+            Case WorkspaceNavigation.Target.Reports
+                If Not AppSession.RequireAdmin(Me) Then Return
+                ShowWorkspaceDialog(Function() New ReportsForm(), refreshDashboard:=False)
+        End Select
+    End Sub
+
     Private Sub btnProducts_Click(sender As Object, e As EventArgs) Handles btnProducts.Click
         If Not AppSession.RequireAdmin(Me) Then Return
-
-        Me.Hide() ' <-- Hides the Main Menu
-
-        Using form As New ProductsForm()
-            form.ShowDialog() ' <-- Opens the Products Form
-        End Using
-
-        Me.Show() ' <-- Instantly brings the Main Menu back when Products closes
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New ProductsForm())
     End Sub
 
     Private Sub btnSales_Click(sender As Object, e As EventArgs) Handles btnSales.Click
-        ' 1. Hide the Main Menu so ONLY the Sales Form is visible
-        Me.Hide()
-
-        ' 2. Open the Sales Form
-        Using form As New SalesForm()
-            form.ShowDialog()
-        End Using
-
-        ' 3. The Sales Form has closed (user clicked "← Back to Menu").
-        ' Show the Main Menu again!
-        Me.Show()
-
-        ' Refresh dashboard stats in case they made a sale
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New SalesForm())
     End Sub
 
     Private Sub btnReceipt_Click(sender As Object, e As EventArgs) Handles btnReceipt.Click
-        Me.Hide()
-
-        Using form As New ReceiptForm()
-            form.ShowDialog()
-        End Using
-
-        ' Safely show the menu only if it hasn't been destroyed
-        If Not Me.IsDisposed Then
-            Me.Show()
-        End If
+        ShowWorkspaceDialog(Function() New ReceiptForm(), refreshDashboard:=False)
     End Sub
 
     Private Sub btnSettings_Click(sender As Object, e As EventArgs) Handles btnSettings.Click
@@ -1065,26 +1436,245 @@ Public Class MainMenuForm
 
     Private Sub btnReports_Click(sender As Object, e As EventArgs) Handles btnReports.Click
         If Not AppSession.RequireAdmin(Me) Then Return
-
-        ' 1. Hide Main Menu
-        Me.Hide()
-
-        ' 2. Open Reports Full Screen
-        Using form As New ReportsForm()
-            form.ShowDialog()
-        End Using
-
-        ' 3. Safely Show Main Menu again when back is clicked
-        If Not Me.IsDisposed Then
-            Me.Show()
-        End If
+        ShowWorkspaceDialog(Function() New ReportsForm(), refreshDashboard:=False)
     End Sub
 
     Private Sub btnBackup_Click(sender As Object, e As EventArgs) Handles btnBackup.Click
         If Not AppSession.RequireAdmin(Me) Then Return
-        Using form As New BackupRestoreForm()
-            form.ShowDialog()
+        ShowBackupRestoreDialog()
+    End Sub
+
+    Private Sub ShowBackupRestoreDialog()
+        Using dlg As New Form()
+            dlg.Text = AppBranding.WindowTitle("Database Backup / Restore")
+            dlg.FormBorderStyle = FormBorderStyle.FixedDialog
+            dlg.StartPosition = FormStartPosition.CenterParent
+            dlg.MinimizeBox = False
+            dlg.MaximizeBox = False
+            dlg.ClientSize = New Size(640, 520)
+            dlg.BackColor = UiTheme.ColBackground
+            UiTheme.ApplyStandardWindowChrome(dlg)
+
+            Dim titleBar As New Panel() With {
+                .Dock = DockStyle.Top,
+                .Height = 48,
+                .BackColor = UiTheme.ColPrimary,
+                .Padding = New Padding(UiTheme.PadCard)
+            }
+            titleBar.Controls.Add(New Label() With {
+                .Text = "Database Backup / Restore",
+                .Font = UiTheme.FontSubheading,
+                .ForeColor = UiTheme.ColTextOnDark,
+                .AutoSize = True,
+                .Dock = DockStyle.Left
+            })
+
+            Dim card As Panel = UiTheme.CreateCard(False)
+            card.Dock = DockStyle.Fill
+            card.Margin = New Padding(UiTheme.PadPage)
+            card.Padding = New Padding(UiTheme.PadCard)
+
+            Dim instructionsHeader As Label = UiTheme.CreateHeadingLabel("Instructions", 3)
+            instructionsHeader.Font = UiTheme.FontSubheading
+            instructionsHeader.ForeColor = UiTheme.ColTextSecondary
+            instructionsHeader.Dock = DockStyle.Top
+
+            Dim stepsPanel As New TableLayoutPanel() With {
+                .Dock = DockStyle.Top,
+                .AutoSize = True,
+                .ColumnCount = 2,
+                .Margin = New Padding(0, UiTheme.PadControl, 0, UiTheme.PadSection)
+            }
+            stepsPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 28.0F))
+            stepsPanel.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+
+            Dim steps As String() = {
+                "Ensure SQL Server LocalDB is running (sqllocaldb start MSSQLLocalDB).",
+                "Create the backup folder if it does not exist.",
+                "Run the copied commands in an elevated Command Prompt or SQLCMD.",
+                "Keep backup files in a safe location before attempting restore."
+            }
+            For i As Integer = 0 To steps.Length - 1
+                stepsPanel.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+                stepsPanel.Controls.Add(New Label() With {
+                    .Text = (i + 1).ToString(CultureInfo.InvariantCulture) & ".",
+                    .Font = UiTheme.FontBodyBold,
+                    .ForeColor = UiTheme.ColPrimary,
+                    .AutoSize = True,
+                    .Margin = New Padding(0, 0, UiTheme.PadControl, UiTheme.PadControl)
+                }, 0, i)
+                stepsPanel.Controls.Add(New Label() With {
+                    .Text = steps(i),
+                    .Font = UiTheme.FontBody,
+                    .ForeColor = UiTheme.ColTextPrimary,
+                    .AutoSize = True,
+                    .MaximumSize = New Size(520, 0),
+                    .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+                }, 1, i)
+            Next
+
+            Dim lblPath As New Label() With {
+                .Text = "Backup folder path:",
+                .Font = UiTheme.FontBody,
+                .ForeColor = UiTheme.ColTextPrimary,
+                .AutoSize = True,
+                .Dock = DockStyle.Top,
+                .Margin = New Padding(0, 0, 0, UiTheme.PadTight)
+            }
+            Dim txtBackupPath As New TextBox() With {
+                .Text = "C:\GroupCBackup",
+                .Dock = DockStyle.Top,
+                .Margin = New Padding(0, 0, 0, UiTheme.PadSection)
+            }
+            UiTheme.ApplyInputStyle(txtBackupPath)
+
+            Dim buttonRow As New FlowLayoutPanel() With {
+                .Dock = DockStyle.Bottom,
+                .FlowDirection = FlowDirection.RightToLeft,
+                .AutoSize = True,
+                .Padding = New Padding(UiTheme.PadPage),
+                .BackColor = UiTheme.ColBackground
+            }
+            Dim btnRunBackup As New Button() With {.Text = "Run backup now", .AutoSize = True}
+            Dim btnSeedDemo As New Button() With {.Text = "Load demo catalog", .AutoSize = True}
+            Dim btnCopy As New Button() With {.Text = "Copy commands", .AutoSize = True}
+            Dim btnClose As New Button() With {.Text = "Close", .DialogResult = DialogResult.Cancel, .AutoSize = True}
+            UiTheme.ApplyPrimaryButton(btnRunBackup)
+            UiTheme.ApplySecondaryAccentButton(btnSeedDemo)
+            UiTheme.ApplySecondaryAccentButton(btnCopy)
+            UiTheme.ApplySecondaryButton(btnClose)
+            buttonRow.Controls.Add(btnClose)
+            buttonRow.Controls.Add(btnCopy)
+            buttonRow.Controls.Add(btnSeedDemo)
+            buttonRow.Controls.Add(btnRunBackup)
+
+            card.Controls.Add(txtBackupPath)
+            card.Controls.Add(lblPath)
+            card.Controls.Add(stepsPanel)
+            card.Controls.Add(instructionsHeader)
+
+            Dim contentHost As New Panel() With {
+                .Dock = DockStyle.Fill,
+                .Padding = New Padding(UiTheme.PadPage),
+                .BackColor = UiTheme.ColBackground
+            }
+            contentHost.Controls.Add(card)
+
+            dlg.Controls.Add(buttonRow)
+            dlg.Controls.Add(contentHost)
+            dlg.Controls.Add(titleBar)
+            dlg.CancelButton = btnClose
+            dlg.AcceptButton = btnRunBackup
+
+            AddHandler btnRunBackup.Click,
+                Sub(s, ev)
+                    Dim backupPath As String = txtBackupPath.Text.Trim()
+                    If backupPath.Length = 0 Then
+                        backupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "GroupCBackup")
+                    End If
+
+                    Try
+                        Directory.CreateDirectory(backupPath)
+                        Dim bakFile As String = Path.Combine(
+                            backupPath,
+                            DatabaseConfig.DatabaseName & "_" & DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) & ".bak")
+
+                        Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
+                            connection.Open()
+                            Dim backupSql As String =
+                                "BACKUP DATABASE [" & DatabaseConfig.DatabaseName & "] TO DISK = @path " &
+                                "WITH FORMAT, INIT, NAME = @name, SKIP, NOREWIND, NOUNLOAD, STATS = 10;"
+                            Using cmd As New SqlCommand(backupSql, connection)
+                                cmd.CommandTimeout = 120
+                                cmd.Parameters.AddWithValue("@path", bakFile)
+                                cmd.Parameters.AddWithValue("@name", "GroupC Full Backup")
+                                cmd.ExecuteNonQuery()
+                            End Using
+                        End Using
+
+                        AuditLogger.LogAudit("DATABASE_BACKUP", "Backup saved to " & bakFile, AppSession.CurrentRole)
+                        MessageBox.Show(
+                            "Backup completed successfully." & Environment.NewLine & Environment.NewLine & bakFile,
+                            "Backup / Restore",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+                    Catch ex As Exception
+                        MessageBox.Show(
+                            "Backup failed: " & ex.Message & Environment.NewLine & Environment.NewLine &
+                            "Try a folder your user account can write to, or copy the SQL commands and run them in sqlcmd.",
+                            "Backup / Restore",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
+                        ErrorLogger.Log(ex, NameOf(MainMenuForm) & ".RunBackup")
+                    End Try
+                End Sub
+
+            AddHandler btnSeedDemo.Click,
+                Sub(s, ev)
+                    If Not UiTheme.ConfirmAction("Load demo categories and products? Existing rows are kept.") Then
+                        Return
+                    End If
+
+                    Try
+                        Dim message As String = DatabaseInitializer.SeedDemoCatalog()
+                        AuditLogger.LogAudit("DEMO_CATALOG_LOADED", message, AppSession.CurrentRole)
+                        MessageBox.Show(message, "Demo catalog", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        RefreshHealthAndDashboard()
+                    Catch ex As Exception
+                        MessageBox.Show("Could not load demo catalog: " & ex.Message, "Demo catalog", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        ErrorLogger.Log(ex, NameOf(MainMenuForm) & ".SeedDemoCatalog")
+                    End Try
+                End Sub
+
+            AddHandler btnCopy.Click,
+                Sub(s, ev)
+                    Dim backupPath As String = txtBackupPath.Text.Trim()
+                    If backupPath.Length = 0 Then
+                        backupPath = "C:\GroupCBackup"
+                    End If
+
+                    Dim commands As String =
+                        "-- Backup" & Environment.NewLine &
+                        "BACKUP DATABASE [" & DatabaseConfig.DatabaseName & "]" & Environment.NewLine &
+                        "TO DISK = N'" & backupPath.TrimEnd("\"c) & "\" & DatabaseConfig.DatabaseName & ".bak'" & Environment.NewLine &
+                        "WITH FORMAT, INIT, NAME = N'GroupC Full Backup', SKIP, NOREWIND, NOUNLOAD, STATS = 10;" & Environment.NewLine & Environment.NewLine &
+                        "-- Restore (replace existing database — use with caution)" & Environment.NewLine &
+                        "RESTORE DATABASE [" & DatabaseConfig.DatabaseName & "]" & Environment.NewLine &
+                        "FROM DISK = N'" & backupPath.TrimEnd("\"c) & "\" & DatabaseConfig.DatabaseName & ".bak'" & Environment.NewLine &
+                        "WITH REPLACE, RECOVERY, STATS = 10;"
+
+                    Try
+                        Clipboard.SetText(commands)
+                        MessageBox.Show("SQL commands copied to the clipboard.", "Backup / Restore", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Catch ex As Exception
+                        MessageBox.Show("Could not copy to clipboard: " & ex.Message, "Backup / Restore", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    End Try
+                End Sub
+
+            dlg.ShowDialog(Me)
         End Using
+    End Sub
+
+    Private Sub SetActiveNavButton(active As Button)
+        Dim navButtons As Button() = {
+            btnDashboard,
+            btnProducts,
+            btnCategories,
+            btnCashierAccounts,
+            btnSales,
+            btnReceipt,
+            btnReports
+        }
+
+        For Each navButton As Button In navButtons
+            If navButton Is Nothing Then
+                Continue For
+            End If
+
+            Dim isActive As Boolean = Object.ReferenceEquals(navButton, active)
+            navButton.Enabled = Not isActive
+            UiTheme.SetSidebarButtonActive(navButton, isActive)
+        Next
     End Sub
 
     Private Sub ApplyRoleBasedNavigation()
@@ -1095,6 +1685,20 @@ Public Class MainMenuForm
         If btnReports IsNot Nothing Then btnReports.Visible = showAdminNav
         If btnSettings IsNot Nothing Then btnSettings.Visible = showAdminNav
         If btnBackup IsNot Nothing Then btnBackup.Visible = showAdminNav
+        If btnDashboard IsNot Nothing Then btnDashboard.Visible = showAdminNav
+        If pnlDashboardContent IsNot Nothing Then pnlDashboardContent.Visible = showAdminNav
+
+        If showAdminNav Then
+            Me.Text = AppBranding.WindowTitle("Dashboard")
+            If lblPageTitle IsNot Nothing Then lblPageTitle.Text = "Dashboard"
+            SetActiveNavButton(btnDashboard)
+            pendingCashierPosLaunch = False
+        Else
+            Me.Text = AppBranding.WindowTitle("Point of Sale")
+            If lblPageTitle IsNot Nothing Then lblPageTitle.Text = "Point of Sale"
+            SetActiveNavButton(btnSales)
+            pendingCashierPosLaunch = True
+        End If
     End Sub
 
     Private Sub btnCategories_Click(sender As Object, e As EventArgs) Handles btnCategories.Click
@@ -1102,14 +1706,7 @@ Public Class MainMenuForm
             Return
         End If
 
-        Me.Hide()
-
-        Using form As New CategoriesForm()
-            form.ShowDialog()
-        End Using
-
-        Me.Show()
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New CategoriesForm())
     End Sub
 
     Private Sub btnCashierAccounts_Click(sender As Object, e As EventArgs) Handles btnCashierAccounts.Click
@@ -1117,21 +1714,20 @@ Public Class MainMenuForm
             Return
         End If
 
-        Me.Hide()
-
-        Using form As New CashierAccountsForm()
-            form.ShowDialog()
-        End Using
-
-        Me.Show()
-        RefreshHealthAndDashboard()
+        ShowWorkspaceDialog(Function() New CashierAccountsForm())
     End Sub
 
-    Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+    Friend Function SignOutAndPromptLogin(Optional reopenWorkspace As Boolean = True) As Boolean
+        If Not UiTheme.ConfirmAction("Sign out and return to the login screen?") Then
+            Return False
+        End If
+
         Try
-            AuditLogger.LogAudit("LOGOUT", "Signed out from main menu.", AppSession.GetAuditIdentity())
+            AuditLogger.LogAudit("LOGOUT", "Signed out from workspace.", AppSession.GetAuditIdentity())
         Catch
         End Try
+
+        AppSession.ClearSession()
 
         Me.Opacity = 0
         Me.ShowInTaskbar = False
@@ -1140,6 +1736,29 @@ Public Class MainMenuForm
             If loginForm.ShowDialog() <> DialogResult.OK Then
                 Me.Opacity = 1
                 Me.ShowInTaskbar = True
+                Return True
+            End If
+        End Using
+
+        Me.Opacity = 1
+        Me.ShowInTaskbar = True
+        ApplyRoleBasedNavigation()
+        RefreshHealthAndDashboard()
+
+        If reopenWorkspace AndAlso AppSession.IsCashierSession() Then
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        End If
+
+        Return True
+    End Function
+
+    Private Sub PromptLoginOrExit()
+        Me.Opacity = 0
+        Me.ShowInTaskbar = False
+
+        Using loginForm As New LoginForm()
+            If loginForm.ShowDialog() <> DialogResult.OK Then
+                Application.Exit()
                 Return
             End If
         End Using
@@ -1148,6 +1767,16 @@ Public Class MainMenuForm
         Me.ShowInTaskbar = True
         ApplyRoleBasedNavigation()
         RefreshHealthAndDashboard()
+
+        If AppSession.IsCashierSession() Then
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        ElseIf AppSession.IsAdmin() Then
+            SetActiveNavButton(btnDashboard)
+        End If
+    End Sub
+
+    Private Sub btnLogout_Click(sender As Object, e As EventArgs) Handles btnLogout.Click
+        SignOutAndPromptLogin()
     End Sub
 
 End Class

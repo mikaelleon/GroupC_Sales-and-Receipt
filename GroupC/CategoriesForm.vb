@@ -27,6 +27,8 @@ Public Class CategoriesForm
     Private WithEvents btnBack As Button
 
     Private lblInputError As Label
+    Private lblCategoriesEmpty As Label
+    Private formToolTips As ToolTip
     Private statusStrip As StatusStrip
     Private statusLabel As ToolStripStatusLabel
     Private WithEvents statusClearTimer As Timer
@@ -37,7 +39,7 @@ Public Class CategoriesForm
 
     Private Sub CategoriesForm_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Text = AppBranding.WindowTitle("Manage Categories")
-        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 880, 560)
+        UiTheme.ApplyMaximizedWorkspaceDefaults(Me, 760, 520)
 
         Try
             UiTheme.ApplyStandardWindowChrome(Me)
@@ -58,28 +60,39 @@ Public Class CategoriesForm
     Private Sub BuildLayout()
         Me.SuspendLayout()
         Me.Controls.Clear()
-        Me.BackColor = UiTheme.FormBackground
+        Me.BackColor = UiTheme.ColBackground
 
-        txtCategoryName = New TextBox() With {.MaxLength = MaxCategoryNameLength, .Font = UiTheme.FontBody}
-        UiTheme.ApplyFilledTextInputVisual(txtCategoryName)
+        txtCategoryName = New TextBox() With {
+            .MaxLength = MaxCategoryNameLength,
+            .Font = UiTheme.FontBody,
+            .Dock = DockStyle.Fill
+        }
+        UiTheme.ApplyInputStyle(txtCategoryName)
 
-        cmbFilter = New ComboBox() With {.DropDownStyle = ComboBoxStyle.DropDownList, .Width = 180}
+        cmbFilter = New ComboBox() With {
+            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .Width = 180,
+            .Font = UiTheme.FontBody
+        }
         cmbFilter.Items.AddRange(New Object() {"Active categories", "All categories", "Inactive only"})
-        UiTheme.ApplyTableLayoutDropDown(cmbFilter)
+        UiTheme.ApplyInputStyle(cmbFilter)
 
-        btnAdd = New Button() With {.Text = "&Add category", .AutoSize = True, .MinimumSize = New Size(120, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnUpdate = New Button() With {.Text = "&Update name", .AutoSize = True, .MinimumSize = New Size(110, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnDeactivate = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
-        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeightMd), .Enabled = False, .Cursor = Cursors.Hand}
-        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeightSm), .Cursor = Cursors.Hand}
-        btnBack = New Button() With {.Text = "← Back to Menu", .AutoSize = True, .MinimumSize = New Size(140, UiTheme.ButtonHeightMd), .Cursor = Cursors.Hand}
+        btnAdd = New Button() With {.Text = "&Add category", .AutoSize = True, .MinimumSize = New Size(120, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnUpdate = New Button() With {.Text = "&Update name", .AutoSize = True, .MinimumSize = New Size(110, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnDeactivate = New Button() With {.Text = "&Deactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeight), .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = New Padding(0, 0, 0, UiTheme.PadControl)}
+        btnReactivate = New Button() With {.Text = "Reactivate", .AutoSize = True, .MinimumSize = New Size(100, UiTheme.ButtonHeight), .Enabled = False, .Cursor = Cursors.Hand, .Dock = DockStyle.Top, .Margin = Padding.Empty}
 
         UiTheme.ApplyPrimaryButton(btnAdd)
         UiTheme.ApplyPrimaryButton(btnUpdate)
         UiTheme.ApplyWarningButton(btnDeactivate)
         UiTheme.ApplySuccessButton(btnReactivate)
+
+        UiTheme.SetSelectionButtonState(btnUpdate, False, AddressOf UiTheme.ApplyPrimaryButton)
+        UiTheme.SetSelectionButtonState(btnDeactivate, False, AddressOf UiTheme.ApplyWarningButton)
+        UiTheme.SetSelectionButtonState(btnReactivate, False, AddressOf UiTheme.ApplySuccessButton)
+
+        btnRefresh = New Button() With {.Text = "Refresh", .AutoSize = True, .MinimumSize = New Size(90, UiTheme.ButtonHeight), .Cursor = Cursors.Hand}
         UiTheme.ApplySecondaryButton(btnRefresh)
-        UiTheme.ApplySecondaryButton(btnBack)
 
         dgvCategories = New DataGridView() With {
             .Dock = DockStyle.Fill,
@@ -89,120 +102,203 @@ Public Class CategoriesForm
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             .MultiSelect = False,
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            .BackgroundColor = UiTheme.ColSurface,
+            .BorderStyle = BorderStyle.None,
             .ScrollBars = ScrollBars.Both
         }
-        UiTheme.ApplyDataGridViewChrome(dgvCategories)
+        UiTheme.ApplyReadOnlyGridTheme(dgvCategories)
+        lblCategoriesEmpty = UiTheme.CreateEmptyStateLabel("No categories match the current filter.")
+        lblCategoriesEmpty.Visible = False
         AddHandler dgvCategories.DataBindingComplete, AddressOf dgvCategories_DataBindingComplete
         AddHandler dgvCategories.Resize, AddressOf dgvCategories_Resize
         AddHandler Me.Shown, AddressOf CategoriesForm_Shown
         AddHandler Me.Resize, AddressOf CategoriesForm_Resize
 
-        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.Danger, .Visible = False}
+        lblInputError = New Label() With {.AutoSize = True, .ForeColor = UiTheme.ColDanger, .Visible = False, .Margin = New Padding(0, UiTheme.PadControl, 0, 0)}
 
         statusStrip = New StatusStrip()
-        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True}
+        statusLabel = New ToolStripStatusLabel(FormStatusHelper.ReadyText) With {.Spring = True, .TextAlign = ContentAlignment.MiddleLeft}
         statusStrip.Items.Add(statusLabel)
         UiTheme.ApplyStatusStripTheme(statusStrip)
 
-        Dim root As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 2, .RowCount = 1, .Margin = Padding.Empty}
-        root.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 360.0F))
-        root.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-
-        Dim sidebar As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.CardSurface, .Padding = New Padding(UiTheme.SpaceXl, UiTheme.Space2xl, UiTheme.SpaceXl, UiTheme.Space2xl)}
-        Dim sideStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .ColumnCount = 1, .RowCount = 4}
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        sideStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        Dim hdr As New Label() With {
-            .Text = "Book categories",
-            .Font = UiTheme.FontHeading2,
-            .ForeColor = UiTheme.PrimaryAccent,
+        Dim actionStack As New TableLayoutPanel() With {
             .AutoSize = True,
-            .Margin = New Padding(0, 0, 0, UiTheme.SpaceSm)
+            .Dock = DockStyle.Top,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = New Padding(0, UiTheme.PadSection, 0, 0)
         }
-        Dim hint As New Label() With {
-            .Text = "Assign categories to products on the Products screen.",
-            .Font = UiTheme.FontBodySmall,
-            .ForeColor = UiTheme.TextSecondary,
-            .AutoSize = True,
-            .MaximumSize = New Size(300, 0),
-            .Margin = New Padding(0, 0, 0, 16)
+        actionStack.Controls.Add(btnAdd, 0, 0)
+        actionStack.Controls.Add(btnUpdate, 0, 1)
+        actionStack.Controls.Add(btnDeactivate, 0, 2)
+        actionStack.Controls.Add(btnReactivate, 0, 3)
+
+        Dim editorLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 4,
+            .Margin = Padding.Empty
         }
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        editorLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        editorLayout.Controls.Add(UiTheme.CreateSectionHeader("Category editor"), 0, 0)
+        editorLayout.Controls.Add(UiTheme.CreateSecondaryLabel("Assign categories to products on the Products screen."), 0, 1)
+        editorLayout.Controls.Add(lblInputError, 0, 2)
 
-        Dim lblName As Label = UiTheme.CreateSecondaryLabel("Category name")
-        txtCategoryName.Margin = New Padding(0, 0, 0, 12)
-        txtCategoryName.Dock = DockStyle.Fill
-
-        Dim actionFlow As New FlowLayoutPanel() With {.AutoSize = True, .FlowDirection = FlowDirection.TopDown, .WrapContents = False}
-        actionFlow.Controls.Add(btnAdd)
-        actionFlow.Controls.Add(btnUpdate)
-        actionFlow.Controls.Add(btnDeactivate)
-        actionFlow.Controls.Add(btnReactivate)
-
-        Dim headerPanel As New TableLayoutPanel() With {.AutoSize = True, .ColumnCount = 1, .RowCount = 3}
-        headerPanel.Controls.Add(hdr, 0, 0)
-        headerPanel.Controls.Add(hint, 0, 1)
-        headerPanel.Controls.Add(lblInputError, 0, 2)
-
-        Dim inputLayout As New TableLayoutPanel() With {
+        Dim inputPanel As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
             .AutoSize = True,
             .ColumnCount = 1,
-            .RowCount = 3,
-            .Margin = New Padding(0, 20, 0, 0)
+            .RowCount = 2,
+            .Margin = New Padding(0, UiTheme.PadControl, 0, 0)
         }
-        inputLayout.Controls.Add(lblName, 0, 0)
-        inputLayout.Controls.Add(txtCategoryName, 0, 1)
-        inputLayout.Controls.Add(actionFlow, 0, 2)
+        inputPanel.Controls.Add(UiTheme.CreateSecondaryLabel("Category name"), 0, 0)
+        txtCategoryName.Margin = New Padding(0, 0, 0, UiTheme.PadControl)
+        inputPanel.Controls.Add(txtCategoryName, 0, 1)
 
-        Dim pnlFooter As New FlowLayoutPanel() With {
-            .Dock = DockStyle.Bottom,
+        Dim editorBody As New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True}
+        Dim editorStack As New TableLayoutPanel() With {.AutoSize = True, .Dock = DockStyle.Top, .ColumnCount = 1, .RowCount = 2}
+        editorStack.Controls.Add(inputPanel, 0, 0)
+        editorStack.Controls.Add(actionStack, 0, 1)
+        editorBody.Controls.Add(editorStack)
+        editorLayout.Controls.Add(editorBody, 0, 3)
+
+        Dim toolbar As New TableLayoutPanel() With {
+            .Dock = DockStyle.Top,
             .AutoSize = True,
-            .FlowDirection = FlowDirection.TopDown
+            .ColumnCount = 4,
+            .RowCount = 1,
+            .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
-        btnBack.Margin = New Padding(0, 30, 0, 0)
-        pnlFooter.Controls.Add(btnBack)
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+        toolbar.RowStyles.Add(New RowStyle(SizeType.Absolute, UiTheme.InputHeight + UiTheme.PadControl))
 
-        sideStack.Controls.Add(headerPanel, 0, 0)
-        sideStack.Controls.Add(inputLayout, 0, 1)
-        sideStack.Controls.Add(pnlFooter, 0, 3)
+        Dim lblShow As Label = UiTheme.CreateSecondaryLabel("Show")
+        lblShow.Margin = New Padding(0, UiTheme.PadTight, UiTheme.PadControl, 0)
+        lblShow.Anchor = AnchorStyles.Left
+        cmbFilter.Dock = DockStyle.Fill
+        cmbFilter.Margin = New Padding(0, 0, UiTheme.PadControl, 0)
+        btnRefresh.Dock = DockStyle.Fill
+        toolbar.Controls.Add(lblShow, 0, 0)
+        toolbar.Controls.Add(cmbFilter, 1, 0)
+        toolbar.Controls.Add(New Panel(), 2, 0)
+        toolbar.Controls.Add(btnRefresh, 3, 0)
 
-        sidebar.Controls.Add(sideStack)
+        Dim gridLayout As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 1,
+            .RowCount = 3,
+            .Margin = Padding.Empty
+        }
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        gridLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        gridLayout.Controls.Add(UiTheme.CreateSectionHeader("Categories"), 0, 0)
+        gridLayout.Controls.Add(toolbar, 0, 1)
 
-        Dim gridHost As New Panel() With {.Dock = DockStyle.Fill, .Padding = New Padding(20, 24, 24, 16), .BackColor = UiTheme.FormBackground}
-        Dim gridStack As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        gridStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        gridStack.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-
-        Dim toolbar As New FlowLayoutPanel() With {.AutoSize = True, .WrapContents = False, .Margin = New Padding(0, 0, 0, 10)}
-        toolbar.Controls.Add(UiTheme.CreateSecondaryLabel("Show"))
-        toolbar.Controls.Add(cmbFilter)
-        toolbar.Controls.Add(btnRefresh)
-
-        Dim gridCard As Panel = UiTheme.CreateCardPanel(New Padding(8))
+        Dim gridCard As Panel = UiTheme.CreateCard()
         gridCard.Dock = DockStyle.Fill
-        UiTheme.GetCardContentHost(gridCard).Controls.Add(dgvCategories)
+        Dim gridCardHost As Panel = gridCard
+        Try
+            gridCardHost = UiTheme.GetCardContentHost(gridCard)
+        Catch
+        End Try
+        Dim gridContainer As New Panel() With {.Dock = DockStyle.Fill}
+        gridContainer.Controls.Add(dgvCategories)
+        lblCategoriesEmpty.Dock = DockStyle.Fill
+        gridContainer.Controls.Add(lblCategoriesEmpty)
+        gridCardHost.Controls.Add(gridContainer)
 
-        gridStack.Controls.Add(toolbar, 0, 0)
-        gridStack.Controls.Add(gridCard, 0, 1)
-        gridHost.Controls.Add(gridStack)
+        Dim gridPanel As New Panel() With {.Dock = DockStyle.Fill}
+        gridPanel.Controls.Add(gridCard)
+        gridLayout.Controls.Add(gridPanel, 0, 2)
 
-        root.Controls.Add(sidebar, 0, 0)
-        root.Controls.Add(gridHost, 1, 0)
+        ' -----------------------------------------------------------
+        ' SHARED SHELL + CATEGORIES SPLIT LAYOUT
+        ' -----------------------------------------------------------
+        Dim rootTable As New TableLayoutPanel() With {
+            .Dock = DockStyle.Fill,
+            .ColumnCount = 2,
+            .RowCount = 1,
+            .Margin = Padding.Empty,
+            .BackColor = UiTheme.ColBackground
+        }
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, UiTheme.SidebarWidth))
+        rootTable.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
 
-        Dim shell As New TableLayoutPanel() With {.Dock = DockStyle.Fill, .RowCount = 2, .ColumnCount = 1}
-        shell.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        shell.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-        shell.Controls.Add(root, 0, 0)
-        shell.Controls.Add(statusStrip, 0, 1)
+        Dim sidebar As Panel = UiTheme.BuildWorkspaceSidebarShell(WorkspaceNavigation.Target.Categories, Me, btnBack)
 
-        Me.Controls.Add(shell)
-        Me.ResumeLayout(True)
+        Dim rightColumn As New Panel() With {.Dock = DockStyle.Fill, .BackColor = UiTheme.ColBackground}
+        Dim topBar As Panel = UiTheme.CreateTopBar("Manage Categories", AppSession.GetAuditIdentity())
+        Dim contentArea As Panel = UiTheme.CreateContentArea()
+
+        Dim categoriesSplit As SplitContainer = UiTheme.CreateVerticalSplit()
+
+        Dim editorCard As Panel = UiTheme.CreateCard()
+        editorCard.Dock = DockStyle.Fill
+        Dim editorCardHost As Panel = editorCard
+        Try
+            editorCardHost = UiTheme.GetCardContentHost(editorCard)
+        Catch
+        End Try
+        editorCardHost.Controls.Add(editorLayout)
+        categoriesSplit.Panel1.Controls.Add(editorCard)
+
+        Dim listCard As Panel = UiTheme.CreateCard()
+        listCard.Dock = DockStyle.Fill
+        Dim listCardHost As Panel = listCard
+        Try
+            listCardHost = UiTheme.GetCardContentHost(listCard)
+        Catch
+        End Try
+        listCardHost.Controls.Add(gridLayout)
+        categoriesSplit.Panel2.Controls.Add(listCard)
+
+        contentArea.Controls.Add(categoriesSplit)
+        rightColumn.Controls.Add(contentArea)
+        rightColumn.Controls.Add(topBar)
+
+        rootTable.Controls.Add(sidebar, 0, 0)
+        rootTable.Controls.Add(rightColumn, 1, 0)
+
+        Me.Controls.Add(rootTable)
+        Me.Controls.Add(statusStrip)
+
+        AddHandler categoriesSplit.SplitterMoved, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
+        AddHandler Me.Resize, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
 
         suppressFilterEvents = True
         cmbFilter.SelectedIndex = 0
         suppressFilterEvents = False
+
+        formToolTips = UiTheme.CreateStandardToolTip()
+        formToolTips.SetToolTip(btnUpdate, "Rename the selected category")
+        formToolTips.SetToolTip(btnDeactivate, "Hide this category from pick lists")
+        formToolTips.SetToolTip(btnReactivate, "Show this category in pick lists again")
+        formToolTips.SetToolTip(btnRefresh, "Reload categories from the database")
+
+        UiTheme.AssignTabOrder(
+            txtCategoryName,
+            btnAdd,
+            btnUpdate,
+            btnDeactivate,
+            btnReactivate,
+            cmbFilter,
+            btnRefresh,
+            dgvCategories,
+            btnBack)
+
+        Me.ResumeLayout(True)
+        AddHandler Me.Shown, Sub(s, ev) ConfigureCategoriesSplit(categoriesSplit)
+    End Sub
+
+    Private Sub ConfigureCategoriesSplit(categoriesSplit As SplitContainer)
+        UiTheme.ConfigureSplitDistance(categoriesSplit, 0.34R, 260, 280)
     End Sub
 
     Private Sub LoadCategories()
@@ -243,10 +339,28 @@ Public Class CategoriesForm
 
         dgvCategories.DataSource = view
         ConfigureCategoryGridColumns()
+        UpdateCategoriesEmptyState()
+    End Sub
+
+    Private Sub UpdateCategoriesEmptyState()
+        If dgvCategories Is Nothing OrElse lblCategoriesEmpty Is Nothing Then
+            Return
+        End If
+
+        Dim isEmpty As Boolean = dgvCategories.Rows.Count = 0
+        lblCategoriesEmpty.Visible = isEmpty
+        dgvCategories.Visible = Not isEmpty
+    End Sub
+
+    Private Sub RefreshCategoryActionButtons(hasSelection As Boolean, isActive As Boolean)
+        UiTheme.SetSelectionButtonState(btnUpdate, hasSelection, AddressOf UiTheme.ApplyPrimaryButton)
+        UiTheme.SetSelectionButtonState(btnDeactivate, hasSelection AndAlso isActive, AddressOf UiTheme.ApplyWarningButton)
+        UiTheme.SetSelectionButtonState(btnReactivate, hasSelection AndAlso Not isActive, AddressOf UiTheme.ApplySuccessButton)
     End Sub
 
     Private Sub dgvCategories_DataBindingComplete(sender As Object, e As DataGridViewBindingCompleteEventArgs)
         ConfigureCategoryGridColumns()
+        UpdateCategoriesEmptyState()
     End Sub
 
     Private Sub CategoriesForm_Shown(sender As Object, e As EventArgs)
@@ -424,9 +538,9 @@ Public Class CategoriesForm
 
     Private Sub dgvCategories_SelectionChanged(sender As Object, e As EventArgs) Handles dgvCategories.SelectionChanged
         ClearInputError()
-        btnReactivate.Enabled = False
 
         If dgvCategories.CurrentRow Is Nothing Then
+            RefreshCategoryActionButtons(False, True)
             Return
         End If
 
@@ -438,16 +552,14 @@ Public Class CategoriesForm
             isActive = Convert.ToBoolean(row.Cells("is_active").Value)
         End If
 
-        btnDeactivate.Enabled = isActive
-        btnUpdate.Enabled = True
-        btnReactivate.Enabled = Not isActive
+        RefreshCategoryActionButtons(True, isActive)
     End Sub
 
     Private Sub btnAdd_Click(sender As Object, e As EventArgs) Handles btnAdd.Click
         ClearInputError()
         Dim name As String = txtCategoryName.Text.Trim()
         If name.Length = 0 Then
-            ShowInputError("Enter a category name.")
+            MessageBox.Show("Please enter a category name.", "Input Required", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             txtCategoryName.Focus()
             Return
         End If
@@ -455,21 +567,45 @@ Public Class CategoriesForm
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
-                Dim sql As String = "INSERT INTO dbo.categories (category_name) VALUES (@name);"
-                Using cmd As New SqlCommand(sql, connection)
+
+                ' 1. PROACTIVE CHECK: See if the category already exists in the database
+                Dim checkSql As String = "SELECT COUNT(*) FROM dbo.categories WHERE category_name = @name"
+                Using checkCmd As New SqlCommand(checkSql, connection)
+                    checkCmd.Parameters.AddWithValue("@name", name)
+                    Dim count As Integer = Convert.ToInt32(checkCmd.ExecuteScalar())
+
+                    If count > 0 Then
+                        ' It already exists! Show the warning and stop before the database throws an error.
+                        MessageBox.Show("A category with the name '" & name & "' already exists. Please choose a different name.", "Duplicate Category", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        txtCategoryName.Focus()
+                        Return
+                    End If
+                End Using
+
+                ' 2. INSERT RECORD: If we reach this line, the name is safe and unique!
+                Dim insertSql As String = "INSERT INTO dbo.categories (category_name) VALUES (@name);"
+                Using cmd As New SqlCommand(insertSql, connection)
                     cmd.Parameters.AddWithValue("@name", name)
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
 
+            ' Log the audit trail and update UI
             AuditLogger.LogAudit("CATEGORY_ADD", "Added category '" & name & "'.", AppSession.CurrentRole)
             txtCategoryName.Clear()
             LoadCategories()
             ShowStatus("Category added.", False)
         Catch ex As SqlException When ex.Number = 2627 OrElse ex.Number = 2601
             ShowInputError("A category with that name already exists.")
+            MessageBox.Show(
+                "Could not add the category because """ & name & """ already exists." & Environment.NewLine &
+                "Enter a different category name and try again.",
+                "Duplicate category",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         Catch ex As Exception
             ShowStatus("Add failed: " & ex.Message, True)
+            MessageBox.Show("Could not add the category: " & ex.Message, "Categories", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -505,8 +641,15 @@ Public Class CategoriesForm
             ShowStatus("Category updated.", False)
         Catch ex As SqlException When ex.Number = 2627 OrElse ex.Number = 2601
             ShowInputError("A category with that name already exists.")
+            MessageBox.Show(
+                "Could not update the category because """ & name & """ is already used by another category." & Environment.NewLine &
+                "Enter a unique category name and try again.",
+                "Duplicate category",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         Catch ex As Exception
             ShowStatus("Update failed: " & ex.Message, True)
+            MessageBox.Show("Could not update the category: " & ex.Message, "Categories", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -518,12 +661,7 @@ Public Class CategoriesForm
             Return
         End If
 
-        Dim result As DialogResult = MessageBox.Show(
-            "Deactivate this category? Products will keep the link but the category will be hidden from pick lists.",
-            AppBranding.ApplicationName,
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question)
-        If result <> DialogResult.Yes Then
+        If Not UiTheme.ConfirmAction("Deactivate this category? Products will keep the link but the category will be hidden from pick lists.") Then
             Return
         End If
 
@@ -550,6 +688,10 @@ Public Class CategoriesForm
         Dim id As Integer? = GetSelectedCategoryId()
         If Not id.HasValue Then
             ShowInputError("Select an inactive category to reactivate.")
+            Return
+        End If
+
+        If Not UiTheme.ConfirmAction("Reactivate this category? It will appear in category pick lists again.") Then
             Return
         End If
 
