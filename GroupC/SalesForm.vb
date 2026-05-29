@@ -117,6 +117,8 @@ Public Class SalesForm
     Private WithEvents btnTaxToggle As Button
     Private WithEvents numTaxPercent As NumericUpDown
     Private selectedPosDiscount As PosDiscountType = PosDiscountType.None
+    Private discountCustomerName As String = String.Empty
+    Private discountCustomerId As String = String.Empty
     Private verifiedDiscountId As String = String.Empty
     Private verifiedDiscountProofLabel As String = String.Empty
     Private taxToggleOn As Boolean
@@ -1629,28 +1631,43 @@ Public Class SalesForm
             Return
         End If
 
-        Dim clickedType As PosDiscountType = ResolvePosDiscountType(clicked)
-        If clickedType = PosDiscountType.None Then
-            Return
+        Dim clickedType As PosDiscountType = PosDiscountType.None
+        If clicked Is btnDiscPwd Then
+            clickedType = PosDiscountType.Pwd
+        ElseIf clicked Is btnDiscSenior Then
+            clickedType = PosDiscountType.Senior
+        ElseIf clicked Is btnDiscMembership Then
+            clickedType = PosDiscountType.Membership
         End If
 
+        ' Toggle logic
         If selectedPosDiscount = clickedType Then
+            ' Turning the discount OFF
             selectedPosDiscount = PosDiscountType.None
-            verifiedDiscountId = String.Empty
-            verifiedDiscountProofLabel = String.Empty
-            RefreshPosDiscountToggleUi()
-            UpdateDiscountVerificationCaption()
-            UpdateSummaryLabels()
-            Return
+            discountCustomerName = String.Empty
+            discountCustomerId = String.Empty
+        Else
+            ' Turning the discount ON - Ask for details
+            Dim tempName As String = ""
+            Dim tempId As String = ""
+
+            ' 1. Ask for Customer Name & ID
+            If Not PromptForDiscountDetails(tempName, tempId) Then
+                Return ' Stop if they canceled or left it blank
+            End If
+
+            ' 2. Ask for the Supervisor/Confirmation Code
+            If Not PromptForConfirmationCode() Then
+                Return ' Stop if the code was wrong or canceled
+            End If
+
+            ' If both passed, officially apply the discount
+            discountCustomerName = tempName
+            discountCustomerId = tempId
+            selectedPosDiscount = clickedType
         End If
 
-        If Not TryVerifyDiscountSelection(clickedType) Then
-            Return
-        End If
-
-        selectedPosDiscount = clickedType
         RefreshPosDiscountToggleUi()
-        UpdateDiscountVerificationCaption()
         UpdateSummaryLabels()
     End Sub
 
@@ -2638,7 +2655,9 @@ Public Class SalesForm
 
         Dim cartSubtotalCheck As Decimal = GetCartSubtotalSum()
         Dim discountCheck As Decimal = GetDiscountAmount()
-        If selectedPosDiscount <> PosDiscountType.None AndAlso verifiedDiscountId.Length = 0 Then
+
+        ' UPDATED: Use our new discountCustomerId variable for validation
+        If selectedPosDiscount <> PosDiscountType.None AndAlso discountCustomerId.Length = 0 Then
             MessageBox.Show(
                 "This discount requires customer ID verification. Select the discount again and enter a valid ID or membership number.",
                 "Discount verification required",
@@ -2731,6 +2750,18 @@ Public Class SalesForm
         Dim snapshot As ReceiptSnapshot = BuildReceiptSnapshot()
         snapshot.PaymentMethod = "Cash"
         snapshot.ReceiptText = String.Empty
+
+        ' --- IMPROVED: USE NATIVE VERIFICATION FIELDS ---
+        If selectedPosDiscount <> PosDiscountType.None Then
+            Dim discountBuilder As New StringBuilder()
+            discountBuilder.AppendLine("CUSTOMER: " & discountCustomerName)
+            discountBuilder.Append("ID NO: " & discountCustomerId)
+
+            snapshot.DiscountVerificationLabel = selectedPosDiscount.ToString().ToUpper()
+            snapshot.DiscountVerificationId = discountBuilder.ToString()
+        End If
+        ' ------------------------------------------------
+
         Dim newSaleId As Integer = -1
         If Not SaveSale(snapshot, newSaleId) Then
             Return
@@ -2742,6 +2773,14 @@ Public Class SalesForm
         snapshot.TransactionReference = ReceiptBranding.FormatTransactionReference(newSaleId, snapshot.SaleDateTime)
         snapshot.ReceiptText = ReceiptBranding.BuildReceiptText(snapshot)
         UpdateSaleReceiptText(newSaleId, snapshot.ReceiptText)
+
+        ' --- NEW: CLEAR OUT THE DISCOUNT AFTER SALE FINISHES ---
+        selectedPosDiscount = PosDiscountType.None
+        discountCustomerName = String.Empty
+        discountCustomerId = String.Empty
+        RefreshPosDiscountToggleUi()
+        UpdateSummaryLabels()
+        ' -------------------------------------------------------
 
         Using receiptForm As New ReceiptForm(snapshot, newSaleId)
             receiptForm.ShowDialog()
@@ -3412,4 +3451,80 @@ Public Class SalesForm
         Return Nothing
     End Function
 
+    Private Function PromptForDiscountDetails(ByRef customerName As String, ByRef idNumber As String) As Boolean
+        Using prompt As New Form()
+            prompt.Width = 350
+            prompt.Height = 220
+            prompt.Text = "Customer Discount Details"
+            prompt.StartPosition = FormStartPosition.CenterParent
+            prompt.FormBorderStyle = FormBorderStyle.FixedDialog
+            prompt.MaximizeBox = False
+            prompt.MinimizeBox = False
+            prompt.BackColor = UiTheme.ColSurface
+
+            Dim lblName As New Label() With {.Text = "Customer Name:", .Left = 20, .Top = 20, .AutoSize = True}
+            Dim txtName As New TextBox() With {.Left = 20, .Top = 40, .Width = 290}
+
+            Dim lblId As New Label() With {.Text = "ID Number (PWD/Senior/Member):", .Left = 20, .Top = 75, .AutoSize = True}
+            Dim txtId As New TextBox() With {.Left = 20, .Top = 95, .Width = 290}
+
+            Dim btnConfirm As New Button() With {.Text = "Confirm", .Left = 130, .Width = 80, .Top = 135, .DialogResult = DialogResult.OK}
+            Dim btnCancel As New Button() With {.Text = "Cancel", .Left = 230, .Width = 80, .Top = 135, .DialogResult = DialogResult.Cancel}
+
+            prompt.Controls.Add(lblName)
+            prompt.Controls.Add(txtName)
+            prompt.Controls.Add(lblId)
+            prompt.Controls.Add(txtId)
+            prompt.Controls.Add(btnConfirm)
+            prompt.Controls.Add(btnCancel)
+            prompt.AcceptButton = btnConfirm
+            prompt.CancelButton = btnCancel
+
+            If prompt.ShowDialog(Me) = DialogResult.OK Then
+                If String.IsNullOrWhiteSpace(txtName.Text) OrElse String.IsNullOrWhiteSpace(txtId.Text) Then
+                    MessageBox.Show("Both Customer Name and ID Number are required.", "Input Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    Return False
+                End If
+                customerName = txtName.Text.Trim()
+                idNumber = txtId.Text.Trim()
+                Return True
+            End If
+            Return False
+        End Using
+    End Function
+
+    Private Function PromptForConfirmationCode() As Boolean
+        Using prompt As New Form()
+            prompt.Width = 300
+            prompt.Height = 160
+            prompt.Text = "Discount Authorization"
+            prompt.StartPosition = FormStartPosition.CenterParent
+            prompt.FormBorderStyle = FormBorderStyle.FixedDialog
+            prompt.MaximizeBox = False
+            prompt.MinimizeBox = False
+
+            Dim lblCode As New Label() With {.Text = "Enter Confirmation Code:", .Left = 20, .Top = 20, .AutoSize = True}
+            Dim txtCode As New TextBox() With {.Left = 20, .Top = 40, .Width = 240, .UseSystemPasswordChar = True} ' Masks the code
+
+            Dim btnConfirm As New Button() With {.Text = "Verify", .Left = 80, .Width = 80, .Top = 80, .DialogResult = DialogResult.OK}
+            Dim btnCancel As New Button() With {.Text = "Cancel", .Left = 180, .Width = 80, .Top = 80, .DialogResult = DialogResult.Cancel}
+
+            prompt.Controls.Add(lblCode)
+            prompt.Controls.Add(txtCode)
+            prompt.Controls.Add(btnConfirm)
+            prompt.Controls.Add(btnCancel)
+            prompt.AcceptButton = btnConfirm
+
+            If prompt.ShowDialog(Me) = DialogResult.OK Then
+                ' IMPORTANT: "admin123" as the PIN or confirmation logic
+                If txtCode.Text.Trim() = "admin123" Then
+                    Return True
+                Else
+                    MessageBox.Show("Invalid confirmation code. Discount will not be applied.", "Unauthorized", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    Return False
+                End If
+            End If
+            Return False
+        End Using
+    End Function
 End Class

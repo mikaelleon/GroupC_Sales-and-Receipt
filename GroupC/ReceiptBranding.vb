@@ -72,13 +72,14 @@ Public NotInheritable Class ReceiptBranding
     ''' </summary>
     Public Shared Function FormatReceiptHeader(Optional storeName As String = Nothing) As String
         Dim title As String = FormatStoreTitle(storeName).ToUpperInvariant()
-        Return New String("="c, ReceiptLineWidth) & vbLf &
+        ' Wrap the equal signs in CenterText
+        Return CenterText(New String("="c, ReceiptLineWidth)) & vbLf &
                CenterText(title) & vbLf &
-               New String("="c, ReceiptLineWidth)
+               CenterText(New String("="c, ReceiptLineWidth))
     End Function
 
     ''' <summary>
-    ''' Centers text within the standard receipt width.
+    ''' Centers text within the standard receipt width by padding both sides.
     ''' </summary>
     Public Shared Function CenterText(text As String) As String
         Dim value As String = If(text, String.Empty).Trim()
@@ -90,8 +91,11 @@ Public NotInheritable Class ReceiptBranding
             Return value.Substring(0, ReceiptLineWidth)
         End If
 
-        Dim pad As Integer = (ReceiptLineWidth - value.Length) \ 2
-        Return New String(" "c, pad) & value
+        ' FIX: Calculate padding for both sides to guarantee exactly 40 characters
+        Dim padLeft As Integer = (ReceiptLineWidth - value.Length) \ 2
+        Dim padRight As Integer = ReceiptLineWidth - value.Length - padLeft
+
+        Return New String(" "c, padLeft) & value & New String(" "c, padRight)
     End Function
 
     ''' <summary>
@@ -146,9 +150,7 @@ Public NotInheritable Class ReceiptBranding
             If(snapshot.SaleDateTime = DateTime.MinValue, DateTime.UtcNow, snapshot.SaleDateTime))
         Dim receipt As New StringBuilder()
 
-        AppendBlank(receipt)
         receipt.AppendLine(FormatReceiptHeader(snapshot.StoreName))
-        AppendBlank(receipt)
         AppendCentered(receipt, settings.StoreBranch)
         AppendCentered(receipt, settings.StoreLocation)
         AppendBlank(receipt)
@@ -166,7 +168,6 @@ Public NotInheritable Class ReceiptBranding
 
         AppendBlank(receipt)
         AppendSectionRule(receipt, "TRANSACTION DETAILS")
-        AppendBlank(receipt)
         AppendCentered(receipt, "Date & Time: " & FormatReceiptDateTime(whenPrinted))
 
         If Not String.IsNullOrWhiteSpace(snapshot.CashierName) Then
@@ -175,8 +176,8 @@ Public NotInheritable Class ReceiptBranding
 
         AppendBlank(receipt)
         AppendSectionRule(receipt, "ITEMS PURCHASED")
-        receipt.AppendLine(CenterText("Item              Qty   Price    Subtotal"))
-        receipt.AppendLine(New String("-"c, ReceiptLineWidth))
+        receipt.AppendLine(CenterText("Item              Qty    Price  Subtotal"))
+        receipt.AppendLine(CenterText(New String("-"c, ReceiptLineWidth)))
 
         If snapshot.Lines IsNot Nothing Then
             For Each lineRow As ReceiptLineRow In snapshot.Lines
@@ -198,7 +199,6 @@ Public NotInheritable Class ReceiptBranding
 
         AppendBlank(receipt)
         AppendSectionRule(receipt, "PRICING BREAKDOWN")
-        AppendBlank(receipt)
         AppendAmountLine(receipt, "Subtotal:", sym, snapshot.SubtotalBeforeDiscount)
 
         If snapshot.DiscountAmount > 0D Then
@@ -215,8 +215,17 @@ Public NotInheritable Class ReceiptBranding
 
             If Not String.IsNullOrWhiteSpace(snapshot.DiscountVerificationLabel) AndAlso
                 Not String.IsNullOrWhiteSpace(snapshot.DiscountVerificationId) Then
-                AppendCentered(receipt,
-                               "Verified " & snapshot.DiscountVerificationLabel.Trim() & ": " & snapshot.DiscountVerificationId.Trim())
+
+                ' Renders the Customer Name and ID right under the discount line,
+                ' followed by a blank line to visually separate it from the Tax line.
+                AppendCentered(receipt, "--- " & snapshot.DiscountVerificationLabel.Trim().ToUpper() & " VERIFIED ---")
+
+                Dim vLines As String() = snapshot.DiscountVerificationId.Replace(vbCrLf, vbLf).Split(ChrW(10))
+                For Each vLine As String In vLines
+                    AppendCentered(receipt, vLine.Trim())
+                Next
+
+                AppendBlank(receipt)
             End If
         End If
 
@@ -232,28 +241,48 @@ Public NotInheritable Class ReceiptBranding
 
         AppendBlank(receipt)
         AppendSectionRule(receipt, "PAYMENT")
-        AppendBlank(receipt)
 
         Dim paymentMethod As String = If(snapshot.PaymentMethod, String.Empty).Trim()
         If paymentMethod.Length = 0 Then
             paymentMethod = "Cash"
         End If
 
-        AppendCentered(receipt, "Method: " & paymentMethod)
+        AppendAmountLine(receipt, "Method:", sym, String.Empty, paymentMethod)
         AppendAmountLine(receipt, "Tendered:", sym, snapshot.AmountTendered)
         AppendAmountLine(receipt, "Change:", sym, snapshot.ChangeGiven)
 
         AppendBlank(receipt)
-        receipt.AppendLine(New String("="c, ReceiptLineWidth))
-        AppendCentered(receipt, "FOOTER")
-        receipt.AppendLine(New String("="c, ReceiptLineWidth))
+        ' Single closing separator — no "FOOTER" label; the === already marks the end of the transaction block
+        receipt.AppendLine(CenterText(New String("="c, ReceiptLineWidth)))
         AppendBlank(receipt)
-        AppendWrappedCentered(receipt, "Customer Service: " & settings.CustomerServiceInfo)
-        AppendWrappedCentered(receipt, "Returns: " & settings.ReturnPolicyText)
-        AppendWrappedCentered(receipt, "Terms: " & settings.TermsText)
+
+        ' Footer contact / policy lines: split label and wrapped value onto separate lines
+        If Not String.IsNullOrWhiteSpace(settings.CustomerServiceInfo) Then
+            AppendCentered(receipt, "Customer Service:")
+            AppendWrappedCentered(receipt, settings.CustomerServiceInfo)
+        End If
+        If Not String.IsNullOrWhiteSpace(settings.ReturnPolicyText) Then
+            AppendCentered(receipt, "Returns Policy:")
+            AppendWrappedCentered(receipt, settings.ReturnPolicyText)
+        End If
+        If Not String.IsNullOrWhiteSpace(settings.TermsText) Then
+            AppendCentered(receipt, "Terms:")
+            AppendWrappedCentered(receipt, settings.TermsText)
+        End If
         AppendBlank(receipt)
-        AppendCentered(receipt, If(snapshot.FooterText, settings.ReceiptFooter))
-        AppendBlank(receipt)
+
+        ' --- NEW MULTI-LINE FOOTER SUPPORT ---
+        Dim footerText As String = If(snapshot.FooterText, settings.ReceiptFooter)
+        If Not String.IsNullOrWhiteSpace(footerText) Then
+            ' Standardize line breaks and split into individual lines
+            Dim footerLines As String() = footerText.Replace(vbCrLf, vbLf).Split(ChrW(10))
+
+            ' Center and print each line individually so it never exceeds 40 characters
+            For Each fLine As String In footerLines
+                AppendCentered(receipt, fLine)
+            Next
+        End If
+        ' -------------------------------------
 
         Dim barcodeRef As String = If(snapshot.ReceiptNumber, String.Empty).Trim()
         If barcodeRef.Length = 0 AndAlso snapshot.SaleId > 0 Then
@@ -261,12 +290,13 @@ Public NotInheritable Class ReceiptBranding
         End If
 
         If barcodeRef.Length > 0 Then
+            receipt.AppendLine(CenterText(New String("-"c, ReceiptLineWidth)))
             AppendCentered(receipt, "|" & barcodeRef & "|")
             AppendCentered(receipt, "[QR / barcode for inventory]")
         End If
 
         AppendBlank(receipt)
-        receipt.AppendLine(New String("="c, ReceiptLineWidth))
+        receipt.AppendLine(CenterText(New String("="c, ReceiptLineWidth)))
 
         Return CenterReceiptLines(receipt.ToString())
     End Function
@@ -333,11 +363,14 @@ Public NotInheritable Class ReceiptBranding
             ElseIf String.Equals(trimmed, "TRANSACTION DETAILS", StringComparison.OrdinalIgnoreCase) OrElse
                    String.Equals(trimmed, "ITEMS PURCHASED", StringComparison.OrdinalIgnoreCase) OrElse
                    String.Equals(trimmed, "PRICING BREAKDOWN", StringComparison.OrdinalIgnoreCase) OrElse
-                   String.Equals(trimmed, "PAYMENT", StringComparison.OrdinalIgnoreCase) OrElse
-                   String.Equals(trimmed, "FOOTER", StringComparison.OrdinalIgnoreCase) Then
+                   String.Equals(trimmed, "PAYMENT", StringComparison.OrdinalIgnoreCase) Then
                 lineColor = sectionColor
                 boldSection = True
                 section = trimmed.ToUpperInvariant()
+            ElseIf IsSeparatorLine(trimmed) AndAlso section = "PAYMENT" Then
+                ' Closing === after payment signals transition to footer content
+                lineColor = separatorColor
+                section = "FOOTER"
             ElseIf trimmed.StartsWith("Receipt No:", StringComparison.OrdinalIgnoreCase) OrElse
                    trimmed.StartsWith("Transaction:", StringComparison.OrdinalIgnoreCase) Then
                 lineColor = headerColor
@@ -556,7 +589,8 @@ Public NotInheritable Class ReceiptBranding
 
     Private Shared Sub AppendSectionRule(receipt As StringBuilder, title As String)
         receipt.AppendLine(CenterText(title))
-        receipt.AppendLine(New String("-"c, ReceiptLineWidth))
+        ' Center the section dashes
+        receipt.AppendLine(CenterText(New String("-"c, ReceiptLineWidth)))
     End Sub
 
     Private Shared Sub AppendAmountLine(receipt As StringBuilder, label As String, currencySymbol As String, amount As Decimal)
@@ -566,6 +600,15 @@ Public NotInheritable Class ReceiptBranding
             valueText = "-" & valueText
         End If
 
+        Dim row As String = label.PadRight(22) & valueText.PadLeft(18)
+        receipt.AppendLine(CenterText(row))
+    End Sub
+
+    ''' <summary>
+    ''' Overload for non-numeric payment fields (e.g. Method: Cash).
+    ''' Shares the same label-left / value-right layout as the numeric overload.
+    ''' </summary>
+    Private Shared Sub AppendAmountLine(receipt As StringBuilder, label As String, currencySymbol As String, unused As String, valueText As String)
         Dim row As String = label.PadRight(22) & valueText.PadLeft(18)
         receipt.AppendLine(CenterText(row))
     End Sub
