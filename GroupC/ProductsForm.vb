@@ -311,7 +311,7 @@ Public Class ProductsForm
             .Cursor = Cursors.Hand
         }
         btnImportTxt = New Button() With {
-            .Text = "Export to text",
+            .Text = "Export to txt file",
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
@@ -725,7 +725,7 @@ Public Class ProductsForm
             Return
         End If
 
-        If cmbFilter Is Nothing OrElse cmbFilter.SelectedIndex < 0 Then
+        If cmbFilter Is Nothing OrElse cmbFilter.SelectedIndex <0 Then
             Return
         End If
 
