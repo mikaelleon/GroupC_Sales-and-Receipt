@@ -559,7 +559,7 @@ Public Class CategoriesForm
         ClearInputError()
         Dim name As String = txtCategoryName.Text.Trim()
         If name.Length = 0 Then
-            ShowInputError("Enter a category name.")
+            MessageBox.Show("Please enter a category name.", "Input Required", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             txtCategoryName.Focus()
             Return
         End If
@@ -567,21 +567,38 @@ Public Class CategoriesForm
         Try
             Using connection As New SqlConnection(DatabaseConfig.ConnectionString)
                 connection.Open()
-                Dim sql As String = "INSERT INTO dbo.categories (category_name) VALUES (@name);"
-                Using cmd As New SqlCommand(sql, connection)
+
+                ' 1. PROACTIVE CHECK: See if the category already exists in the database
+                Dim checkSql As String = "SELECT COUNT(*) FROM dbo.categories WHERE category_name = @name"
+                Using checkCmd As New SqlCommand(checkSql, connection)
+                    checkCmd.Parameters.AddWithValue("@name", name)
+                    Dim count As Integer = Convert.ToInt32(checkCmd.ExecuteScalar())
+
+                    If count > 0 Then
+                        ' It already exists! Show the warning and stop before the database throws an error.
+                        MessageBox.Show("A category with the name '" & name & "' already exists. Please choose a different name.", "Duplicate Category", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        txtCategoryName.Focus()
+                        Return
+                    End If
+                End Using
+
+                ' 2. INSERT RECORD: If we reach this line, the name is safe and unique!
+                Dim insertSql As String = "INSERT INTO dbo.categories (category_name) VALUES (@name);"
+                Using cmd As New SqlCommand(insertSql, connection)
                     cmd.Parameters.AddWithValue("@name", name)
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
 
+            ' Log the audit trail and update UI
             AuditLogger.LogAudit("CATEGORY_ADD", "Added category '" & name & "'.", AppSession.CurrentRole)
             txtCategoryName.Clear()
             LoadCategories()
-            ShowStatus("Category added.", False)
-        Catch ex As SqlException When ex.Number = 2627 OrElse ex.Number = 2601
-            ShowInputError("A category with that name already exists.")
+
+            MessageBox.Show("Category '" & name & "' has been successfully added.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+
         Catch ex As Exception
-            ShowStatus("Add failed: " & ex.Message, True)
+            MessageBox.Show("Failed to add category. Details: " & ex.Message, "System Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
