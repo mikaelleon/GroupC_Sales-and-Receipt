@@ -7,6 +7,7 @@ Imports System.Windows.Forms
 Public Class DiscountVerificationDialog
     Inherits Form
 
+    Private ReadOnly verificationKind As DiscountIdValidator.VerificationKind
     Private txtVerificationId As TextBox
     Private lblError As Label
     Private enteredIdValue As String = String.Empty
@@ -23,10 +24,12 @@ Public Class DiscountVerificationDialog
     ''' <summary>
     ''' Initializes a verification dialog for the given discount kind.
     ''' </summary>
+    ''' <param name="kind">Validation rules to apply on submit.</param>
     ''' <param name="discountTitle">Dialog title (for example PWD discount).</param>
     ''' <param name="instruction">Guidance shown above the ID field.</param>
     ''' <param name="idFieldLabel">Label for the proof field.</param>
-    Public Sub New(discountTitle As String, instruction As String, idFieldLabel As String)
+    Public Sub New(kind As DiscountIdValidator.VerificationKind, discountTitle As String, instruction As String, idFieldLabel As String)
+        verificationKind = kind
         BuildUi(discountTitle, instruction, idFieldLabel)
     End Sub
 
@@ -37,15 +40,17 @@ Public Class DiscountVerificationDialog
         Me.MinimizeBox = False
         Me.MaximizeBox = False
         Me.ShowInTaskbar = False
-        Me.ClientSize = New Size(420, 220)
+        Me.ClientSize = New Size(460, 250)
         Me.AcceptButton = Nothing
         Me.CancelButton = Nothing
+
+        Dim instructionHeight As Integer = If(verificationKind = DiscountIdValidator.VerificationKind.Pwd, 72, 56)
 
         Dim lblInstruction As New Label() With {
             .Text = instruction,
             .AutoSize = False,
-            .Width = 380,
-            .Height = 48,
+            .Width = 420,
+            .Height = instructionHeight,
             .Location = New Point(UiTheme.PadPage, UiTheme.PadPage),
             .ForeColor = UiTheme.ColTextSecondary,
             .Font = UiTheme.FontBody
@@ -60,15 +65,26 @@ Public Class DiscountVerificationDialog
         }
 
         txtVerificationId = New TextBox() With {
-            .Width = 380,
+            .Width = 420,
             .Location = New Point(UiTheme.PadPage, lblId.Bottom + UiTheme.PadTight),
             .MaxLength = 40
         }
         UiTheme.ApplyInputStyle(txtVerificationId)
 
+        Select Case verificationKind
+            Case DiscountIdValidator.VerificationKind.Pwd
+                txtVerificationId.PlaceholderText = "RR-PPMM-BBB-NNNNNNN (14 digits)"
+            Case DiscountIdValidator.VerificationKind.Senior
+                txtVerificationId.PlaceholderText = "Full LGU / OSCA ID number"
+            Case DiscountIdValidator.VerificationKind.Membership
+                txtVerificationId.PlaceholderText = "Membership card number"
+        End Select
+
         lblError = New Label() With {
             .Text = String.Empty,
-            .AutoSize = True,
+            .AutoSize = False,
+            .Width = 420,
+            .Height = 40,
             .ForeColor = UiTheme.ColDanger,
             .Font = UiTheme.FontCaption,
             .Location = New Point(UiTheme.PadPage, txtVerificationId.Bottom + UiTheme.PadTight),
@@ -90,20 +106,7 @@ Public Class DiscountVerificationDialog
         }
         UiTheme.ApplySecondaryButton(btnCancel)
 
-        AddHandler btnOk.Click,
-            Sub()
-                Dim idValue As String = txtVerificationId.Text.Trim()
-                If idValue.Length < 4 Then
-                    lblError.Text = "Enter a valid ID or membership number (at least 4 characters)."
-                    lblError.Visible = True
-                    txtVerificationId.Focus()
-                    Return
-                End If
-
-                enteredIdValue = idValue
-                Me.DialogResult = DialogResult.OK
-                Me.Close()
-            End Sub
+        AddHandler btnOk.Click, AddressOf VerifyAndClose
 
         Me.Controls.Add(lblInstruction)
         Me.Controls.Add(lblId)
@@ -112,6 +115,22 @@ Public Class DiscountVerificationDialog
         Me.Controls.Add(btnOk)
         Me.Controls.Add(btnCancel)
         Me.CancelButton = btnCancel
+    End Sub
+
+    Private Sub VerifyAndClose(sender As Object, e As EventArgs)
+        Dim normalized As String = String.Empty
+        Dim validationError As String = String.Empty
+
+        If Not DiscountIdValidator.TryValidate(verificationKind, txtVerificationId.Text, normalized, validationError) Then
+            lblError.Text = validationError
+            lblError.Visible = True
+            txtVerificationId.Focus()
+            Return
+        End If
+
+        enteredIdValue = normalized
+        Me.DialogResult = DialogResult.OK
+        Me.Close()
     End Sub
 
 End Class

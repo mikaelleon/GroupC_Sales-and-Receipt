@@ -1635,12 +1635,16 @@ Public Class SalesForm
         Select Case discountType
             Case PosDiscountType.Pwd
                 title = "Verify PWD discount"
-                instruction = "Ask the customer to present a valid PWD ID. Enter the ID number shown on the card before applying the 20% discount."
+                instruction =
+                    "Ask for the customer's PWD ID. Enter the DOH registry number (14 digits, format RR-PPMM-BBB-NNNNNNN)." & Environment.NewLine &
+                    "Sequential part must be 7 digits. If the card shows 5, add ""00"" before them."
                 fieldLabel = "PWD ID number"
                 proofLabel = "PWD ID"
             Case PosDiscountType.Senior
                 title = "Verify Senior Citizen discount"
-                instruction = "Ask the customer to present a valid Senior Citizen ID or OSCA booklet. Enter the ID number before applying the 20% discount."
+                instruction =
+                    "Ask for a valid Senior Citizen ID or OSCA booklet. LGU formats vary — enter the full ID number as printed." & Environment.NewLine &
+                    "This is checked against local LGU / DSWD records, not the strict PWD 14-digit rule."
                 fieldLabel = "Senior Citizen ID number"
                 proofLabel = "Senior ID"
             Case PosDiscountType.Membership
@@ -1652,7 +1656,19 @@ Public Class SalesForm
                 Return False
         End Select
 
-        Using dlg As New DiscountVerificationDialog(title, instruction, fieldLabel)
+        Dim kind As DiscountIdValidator.VerificationKind
+        Select Case discountType
+            Case PosDiscountType.Pwd
+                kind = DiscountIdValidator.VerificationKind.Pwd
+            Case PosDiscountType.Senior
+                kind = DiscountIdValidator.VerificationKind.Senior
+            Case PosDiscountType.Membership
+                kind = DiscountIdValidator.VerificationKind.Membership
+            Case Else
+                Return False
+        End Select
+
+        Using dlg As New DiscountVerificationDialog(kind, title, instruction, fieldLabel)
             If dlg.ShowDialog(Me) <> DialogResult.OK Then
                 MessageBox.Show(
                     "Discount was not applied because customer verification was cancelled.",
