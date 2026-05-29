@@ -212,6 +212,12 @@ Public NotInheritable Class ReceiptBranding
             End If
 
             AppendAmountLine(receipt, discLabel, sym, -snapshot.DiscountAmount)
+
+            If Not String.IsNullOrWhiteSpace(snapshot.DiscountVerificationLabel) AndAlso
+                Not String.IsNullOrWhiteSpace(snapshot.DiscountVerificationId) Then
+                AppendCentered(receipt,
+                               "Verified " & snapshot.DiscountVerificationLabel.Trim() & ": " & snapshot.DiscountVerificationId.Trim())
+            End If
         End If
 
         If snapshot.TaxApplied AndAlso snapshot.TaxAmount > 0D Then

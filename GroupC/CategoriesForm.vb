@@ -580,8 +580,15 @@ Public Class CategoriesForm
             ShowStatus("Category added.", False)
         Catch ex As SqlException When ex.Number = 2627 OrElse ex.Number = 2601
             ShowInputError("A category with that name already exists.")
+            MessageBox.Show(
+                "Could not add the category because """ & name & """ already exists." & Environment.NewLine &
+                "Enter a different category name and try again.",
+                "Duplicate category",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         Catch ex As Exception
             ShowStatus("Add failed: " & ex.Message, True)
+            MessageBox.Show("Could not add the category: " & ex.Message, "Categories", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -617,8 +624,15 @@ Public Class CategoriesForm
             ShowStatus("Category updated.", False)
         Catch ex As SqlException When ex.Number = 2627 OrElse ex.Number = 2601
             ShowInputError("A category with that name already exists.")
+            MessageBox.Show(
+                "Could not update the category because """ & name & """ is already used by another category." & Environment.NewLine &
+                "Enter a unique category name and try again.",
+                "Duplicate category",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
         Catch ex As Exception
             ShowStatus("Update failed: " & ex.Message, True)
+            MessageBox.Show("Could not update the category: " & ex.Message, "Categories", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 

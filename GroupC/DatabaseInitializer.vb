@@ -176,7 +176,9 @@ Public NotInheritable Class DatabaseInitializer
             "IF COL_LENGTH('dbo.sales','tax_percent') IS NULL ALTER TABLE dbo.sales ADD tax_percent DECIMAL(5,2) NULL;",
             "IF COL_LENGTH('dbo.sales','tax_amount') IS NULL ALTER TABLE dbo.sales ADD tax_amount DECIMAL(10,2) NULL;",
             "IF COL_LENGTH('dbo.sales','amount_tendered') IS NULL ALTER TABLE dbo.sales ADD amount_tendered DECIMAL(10,2) NULL;",
-            "IF COL_LENGTH('dbo.sales','change_given') IS NULL ALTER TABLE dbo.sales ADD change_given DECIMAL(10,2) NULL;"
+            "IF COL_LENGTH('dbo.sales','change_given') IS NULL ALTER TABLE dbo.sales ADD change_given DECIMAL(10,2) NULL;",
+            "IF COL_LENGTH('dbo.sales','discount_verification_label') IS NULL ALTER TABLE dbo.sales ADD discount_verification_label NVARCHAR(50) NULL;",
+            "IF COL_LENGTH('dbo.sales','discount_verification_id') IS NULL ALTER TABLE dbo.sales ADD discount_verification_id NVARCHAR(40) NULL;"
         }
 
         For Each stmt As String In alters

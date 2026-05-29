@@ -76,6 +76,16 @@ Public Class ReceiptSnapshot
     Public Property DiscountLabel As String
 
     ''' <summary>
+    ''' Gets or sets the proof label recorded for the discount (for example PWD ID).
+    ''' </summary>
+    Public Property DiscountVerificationLabel As String
+
+    ''' <summary>
+    ''' Gets or sets the verified ID or membership number for the applied discount.
+    ''' </summary>
+    Public Property DiscountVerificationId As String
+
+    ''' <summary>
     ''' Gets or sets the discount amount.
     ''' </summary>
     Public Property DiscountAmount As Decimal

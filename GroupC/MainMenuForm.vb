@@ -40,6 +40,9 @@ Public Class MainMenuForm
     Private WithEvents btnLogout As Button
 
     Private lblSidebarStoreName As Label
+    Private lblPageTitle As Label
+    Private pnlDashboardContent As Panel
+    Private pendingCashierPosLaunch As Boolean
     Private lblStatusDot As Label
     Private lblStatusText As Label
     Private pnlSystemStatus As FlowLayoutPanel
@@ -149,6 +152,11 @@ Public Class MainMenuForm
         If closeDueToLoginFail Then
             Me.Close()
             Return
+        End If
+
+        If pendingCashierPosLaunch Then
+            pendingCashierPosLaunch = False
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
         End If
     End Sub
 
@@ -291,7 +299,7 @@ Public Class MainMenuForm
         StyleSidebarLogoutButton(btnLogout)
 
         btnDashboard.Enabled = False
-        UiTheme.SetSidebarButtonActive(btnDashboard, True)
+        SetActiveNavButton(btnDashboard)
 
         ApplyRoleBasedNavigation()
 
@@ -410,7 +418,7 @@ Public Class MainMenuForm
         topBarStack.RowStyles.Add(New RowStyle(SizeType.AutoSize))
         topBarStack.RowStyles.Add(New RowStyle(SizeType.Absolute, 1))
 
-        Dim lblPageTitle As New Label() With {
+        Dim lblPageTitleLocal As New Label() With {
             .Text = "Dashboard",
             .Font = UiTheme.FontDisplay,
             .ForeColor = UiTheme.ColTextPrimary,
@@ -418,10 +426,11 @@ Public Class MainMenuForm
             .Dock = DockStyle.Fill,
             .Margin = Padding.Empty
         }
+        lblPageTitle = lblPageTitleLocal
         pnlSystemStatus.Margin = New Padding(0, UiTheme.PadTight, 0, 0)
         pnlSystemStatus.Dock = DockStyle.Fill
 
-        topBarStack.Controls.Add(lblPageTitle, 0, 0)
+        topBarStack.Controls.Add(lblPageTitleLocal, 0, 0)
         topBarStack.Controls.Add(pnlSystemStatus, 0, 1)
         topBarStack.Controls.Add(New Panel() With {.Height = 1, .Dock = DockStyle.Fill, .BackColor = UiTheme.ColBorder}, 0, 2)
         topBar.Controls.Add(topBarStack)
@@ -514,6 +523,7 @@ Public Class MainMenuForm
         contentLayout.Controls.Add(salesCard, 0, 1)
         contentLayout.Controls.Add(futureSpacer, 0, 2)
         contentArea.Controls.Add(contentLayout)
+        pnlDashboardContent = contentArea
 
         rightColumn.Controls.Add(contentArea)
         rightColumn.Controls.Add(topBar)
@@ -1320,8 +1330,10 @@ Public Class MainMenuForm
             If Not Me.IsDisposed Then
                 Me.Show()
                 Me.ShowInTaskbar = True
-                If btnDashboard IsNot Nothing Then
-                    UiTheme.SetSidebarButtonActive(btnDashboard, True)
+                If AppSession.IsAdmin() Then
+                    SetActiveNavButton(btnDashboard)
+                Else
+                    SetActiveNavButton(btnSales)
                 End If
             End If
         End Try
@@ -1605,6 +1617,28 @@ Public Class MainMenuForm
         End Using
     End Sub
 
+    Private Sub SetActiveNavButton(active As Button)
+        Dim navButtons As Button() = {
+            btnDashboard,
+            btnProducts,
+            btnCategories,
+            btnCashierAccounts,
+            btnSales,
+            btnReceipt,
+            btnReports
+        }
+
+        For Each navButton As Button In navButtons
+            If navButton Is Nothing Then
+                Continue For
+            End If
+
+            Dim isActive As Boolean = Object.ReferenceEquals(navButton, active)
+            navButton.Enabled = Not isActive
+            UiTheme.SetSidebarButtonActive(navButton, isActive)
+        Next
+    End Sub
+
     Private Sub ApplyRoleBasedNavigation()
         Dim showAdminNav As Boolean = AppSession.IsAdmin()
         If btnProducts IsNot Nothing Then btnProducts.Visible = showAdminNav
@@ -1613,6 +1647,20 @@ Public Class MainMenuForm
         If btnReports IsNot Nothing Then btnReports.Visible = showAdminNav
         If btnSettings IsNot Nothing Then btnSettings.Visible = showAdminNav
         If btnBackup IsNot Nothing Then btnBackup.Visible = showAdminNav
+        If btnDashboard IsNot Nothing Then btnDashboard.Visible = showAdminNav
+        If pnlDashboardContent IsNot Nothing Then pnlDashboardContent.Visible = showAdminNav
+
+        If showAdminNav Then
+            Me.Text = AppBranding.WindowTitle("Dashboard")
+            If lblPageTitle IsNot Nothing Then lblPageTitle.Text = "Dashboard"
+            SetActiveNavButton(btnDashboard)
+            pendingCashierPosLaunch = False
+        Else
+            Me.Text = AppBranding.WindowTitle("Point of Sale")
+            If lblPageTitle IsNot Nothing Then lblPageTitle.Text = "Point of Sale"
+            SetActiveNavButton(btnSales)
+            pendingCashierPosLaunch = True
+        End If
     End Sub
 
     Private Sub btnCategories_Click(sender As Object, e As EventArgs) Handles btnCategories.Click
@@ -1641,6 +1689,8 @@ Public Class MainMenuForm
         Catch
         End Try
 
+        AppSession.ClearSession()
+
         Me.Opacity = 0
         Me.ShowInTaskbar = False
 
@@ -1656,6 +1706,10 @@ Public Class MainMenuForm
         Me.ShowInTaskbar = True
         ApplyRoleBasedNavigation()
         RefreshHealthAndDashboard()
+
+        If Not AppSession.IsAdmin() Then
+            ShowWorkspaceDialog(Function() New SalesForm(), refreshDashboard:=False)
+        End If
     End Sub
 
 End Class

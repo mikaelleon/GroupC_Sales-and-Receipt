@@ -311,11 +311,7 @@ Public Class ProductsForm
             .Cursor = Cursors.Hand
         }
         btnImportTxt = New Button() With {
-<<<<<<< HEAD
-            .Text = "Export to txt file",
-=======
             .Text = "Export to text",
->>>>>>> feat/overhaul
             .AutoSize = True,
             .MinimumSize = New Size(100, UiTheme.ButtonHeightSm),
             .Cursor = Cursors.Hand
@@ -912,7 +908,27 @@ Public Class ProductsForm
         End If
 
         Dim col As DataGridViewColumn = dgv.Columns(e.ColumnIndex)
-        If col Is Nothing OrElse Not String.Equals(col.Name, "stock_quantity", StringComparison.OrdinalIgnoreCase) Then
+        If col Is Nothing Then
+            Return
+        End If
+
+        If String.Equals(col.Name, "is_active", StringComparison.OrdinalIgnoreCase) Then
+            If e.Value Is Nothing OrElse e.Value Is DBNull.Value Then
+                e.Value = "Inactive"
+                e.FormattingApplied = True
+                Return
+            End If
+
+            Try
+                e.Value = If(Convert.ToBoolean(e.Value), "Active", "Inactive")
+                e.FormattingApplied = True
+            Catch
+            End Try
+
+            Return
+        End If
+
+        If Not String.Equals(col.Name, "stock_quantity", StringComparison.OrdinalIgnoreCase) Then
             Return
         End If
 
@@ -948,7 +964,8 @@ Public Class ProductsForm
 
         If dgvProducts.Columns.Contains("is_active") Then
             Dim activeCol As DataGridViewColumn = dgvProducts.Columns("is_active")
-            activeCol.HeaderText = "Active"
+            activeCol.HeaderText = "Status"
+            activeCol.DefaultCellStyle.NullValue = "Inactive"
             ConfigureInventoryGridFixedColumn(activeCol, GridActiveColumnWidth, DataGridViewContentAlignment.MiddleCenter, 0)
         End If
 
@@ -1538,14 +1555,16 @@ Public Class ProductsForm
                 If existingId >= 0 Then
                     If existingActive Then
                         MessageBox.Show(
-                            "A product with this name already exists. Use Update to change its price or name.",
+                            "A product named """ & productName & """ already exists in the catalog." & Environment.NewLine & Environment.NewLine &
+                            "Choose a different name, or select the existing product and click Update to change its details.",
                             "Duplicate product",
                             MessageBoxButtons.OK,
-                            MessageBoxIcon.Information)
+                            MessageBoxIcon.Warning)
                         Return
                     Else
                         MessageBox.Show(
-                            "This product exists but is deactivated. Set Show to All or Inactive only, select it, then click Reactivate.",
+                            "A product named """ & productName & """ already exists but is inactive." & Environment.NewLine & Environment.NewLine &
+                            "Set Show to All or Inactive only, select it in the grid, then click Reactivate.",
                             "Inactive product",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Information)
@@ -1601,7 +1620,12 @@ Public Class ProductsForm
             ShowStatus("Product added.", False)
         Catch ex As SqlException
             If ex.Number = 2627 OrElse ex.Number = 2601 Then
-                MessageBox.Show("Duplicate product name is not allowed.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(
+                    "Could not add the product because """ & productName & """ is already in use." & Environment.NewLine &
+                    "Enter a unique product name and try again.",
+                    "Duplicate product",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning)
             Else
                 MessageBox.Show("Error saving product: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnAdd_Click))
@@ -1649,7 +1673,12 @@ Public Class ProductsForm
                     dupCmd.Parameters.AddWithValue("@id", productId)
                     Dim cnt As Integer = Convert.ToInt32(dupCmd.ExecuteScalar())
                     If cnt > 0 Then
-                        MessageBox.Show("Another product already uses this name.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        MessageBox.Show(
+                            "Another product is already named """ & productName & """." & Environment.NewLine &
+                            "Enter a unique product name and try again.",
+                            "Duplicate product",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning)
                         Return
                     End If
                 End Using
@@ -1709,7 +1738,12 @@ Public Class ProductsForm
             ShowStatus("Product updated.", False)
         Catch ex As SqlException
             If ex.Number = 2627 OrElse ex.Number = 2601 Then
-                MessageBox.Show("Duplicate product name is not allowed.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(
+                    "Could not update the product because """ & productName & """ is already used by another item." & Environment.NewLine &
+                    "Enter a unique product name and try again.",
+                    "Duplicate product",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning)
             Else
                 MessageBox.Show("Error updating product: " & ex.Message, "Database", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 ErrorLogger.Log(ex, NameOf(ProductsForm) & "." & NameOf(btnUpdate_Click))

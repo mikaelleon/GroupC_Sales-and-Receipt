@@ -406,6 +406,7 @@ Public Class LoginForm
 
     Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click
         ClearLoginError()
+        AppSession.ClearSession()
         Dim secret As String = txtSecret.Text.Trim()
 
         Try
@@ -422,8 +423,7 @@ Public Class LoginForm
                 Return
             End If
 
-            AppSession.ClearCashierIdentity()
-            AppSession.CurrentRole = AppSession.RoleAdmin
+            AppSession.BeginAdminSession()
         Else
             Dim username As String = txtUsername.Text.Trim()
             If username.Length = 0 Then
@@ -446,13 +446,10 @@ Public Class LoginForm
                 Return
             End If
 
-            AppSession.CurrentRole = AppSession.RoleCashier
-            AppSession.CurrentCashierId = auth.CashierId
-            AppSession.CurrentUsername = auth.Username
-            AppSession.CurrentCashierDisplayName = If(
-                String.IsNullOrWhiteSpace(auth.DisplayName),
+            AppSession.BeginCashierSession(
+                auth.CashierId,
                 auth.Username,
-                auth.DisplayName.Trim())
+                If(String.IsNullOrWhiteSpace(auth.DisplayName), auth.Username, auth.DisplayName.Trim()))
         End If
 
         AuditLogger.LogAudit("LOGIN_SUCCESS", "Signed in to " & AppBranding.ApplicationName & ".", AppSession.GetAuditIdentity())

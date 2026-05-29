@@ -38,6 +38,32 @@ Public Module AppSession
     End Sub
 
     ''' <summary>
+    ''' Resets all session fields (call on sign-out and before a new sign-in).
+    ''' </summary>
+    Public Sub ClearSession()
+        CurrentRole = RoleCashier
+        ClearCashierIdentity()
+    End Sub
+
+    ''' <summary>
+    ''' Starts an administrator session after successful sign-in.
+    ''' </summary>
+    Public Sub BeginAdminSession()
+        ClearCashierIdentity()
+        CurrentRole = RoleAdmin
+    End Sub
+
+    ''' <summary>
+    ''' Starts a cashier session after successful sign-in.
+    ''' </summary>
+    Public Sub BeginCashierSession(cashierId As Integer, username As String, displayName As String)
+        CurrentRole = RoleCashier
+        CurrentCashierId = cashierId
+        CurrentUsername = username
+        CurrentCashierDisplayName = displayName
+    End Sub
+
+    ''' <summary>
     ''' Name printed on sales receipts for the current operator.
     ''' </summary>
     Public Function GetReceiptOperatorName() As String

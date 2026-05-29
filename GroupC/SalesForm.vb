@@ -116,6 +116,8 @@ Public Class SalesForm
     Private WithEvents btnTaxToggle As Button
     Private WithEvents numTaxPercent As NumericUpDown
     Private selectedPosDiscount As PosDiscountType = PosDiscountType.None
+    Private verifiedDiscountId As String = String.Empty
+    Private verifiedDiscountProofLabel As String = String.Empty
     Private taxToggleOn As Boolean
     Private WithEvents txtAmountTendered As TextBox
 
@@ -333,16 +335,16 @@ Public Class SalesForm
 
         lblDiscountHeading = CreateCheckoutSummaryCaption("Discount:")
         lblCustomerDiscount = New Label() With {
-            .Text = "Discount",
+            .Text = "Customer discount (ID required)",
             .AutoSize = True,
             .ForeColor = UiTheme.ColTextSecondary,
             .Font = UiTheme.FontCaption,
             .Margin = New Padding(0, 0, 0, UiTheme.PadControl)
         }
 
-        btnDiscPwd = CreatePosDiscountToggle("PWD  20%", PosDiscountType.Pwd)
-        btnDiscSenior = CreatePosDiscountToggle("Senior  20%", PosDiscountType.Senior)
-        btnDiscMembership = CreatePosDiscountToggle("Member  10%", PosDiscountType.Membership)
+        btnDiscPwd = CreatePosDiscountToggle("PWD  20%")
+        btnDiscSenior = CreatePosDiscountToggle("Senior  20%")
+        btnDiscMembership = CreatePosDiscountToggle("Member  10%")
 
         btnTaxToggle = New Button() With {
             .Text = "VAT / Tax",
@@ -1542,22 +1544,37 @@ Public Class SalesForm
 
     Private Shared Sub ConfigureCheckoutDiscountButton(btn As Button)
         btn.AutoSize = False
-        btn.Dock = DockStyle.Fill
+        btn.Width = CInt(CheckoutDiscountColumnWidth)
         btn.Height = UiTheme.ButtonHeightSm
         btn.Margin = New Padding(0, 0, 0, UiTheme.SpaceXs)
         btn.TextAlign = ContentAlignment.MiddleCenter
     End Sub
 
-    Private Function CreatePosDiscountToggle(caption As String, discountType As PosDiscountType) As Button
+    Private Function CreatePosDiscountToggle(caption As String) As Button
         Dim btn As New Button() With {
             .Text = caption,
-            .Tag = discountType,
             .Font = UiTheme.FontBodySmall,
             .Cursor = Cursors.Hand,
             .FlatStyle = FlatStyle.Flat
         }
         btn.FlatAppearance.BorderColor = UiTheme.CardBorder
         Return btn
+    End Function
+
+    Private Function ResolvePosDiscountType(btn As Button) As PosDiscountType
+        If btn Is btnDiscPwd Then
+            Return PosDiscountType.Pwd
+        End If
+
+        If btn Is btnDiscSenior Then
+            Return PosDiscountType.Senior
+        End If
+
+        If btn Is btnDiscMembership Then
+            Return PosDiscountType.Membership
+        End If
+
+        Return PosDiscountType.None
     End Function
 
     Private Sub btnTaxToggle_Click(sender As Object, e As EventArgs) Handles btnTaxToggle.Click
@@ -1580,19 +1597,91 @@ Public Class SalesForm
         End If
 
         Dim clicked As Button = TryCast(sender, Button)
-        If clicked Is Nothing OrElse clicked.Tag Is Nothing Then
+        If clicked Is Nothing Then
             Return
         End If
 
-        Dim clickedType As PosDiscountType = CType(clicked.Tag, PosDiscountType)
-        If selectedPosDiscount = clickedType Then
-            selectedPosDiscount = PosDiscountType.None
-        Else
-            selectedPosDiscount = clickedType
+        Dim clickedType As PosDiscountType = ResolvePosDiscountType(clicked)
+        If clickedType = PosDiscountType.None Then
+            Return
         End If
 
+        If selectedPosDiscount = clickedType Then
+            selectedPosDiscount = PosDiscountType.None
+            verifiedDiscountId = String.Empty
+            verifiedDiscountProofLabel = String.Empty
+            RefreshPosDiscountToggleUi()
+            UpdateDiscountVerificationCaption()
+            UpdateSummaryLabels()
+            Return
+        End If
+
+        If Not TryVerifyDiscountSelection(clickedType) Then
+            Return
+        End If
+
+        selectedPosDiscount = clickedType
         RefreshPosDiscountToggleUi()
+        UpdateDiscountVerificationCaption()
         UpdateSummaryLabels()
+    End Sub
+
+    Private Function TryVerifyDiscountSelection(discountType As PosDiscountType) As Boolean
+        Dim title As String
+        Dim instruction As String
+        Dim fieldLabel As String
+        Dim proofLabel As String
+
+        Select Case discountType
+            Case PosDiscountType.Pwd
+                title = "Verify PWD discount"
+                instruction = "Ask the customer to present a valid PWD ID. Enter the ID number shown on the card before applying the 20% discount."
+                fieldLabel = "PWD ID number"
+                proofLabel = "PWD ID"
+            Case PosDiscountType.Senior
+                title = "Verify Senior Citizen discount"
+                instruction = "Ask the customer to present a valid Senior Citizen ID or OSCA booklet. Enter the ID number before applying the 20% discount."
+                fieldLabel = "Senior Citizen ID number"
+                proofLabel = "Senior ID"
+            Case PosDiscountType.Membership
+                title = "Verify membership discount"
+                instruction = "Ask the customer to present a valid bookstore membership card. Enter the membership number before applying the 10% discount."
+                fieldLabel = "Membership number"
+                proofLabel = "Member No."
+            Case Else
+                Return False
+        End Select
+
+        Using dlg As New DiscountVerificationDialog(title, instruction, fieldLabel)
+            If dlg.ShowDialog(Me) <> DialogResult.OK Then
+                MessageBox.Show(
+                    "Discount was not applied because customer verification was cancelled.",
+                    "Discount verification",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information)
+                Return False
+            End If
+
+            verifiedDiscountId = dlg.EnteredId
+            verifiedDiscountProofLabel = proofLabel
+        End Using
+
+        Return True
+    End Function
+
+    Private Sub UpdateDiscountVerificationCaption()
+        If lblCustomerDiscount Is Nothing Then
+            Return
+        End If
+
+        If selectedPosDiscount = PosDiscountType.None OrElse verifiedDiscountId.Length = 0 Then
+            lblCustomerDiscount.Text = "Customer discount (ID required)"
+            lblCustomerDiscount.ForeColor = UiTheme.ColTextSecondary
+            Return
+        End If
+
+        lblCustomerDiscount.Text = "Verified: " & verifiedDiscountProofLabel & " " & verifiedDiscountId
+        lblCustomerDiscount.ForeColor = UiTheme.ColAccent
     End Sub
 
     Private Sub RefreshPosDiscountToggleUi()
@@ -1634,6 +1723,8 @@ Public Class SalesForm
 
     Private Sub ResetPosCheckoutOptions()
         selectedPosDiscount = PosDiscountType.None
+        verifiedDiscountId = String.Empty
+        verifiedDiscountProofLabel = String.Empty
         taxToggleOn = False
         If numTaxPercent IsNot Nothing Then
             numTaxPercent.Value = 0D
@@ -1641,6 +1732,7 @@ Public Class SalesForm
 
         RefreshPosDiscountToggleUi()
         RefreshTaxToggleUi()
+        UpdateDiscountVerificationCaption()
     End Sub
 
     Private Function GetSelectedDiscountPercent() As Decimal
@@ -2502,6 +2594,15 @@ Public Class SalesForm
 
         Dim cartSubtotalCheck As Decimal = GetCartSubtotalSum()
         Dim discountCheck As Decimal = GetDiscountAmount()
+        If selectedPosDiscount <> PosDiscountType.None AndAlso verifiedDiscountId.Length = 0 Then
+            MessageBox.Show(
+                "This discount requires customer ID verification. Select the discount again and enter a valid ID or membership number.",
+                "Discount verification required",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning)
+            Return
+        End If
+
         If discountCheck > cartSubtotalCheck Then
             ShowSalesInputError("Discount cannot exceed the cart subtotal.")
             MessageBox.Show("Discount cannot exceed the cart subtotal.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -2619,6 +2720,8 @@ Public Class SalesForm
             .DiscountPercent = GetSelectedDiscountPercent(),
             .DiscountIsPercent = True,
             .DiscountLabel = GetSelectedDiscountLabel(),
+            .DiscountVerificationLabel = verifiedDiscountProofLabel,
+            .DiscountVerificationId = verifiedDiscountId,
             .TaxApplied = taxToggleOn,
             .TaxPercent = numTaxPercent.Value,
             .SubtotalBeforeDiscount = GetCartSubtotalSum(),
@@ -2697,10 +2800,12 @@ Public Class SalesForm
                     Dim saleQuery As String =
                         "INSERT INTO sales (" &
                         "total_amount, receipt_text, subtotal_before_discount, discount_percent, discount_amount, " &
-                        "amount_before_tax, tax_percent, tax_amount, amount_tendered, change_given) " &
+                        "amount_before_tax, tax_percent, tax_amount, amount_tendered, change_given, " &
+                        "discount_verification_label, discount_verification_id) " &
                         "VALUES (" &
                         "@total_amount, @receipt_text, @subtotal_before_discount, @discount_percent, @discount_amount, " &
-                        "@amount_before_tax, @tax_percent, @tax_amount, @amount_tendered, @change_given); " &
+                        "@amount_before_tax, @tax_percent, @tax_amount, @amount_tendered, @change_given, " &
+                        "@discount_verification_label, @discount_verification_id); " &
                         "SELECT CAST(SCOPE_IDENTITY() AS INT);"
 
                     Dim saleId As Integer
@@ -2716,6 +2821,18 @@ Public Class SalesForm
                         saleCommand.Parameters.AddWithValue("@tax_amount", snapshot.TaxAmount)
                         saleCommand.Parameters.AddWithValue("@amount_tendered", snapshot.AmountTendered)
                         saleCommand.Parameters.AddWithValue("@change_given", snapshot.ChangeGiven)
+                        If String.IsNullOrWhiteSpace(snapshot.DiscountVerificationLabel) Then
+                            saleCommand.Parameters.AddWithValue("@discount_verification_label", DBNull.Value)
+                        Else
+                            saleCommand.Parameters.AddWithValue("@discount_verification_label", snapshot.DiscountVerificationLabel.Trim())
+                        End If
+
+                        If String.IsNullOrWhiteSpace(snapshot.DiscountVerificationId) Then
+                            saleCommand.Parameters.AddWithValue("@discount_verification_id", DBNull.Value)
+                        Else
+                            saleCommand.Parameters.AddWithValue("@discount_verification_id", snapshot.DiscountVerificationId.Trim())
+                        End If
+
                         saleId = Convert.ToInt32(saleCommand.ExecuteScalar())
                         newSaleId = saleId
                     End Using
